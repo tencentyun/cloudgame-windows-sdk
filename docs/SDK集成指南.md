@@ -19,11 +19,10 @@
 |libs\x64| **64位**，采用 /MT 选项链接库文件 |
 ### 步骤2. 新建工程
 
-打开 Visual Studio，新建一个名为 TcrDemo 的 Windows桌面应用程序
+打开 Visual Studio，新建一个名为 TcrDemo 的 Windows桌面应用程序。
 ### 步骤3. 拷贝文件
 
-将解压后的 tcrsdk 文件夹拷贝到 TcrDemo.vcxproj 所在目录下，如下图所示：
-![enter image description here](/tencent/api/attachments/s3/url?attachmentid=3497143)
+将解压后的 tcrsdk 文件夹拷贝到 TcrDemo.vcxproj 所在目录下。
 ### 步骤4. 修改工程配置
 
 TcrSdk 提供了 **x64** 和 **x86** 两种编译生成的静态库，针对这两种有些地方要专门配置。打开 TcrDemo 属性页，在**解决方案资源管理器**>**TcrDemo工程的右键菜单**>**属性**。
