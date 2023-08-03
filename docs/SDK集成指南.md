@@ -30,27 +30,27 @@ TcrSdk 提供了 **x64** 和 **x86** 两种编译生成的静态库，针对这�
 1. 添加包含目录
     在 **C/C++**>**常规**>**附件包含目录**，添加 tcrsdk 头文件目录 $(ProjectDir)tcrsdk\include，如下图所示：
 <br><br>
-<img src="docs/images/接入SDK添加包含目录.png" width="700px">
+<img src="images/接入SDK添加包含目录.png" width="700px">
 <br><br>
 2. 添加库目录
     在 **链接器**>**常规**>**附加库目录**，添加 tcrsdk 库目录 $(ProjectDir)tcrsdk\libs\x64
 <br><br>
-<img src="docs/images/接入SDK添加库目录.png" width="700px">
+<img src="images/接入SDK添加库目录.png" width="700px">
 <br><br>
 3. 添加库文件
     在 **链接器**>**输入**>**附加依赖项**，添加 tcrsdk 库文件 TcrSdk-Win.lib ，如下图所示：
 <br><br>
-<img src="docs/images/接入SDK添加库文件.png" width="700px">
+<img src="images/接入SDK添加库文件.png" width="700px">
 <br><br>
 4. 拷贝 DLL 到执行目录
     在**生成事件**>**生成前事件**>**命令行**，输入  `xcopy /E /Y "$(ProjectDir)tcrsdk\libs\x64" "$(OutDir)"` ，拷贝 TcrSdk-Win.dll 动态库文件到程序生成目录，如下图所示：
 <br><br>
-<img src="docs/images/接入SDK生成前事件.png" width="700px">
+<img src="images/接入SDK生成前事件.png" width="700px">
 <br><br>
 5. 更改代码生成方式
 在**代码生成**>**运行库**，改为“多线程/MT”
 <br><br>
-<img src="docs/images/接入SDK更改代码生成.png" width="700px">
+<img src="images/接入SDK更改代码生成.png" width="700px">
 <br><br>
 6. 运行，创建TcrSession
 
