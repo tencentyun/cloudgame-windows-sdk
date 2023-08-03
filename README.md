@@ -17,3 +17,9 @@
 腾讯云渲染Windows SDK管理了终端和云端的会话连接，数据通道、音视频轨道，可以上下行文本和音视频数据；提供和云端虚拟设备、应用交互的上层接口；进行串流画面的本地渲染，缩放旋转操作，本地触屏事件到云端操作的映射，视图-视频-云端坐标系的转换。让您可以快速开发出业务客户端程序。
 
 本仓库目录存放了腾讯云渲染Windows SDK的相关资料。
+
+## Demo
+查看[TcrDemo](https://github.com/tencentyun/cloudgame-windows-sdk/tree/main/TcrDemo)，内涵Windows SDK组件
+
+## 文档
+[接入文档](https://github.com/tencentyun/cloudgame-windows-sdk/blob/main/docs/SDK%E9%9B%86%E6%88%90%E6%8C%87%E5%8D%97.md)以及[API文档]([https://github.com/tencentyun/cloudgame-windows-sdk/blob/main/docs/SDK%E9%9B%86%E6%88%90%E6%8C%87%E5%8D%97.md](https://tencentyun.github.io/cloudgame-windows-sdk/tcrsdk/index.html)https://tencentyun.github.io/cloudgame-windows-sdk/tcrsdk/index.html)
