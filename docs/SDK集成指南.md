@@ -8,7 +8,7 @@
 
 ## 集成 TcrSdk
 
-下面通过创建一个简单的 MFC 项目，介绍如何在 Visual Studio 2019 工程中集成 SDK。
+下面通过创建一个简单的 Windows项目，介绍如何在 Visual Studio 2019 工程中集成 SDK。
 ### 步骤1. 下载 TcrSdk
 
 
