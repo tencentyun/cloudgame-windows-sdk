@@ -8,7 +8,7 @@
 
 ## 集成 TcrSdk
 
-下面通过创建一个简单的 MFC 项目，介绍如何在 Visual Studio 2019 工程中集成 SDK。
+下面通过创建一个简单的 Windows项目，介绍如何在 Visual Studio 2019 工程中集成 SDK。
 ### 步骤1. 下载 TcrSdk
 
 
@@ -19,11 +19,10 @@
 |libs\x64| **64位**，采用 /MT 选项链接库文件 |
 ### 步骤2. 新建工程
 
-打开 Visual Studio，新建一个名为 TcrDemo 的 Windows桌面应用程序
+打开 Visual Studio，新建一个名为 TcrDemo 的 Windows桌面应用程序。
 ### 步骤3. 拷贝文件
 
-将解压后的 tcrsdk 文件夹拷贝到 TcrDemo.vcxproj 所在目录下，如下图所示：
-![enter image description here](/tencent/api/attachments/s3/url?attachmentid=3497143)
+将解压后的 tcrsdk 文件夹拷贝到 TcrDemo.vcxproj 所在目录下。
 ### 步骤4. 修改工程配置
 
 TcrSdk 提供了 **x64** 和 **x86** 两种编译生成的静态库，针对这两种有些地方要专门配置。打开 TcrDemo 属性页，在**解决方案资源管理器**>**TcrDemo工程的右键菜单**>**属性**。
@@ -31,27 +30,27 @@ TcrSdk 提供了 **x64** 和 **x86** 两种编译生成的静态库，针对这�
 1. 添加包含目录
     在 **C/C++**>**常规**>**附件包含目录**，添加 tcrsdk 头文件目录 $(ProjectDir)tcrsdk\include，如下图所示：
 <br><br>
-<img src="docs/images/接入SDK添加包含目录.png" width="700px">
+<img src="images/接入SDK添加包含目录.png" width="700px">
 <br><br>
 2. 添加库目录
     在 **链接器**>**常规**>**附加库目录**，添加 tcrsdk 库目录 $(ProjectDir)tcrsdk\libs\x64
 <br><br>
-<img src="docs/images/接入SDK添加库目录.png" width="700px">
+<img src="images/接入SDK添加库目录.png" width="700px">
 <br><br>
 3. 添加库文件
     在 **链接器**>**输入**>**附加依赖项**，添加 tcrsdk 库文件 TcrSdk-Win.lib ，如下图所示：
 <br><br>
-<img src="docs/images/接入SDK添加库文件.png" width="700px">
+<img src="images/接入SDK添加库文件.png" width="700px">
 <br><br>
 4. 拷贝 DLL 到执行目录
     在**生成事件**>**生成前事件**>**命令行**，输入  `xcopy /E /Y "$(ProjectDir)tcrsdk\libs\x64" "$(OutDir)"` ，拷贝 TcrSdk-Win.dll 动态库文件到程序生成目录，如下图所示：
 <br><br>
-<img src="docs/images/接入SDK生成前事件.png" width="700px">
+<img src="images/接入SDK生成前事件.png" width="700px">
 <br><br>
 5. 更改代码生成方式
 在**代码生成**>**运行库**，改为“多线程/MT”
 <br><br>
-<img src="docs/images/接入SDK更改代码生成.png" width="700px">
+<img src="images/接入SDK更改代码生成.png" width="700px">
 <br><br>
 6. 运行，创建TcrSession
 
