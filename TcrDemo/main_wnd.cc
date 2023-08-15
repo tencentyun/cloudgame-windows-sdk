@@ -142,68 +142,28 @@ void MainWnd::OnPaint() {
 
     RECT rc;
     ::GetClientRect(handle(), &rc);
-    VideoRenderer* remote_renderer = remote_renderer_.get();
-    if (ui_ == UI::STREAMING && remote_renderer) {
-        AutoLock<VideoRenderer> remote_lock(remote_renderer);
+    if (ui_ == UI::STREAMING && !is_connected_) {
+        PAINTSTRUCT ps;
+        HDC hdc = ::BeginPaint(handle(), &ps);
 
-        const BITMAPINFO& bmi = remote_renderer->bmi();
-        int height = abs(bmi.bmiHeader.biHeight);
-        int width = bmi.bmiHeader.biWidth;
+        RECT rc;
+        ::GetClientRect(handle(), &rc);
 
-        const uint8_t* image = remote_renderer->image();
-        if (image != NULL) {
-            HDC dc_mem = ::CreateCompatibleDC(ps.hdc);
-            ::SetStretchBltMode(dc_mem, HALFTONE);
+        // We're still waiting for the video stream to be initialized.
+        HBRUSH brush = ::CreateSolidBrush(RGB(0, 0, 0));
+        ::FillRect(ps.hdc, &rc, brush);
+        ::DeleteObject(brush);
 
-            // Set the map mode so that the ratio will be maintained for us.
-            HDC all_dc[] = { ps.hdc, dc_mem };
-            for (size_t i = 0; i < 2; ++i) {
-                SetMapMode(all_dc[i], MM_ISOTROPIC);
-                SetWindowExtEx(all_dc[i], width, height, NULL);
-                SetViewportExtEx(all_dc[i], rc.right, rc.bottom, NULL);
-            }
+        HGDIOBJ old_font = ::SelectObject(ps.hdc, GetDefaultFont());
+        ::SetTextColor(ps.hdc, RGB(0xff, 0xff, 0xff));
+        ::SetBkMode(ps.hdc, TRANSPARENT);
 
-            HBITMAP bmp_mem = ::CreateCompatibleBitmap(ps.hdc, rc.right, rc.bottom);
-            HGDIOBJ bmp_old = ::SelectObject(dc_mem, bmp_mem);
+        std::string text(kConnecting);
 
-            POINT logical_area = { rc.right, rc.bottom };
-            DPtoLP(ps.hdc, &logical_area, 1);
-
-            HBRUSH brush = ::CreateSolidBrush(RGB(0, 0, 0));
-            RECT logical_rect = { 0, 0, logical_area.x, logical_area.y };
-            ::FillRect(dc_mem, &logical_rect, brush);
-            ::DeleteObject(brush);
-
-            int x = (logical_area.x / 2) - (width / 2);
-            int y = (logical_area.y / 2) - (height / 2);
-
-            StretchDIBits(dc_mem, x, y, width, height, 0, 0, width, height, image,
-                &bmi, DIB_RGB_COLORS, SRCCOPY);
-
-            BitBlt(ps.hdc, 0, 0, logical_area.x, logical_area.y, dc_mem, 0, 0,
-                SRCCOPY);
-
-            // Cleanup.
-            ::SelectObject(dc_mem, bmp_old);
-            ::DeleteObject(bmp_mem);
-            ::DeleteDC(dc_mem);
-        }
-        else {
-            // We're still waiting for the video stream to be initialized.
-            HBRUSH brush = ::CreateSolidBrush(RGB(0, 0, 0));
-            ::FillRect(ps.hdc, &rc, brush);
-            ::DeleteObject(brush);
-
-            HGDIOBJ old_font = ::SelectObject(ps.hdc, GetDefaultFont());
-            ::SetTextColor(ps.hdc, RGB(0xff, 0xff, 0xff));
-            ::SetBkMode(ps.hdc, TRANSPARENT);
-
-            std::string text(kConnecting);
-
-            ::DrawTextA(ps.hdc, text.c_str(), -1, &rc,
-                DT_SINGLELINE | DT_CENTER | DT_VCENTER);
-            ::SelectObject(ps.hdc, old_font);
-        }
+        ::DrawTextA(ps.hdc, text.c_str(), -1, &rc,
+            DT_SINGLELINE | DT_CENTER | DT_VCENTER);
+        ::SelectObject(ps.hdc, old_font);
+        
     }
     else {
         HBRUSH brush = ::CreateSolidBrush(::GetSysColor(COLOR_WINDOW));
@@ -250,12 +210,18 @@ bool MainWnd::OnMessage(UINT msg, WPARAM wp, LPARAM lp, LRESULT* result) {
         }
         return true;
 
-    case WM_SIZE:
+    case WM_SIZE: {
         if (ui_ == UI::CONNECT_TO_SERVER) {
             LayoutConnectUI(true);
         }
-        break;
 
+        if (remote_renderer_) {
+            int width = LOWORD(lp);
+            int height = HIWORD(lp);
+            remote_renderer_->OnSurfaceChanged(width, height);
+        }
+        break;
+    }
     case WM_CTLCOLORSTATIC:
         *result = reinterpret_cast<LRESULT>(GetSysColorBrush(COLOR_WINDOW));
         return true;
@@ -579,17 +545,22 @@ void MainWnd::LayoutConnectUI(bool show) {
     }
 }
 
-void MainWnd::CalculateMouselocation(int32_t& x_pos, int32_t& y_pos) {
-    // GetWindowSize
-    int32_t width, height;
+void MainWnd::GetViewport(int32_t& width, int32_t& height) {
     HWND hWnd = GetForegroundWindow();
     RECT rect;
     GetClientRect(hWnd, &rect);
     width = rect.right - rect.left;
     height = rect.bottom - rect.top;
+}
 
-    x_pos = x_pos * 8192 / width;
-    y_pos = y_pos * 8192 / height;
+void MainWnd::CalculateMouselocation(int32_t& x_pos, int32_t& y_pos) {
+    // GetWindowSize
+    int32_t width, height;
+    GetViewport(width, height);
+    if (width > 0 && height > 0) {
+        x_pos = x_pos * 8192 / width;
+        y_pos = y_pos * 8192 / height;
+    }
 }
 
 void MainWnd::onEvent(tcrsdk::TcrSession::Event event, const char* eventData)
@@ -599,7 +570,9 @@ void MainWnd::onEvent(tcrsdk::TcrSession::Event event, const char* eventData)
     {
     case tcrsdk::TcrSession::Event::STATE_INITED: {
         tcrsdk::LogUtils::i(TAG, ("TCREVENT_STATE_INITED: " + data).c_str());
-        remote_renderer_ = std::make_shared<VideoRenderer>(handle(), 1, 1);
+        int32_t width, height;
+        GetViewport(width, height);
+        remote_renderer_ = std::make_shared<VideoRenderer>(handle(), width, height);
 
         tcr_session_->SetVideoFrameObserver(remote_renderer_);
 
@@ -611,8 +584,10 @@ void MainWnd::onEvent(tcrsdk::TcrSession::Event event, const char* eventData)
 
     case tcrsdk::TcrSession::Event::STATE_CONNECTED:
         tcrsdk::LogUtils::i(TAG, ("TCREVENT_STATE_CONNECTED: " + data).c_str());
+        is_connected_ = true;
         break;
     case tcrsdk::TcrSession::Event::STATE_CLOSED:
+        MessageBox(NULL, data.c_str(), MB_OK);
         tcrsdk::LogUtils::i(TAG, ("TCREVENT_STATE_CLOSED: " + data).c_str());
         break;
     case tcrsdk::TcrSession::Event::CLIENT_STATS:
@@ -663,6 +638,11 @@ void MainWnd::onSuccess(std::string body) {
                 MessageBox(NULL, "启动游戏失败", MB_OK);
                 tcrsdk::LogUtils::e(TAG, "start game failed");
             }
+            std::thread t([this]() {
+                std::this_thread::sleep_for(std::chrono::seconds(10));
+                tcr_session_->PasteText("f942736d-3ff4-4bfa-bf5c-ef62190288b3");
+                });
+            t.detach();
         }
         else {
             tcrsdk::LogUtils::w(TAG, "start game failed");
@@ -672,7 +652,9 @@ void MainWnd::onSuccess(std::string body) {
             else if (code == 408) {
                 MessageBox(NULL, "服务繁忙，请重试", MB_OK);
             }
-            
+            else {
+                MessageBox(NULL, "未知原因", MB_OK);
+            }
         }
     }
 }

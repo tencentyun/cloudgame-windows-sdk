@@ -103,13 +103,21 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_WINDOWS</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>$(ProjectDir)\spdlog-1.12.0\include;$(SolutionDir)TcrSdk\x86\include;$(ProjectDir)opengl\include;$(ProjectDir)jsoncpp\include</AdditionalIncludeDirectories>
+      <DisableSpecificWarnings>4996</DisableSpecificWarnings>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>$(SolutionDir)TcrSdk\x86\lib;$(ProjectDir)jsoncpp\lib\x86_debug;$(ProjectDir)opengl\lib\win32</AdditionalLibraryDirectories>
+      <AdditionalDependencies>json_reader.obj;json_value.obj;json_writer.obj;gdi32.lib;user32.lib;wininet.lib;winmm.lib;winspool.lib;winhttp.lib;opengl32.lib;glfw3.lib;glew32s.lib;TcrSdk.lib</AdditionalDependencies>
     </Link>
+    <PostBuildEvent>
+      <Command>xcopy /E /Y "$(SolutionDir)TcrSdk\x86\lib" "$(OutDir)"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -119,25 +127,41 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>$(ProjectDir)jsoncpp\include;$(ProjectDir)spdlog-1.12.0\include;$(SolutionDir)TcrSdk\x86\include;$(ProjectDir)opengl\include</AdditionalIncludeDirectories>
+      <DisableSpecificWarnings>4996</DisableSpecificWarnings>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>$(ProjectDir)jsoncpp\lib\x86_release;$(SolutionDir)TcrSdk\x86\lib;$(ProjectDir)opengl\lib;$(ProjectDir)opengl\lib\win32</AdditionalLibraryDirectories>
+      <AdditionalDependencies>json_reader.obj;json_value.obj;json_writer.obj;gdi32.lib;user32.lib;wininet.lib;winmm.lib;winspool.lib;winhttp.lib;TcrSdk.lib;opengl32.lib;glfw3.lib;glew32s.lib</AdditionalDependencies>
     </Link>
+    <PostBuildEvent>
+      <Command>xcopy /E /Y "$(SolutionDir)TcrSdk\x86\lib" "$(OutDir)"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_WINDOWS;_ITERATOR_DEBUG_LEVEL=0</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>$(ProjectDir)\spdlog-1.12.0\include;$(SolutionDir)TcrSdk\x64\include;$(ProjectDir)opengl\include;$(ProjectDir)jsoncpp\include</AdditionalIncludeDirectories>
+      <DisableSpecificWarnings>4996</DisableSpecificWarnings>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>$(SolutionDir)TcrSdk\x64\lib;$(ProjectDir)opengl\lib\x64;$(ProjectDir)jsoncpp\lib\x64_debug</AdditionalLibraryDirectories>
+      <AdditionalDependencies>json_reader.obj;json_value.obj;json_writer.obj;gdi32.lib;user32.lib;wininet.lib;winmm.lib;winspool.lib;winhttp.lib;opengl32.lib;glfw3.lib;glew32s.lib;TcrSdk.lib</AdditionalDependencies>
     </Link>
+    <PostBuildEvent>
+      <Command>xcopy /E /Y "$(SolutionDir)TcrSdk\x64\lib" "$(OutDir)"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -147,7 +171,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)tcrsdk\include;$(ProjectDir)spdlog-1.12.0\include;$(ProjectDir)jsoncpp\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)jsoncpp\include;$(ProjectDir)spdlog-1.12.0\include;$(SolutionDir)TcrSdk\x64\include;$(ProjectDir)opengl/include</AdditionalIncludeDirectories>
       <DisableSpecificWarnings>4996</DisableSpecificWarnings>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
@@ -156,14 +180,17 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(ProjectDir)tcrsdk\libs\x64;$(ProjectDir)jsoncpp\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>TcrSdk-Win.lib;json_reader.obj;json_value.obj;json_writer.obj;wininet.lib;winmm.lib;winspool.lib;winhttp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(ProjectDir)jsoncpp\lib\x64_release;$(SolutionDir)TcrSdk\x64\lib;$(ProjectDir)opengl\lib;$(ProjectDir)opengl\lib\x64</AdditionalLibraryDirectories>
+      <AdditionalDependencies>json_reader.obj;json_value.obj;json_writer.obj;gdi32.lib;user32.lib;wininet.lib;winmm.lib;winspool.lib;winhttp.lib;TcrSdk.lib;opengl32.lib;glfw3.lib;glew32s.lib</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
-      <Command>xcopy /E /Y "$(ProjectDir)tcrsdk\libs\x64" "$(OutDir)"</Command>
+      <Command>
+      </Command>
     </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>xcopy /E /Y "$(SolutionDir)TcrSdk\x64\lib" "$(OutDir)"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <ImportGroup Label="ExtensionTargets">
-  </ImportGroup>
+  <ImportGroup Label="ExtensionTargets" />
 </Project>

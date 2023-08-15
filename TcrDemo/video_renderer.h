@@ -1,61 +1,61 @@
 #ifndef TCRDEMO_VIDEO_RENDERER_H_
 #define TCRDEMO_VIDEO_RENDERER_H_
-#define NOMINMAX
+
 #include <Windows.h>
+
+#define GLEW_STATIC
+#include <GL/glew.h>
+#include <GLFW\glfw3.h>
+#include <mutex>
 #include "video_frame_observer.h"
-
-// A little helper class to make sure we always to proper locking and
-// unlocking when working with VideoRenderer buffers.
-template <typename T>
-class AutoLock {
-public:
-    explicit AutoLock(T* obj) : obj_(obj) { obj_->Lock(); }
-    ~AutoLock() { obj_->Unlock(); }
-
-protected:
-    T* obj_;
-};
 
 class VideoRenderer : public tcrsdk::VideoFrameObserver {
 public:
-    VideoRenderer(HWND wnd,
-        int width,
-        int height);
+    VideoRenderer(HWND wnd, int32_t viewport_width, int32_t viewport_height);
     virtual ~VideoRenderer();
-
-    void Lock() { ::EnterCriticalSection(&buffer_lock_); }
-
-    void Unlock() { ::LeaveCriticalSection(&buffer_lock_); }
 
     // VideoSinkInterface implementation
     void OnFrame(const tcrsdk::VideoFrame& frame) override;
+    void OnSurfaceChanged(int32_t width, int32_t height);
 
-    const BITMAPINFO& bmi() const { return bmi_; }
-    const uint8_t* image() const { return image_.get(); }
+private:
+    void Init();
+    bool InitContext();
+    void DestroyContext();
+    void InitShaders();
+    void InitTexture();
+    void CalcRenderPos();
+    void RenderFrame(const tcrsdk::VideoFrame& video_frame);
 
-    void I420ToARGB(const uint8_t* src_y,
-        int src_stride_y,
-        const uint8_t* src_u,
-        int src_stride_u,
-        const uint8_t* src_v,
-        int src_stride_v,
-        uint8_t* dst_argb,
-        int dst_stride_argb,
-        int width,
-        int height);
+private:
+    uint32_t window_width_{};
+    uint32_t window_height_{};
+    HWND hwnd_{};
+    HDC hdc_{};
+    HGLRC hrc_{};
 
-protected:
-    void SetSize(int width, int height);
+    GLuint texture_y_;
+    GLuint texture_u_;
+    GLuint texture_v_;
+    GLuint uniform_y_;
+    GLuint uniform_u_;
+    GLuint uniform_v_;
+    GLuint shader_program_;
 
-    enum {
-        SET_SIZE,
-        RENDER_FRAME,
-    };
+    uint32_t render_width_{};
+    uint32_t render_height_{}; 
 
-    HWND wnd_;
-    BITMAPINFO bmi_;
-    std::unique_ptr<uint8_t[]> image_;
-    CRITICAL_SECTION buffer_lock_;
+    volatile uint32_t viewport_width_{};
+    volatile uint32_t viewport_height_{};
+
+    tcrsdk::VideoFrame video_frame_;
+
+    std::mutex frame_mutex_;
+    volatile bool is_frame_active_ = false;
+    volatile bool is_inited_ = false;
+    volatile bool is_rendering_ = true;
+
+    static const char* const TAG;
 };
 
 #endif

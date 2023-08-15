@@ -77,6 +77,8 @@ class MainWnd : public ServerResponseListener, public tcrsdk::TcrSession::Observ
   // 计算鼠标发送坐标
   void CalculateMouselocation(int32_t& x, int32_t& y);
 
+  void GetViewport(int32_t& width, int32_t& height);
+
   // 通过 TcrSession::Observer 继承
   virtual void onEvent(tcrsdk::TcrSession::Event event, const char* eventData) override;
 
@@ -95,6 +97,7 @@ class MainWnd : public ServerResponseListener, public tcrsdk::TcrSession::Observ
   std::unique_ptr <tcrsdk::TcrSession> tcr_session_;
   std::unique_ptr<CloudGameApi> cloud_game_api_;
   std::shared_ptr<tcrsdk::TcrLogger>logger_;
+  volatile bool is_connected_ = false;
   static const char* const TAG;
 };
 #endif  // WIN32
