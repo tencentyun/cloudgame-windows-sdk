@@ -1,4 +1,4 @@
-#ifndef MY_TCR_LOGGER_H_
+ï»¿#ifndef MY_TCR_LOGGER_H_
 #define MY_TCR_LOGGER_H_
 
 #include "tcr_logger.h"
@@ -10,7 +10,7 @@ class MyTcrLogger : public tcrsdk::TcrLogger
 public:
 	MyTcrLogger();
 	~MyTcrLogger();
-	// Í¨¹ý TcrLogger ¼Ì³Ð
+
 	virtual void t(const char* tag, const char* log) override;
 	virtual void d(const char* tag, const char* log) override;
 	virtual void i(const char* tag, const char* log) override;

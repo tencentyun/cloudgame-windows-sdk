@@ -1,4 +1,4 @@
-#include <string>
+ï»¿#include <string>
 #include <vector>
 #include <memory>
 
@@ -11,10 +11,10 @@ int PASCAL wWinMain(HINSTANCE instance,
                     HINSTANCE prev_instance,
                     wchar_t* cmd_line,
                     int cmd_show) {
-  // ×¢²ácrash dump
+  // æ³¨å†Œcrash dump
   CrashDump::InitCrashDump();
 
-  // ´´½¨Ö÷´°¿Ú
+  // åˆ›å»ºä¸»çª—å£
   std::shared_ptr<MainWnd> wnd(new MainWnd());
   if (!wnd->Create()) {
     return -1;

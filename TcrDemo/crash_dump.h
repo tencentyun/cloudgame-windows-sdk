@@ -1,4 +1,4 @@
-#ifndef TCRDEMO_CRASH_DUMP_H_
+﻿#ifndef TCRDEMO_CRASH_DUMP_H_
 #define TCRDEMO_CRASH_DUMP_H_
 
 #include <windows.h>
@@ -7,7 +7,7 @@
 class CrashDump
 {
 public:
-	// ע��CrashDump
+	// 初始化CrashDump
 	static void InitCrashDump();
 private:
 	// create mini dump file
