@@ -18,6 +18,9 @@
 
 本仓库目录存放了腾讯云渲染Windows SDK的相关资料。
 
+## Release
+Release Notes和TcrSdk下载：https://github.com/tencentyun/cloudgame-windows-sdk/releases
+
 ## Demo
 查看[TcrDemo](https://github.com/tencentyun/cloudgame-windows-sdk/tree/main/TcrDemo)，Windows SDK组件在TcrDemo/tcrsdk目录下。
 
