@@ -182,11 +182,11 @@ void MainWnd::OnButtonClick() {
     if (ui_ == UI::CONNECT_TO_SERVER) {
         exprience_code_ = GetWindowText(edit1_);
 
-        // ����������TcrLogger�������Զ����ӡTCRSDK�ڲ�����־
+        // Create and set TcrLogger for custom printing of internal logs within TCRSDK.
         logger_ = std::make_shared<MyTcrLogger>();
         tcrsdk::LogUtils::SetLogger(logger_);
 
-        // ��������ʼ��TcrSdk
+        // Create and initialize TcrSdk
         tcr_session_ = std::make_unique<tcrsdk::TcrSession>(shared_from_this());
         tcr_session_->Init();
 
@@ -307,7 +307,7 @@ bool MainWnd::OnMessage(UINT msg, WPARAM wp, LPARAM lp, LRESULT* result) {
 
             if (keyCode == VK_SHIFT || keyCode == VK_CONTROL || keyCode == VK_MENU)
             {
-                // ��ȡ����Shift��Ctrl��Alt����״̬
+                // Get the status of left and right Shift, Ctrl, and Alt keys
                 short lShiftState = GetKeyState(VK_LSHIFT);
                 short rShiftState = GetKeyState(VK_RSHIFT);
                 short lCtrlState = GetKeyState(VK_LCONTROL);
@@ -315,7 +315,7 @@ bool MainWnd::OnMessage(UINT msg, WPARAM wp, LPARAM lp, LRESULT* result) {
                 short lAltState = GetKeyState(VK_LMENU);
                 short rAltState = GetKeyState(VK_RMENU);
 
-                // ��鰴�µ�Shift������໹���Ҳ�
+                // Check if the pressed Shift key is on the left or the right side
                 if (keyCode == VK_SHIFT)
                 {
                     if (lShiftState & 0x8000)
@@ -330,7 +330,7 @@ bool MainWnd::OnMessage(UINT msg, WPARAM wp, LPARAM lp, LRESULT* result) {
                     }
                 }
 
-                // ��鰴�µ�Ctrl������໹���Ҳ�
+                // �Check if the pressed Ctrl key is on the left or the right side
                 if (keyCode == VK_CONTROL)
                 {
                     if (lCtrlState & 0x8000)
@@ -345,7 +345,7 @@ bool MainWnd::OnMessage(UINT msg, WPARAM wp, LPARAM lp, LRESULT* result) {
                     }
                 }
 
-                // ��鰴�µ�Alt������໹���Ҳ�
+                // Check if the pressed Alt key is on the left or the right side
                 if (keyCode == VK_MENU)
                 {
                     if (lAltState & 0x8000)
@@ -374,7 +374,7 @@ bool MainWnd::OnMessage(UINT msg, WPARAM wp, LPARAM lp, LRESULT* result) {
             if (keyCode == VK_SHIFT || keyCode == VK_CONTROL || keyCode == VK_MENU) {
                 int scanCode = (lp & 0x00FF0000) >> 16;
 
-                // ʹ��MapVirtualKey��ɨ����ת��Ϊ���������
+                // ʹConvert scan code to virtual key code using MapVirtualKey
                 int mappedKeyCode = MapVirtualKey(scanCode, MAPVK_VSC_TO_VK_EX);
 
                 if (keyCode == VK_SHIFT)
@@ -635,7 +635,7 @@ void MainWnd::onEvent(tcrsdk::TcrSession::Event event, const char* eventData)
 }
 
 void MainWnd::onSuccess(std::string body) {
-    // ����response
+    // Parse the response
     Json::Reader reader;
     Json::Value root;
     if (reader.parse(body, root)) {
@@ -645,25 +645,20 @@ void MainWnd::onSuccess(std::string body) {
         if (code == 0) {
             //tcrsdk::LogUtils::i(TAG, "starting connect to game";
             if (!tcr_session_->Start(serverSession.c_str())) {
-                MessageBox(NULL, "������Ϸʧ��", MB_OK);
+                MessageBox(NULL, "Failed to launch the game.", MB_OK);
                 tcrsdk::LogUtils::e(TAG, "start game failed");
             }
-            std::thread t([this]() {
-                std::this_thread::sleep_for(std::chrono::seconds(10));
-                tcr_session_->PasteText("f942736d-3ff4-4bfa-bf5c-ef62190288b3");
-                });
-            t.detach();
         }
         else {
             tcrsdk::LogUtils::w(TAG, "start game failed");
             if (code == 402) {
-                MessageBox(NULL, "��������Ч������ϵ��Ѷ����Ⱦ��ȡ������", MB_OK);
+                MessageBox(NULL, "The experience code is invalid. Please contact Tencent Cloud Rendering to obtain a valid experience code.", MB_OK);
             }
             else if (code == 408) {
-                MessageBox(NULL, "����æ��������", MB_OK);
+                MessageBox(NULL, "The service is busy, please try again.", MB_OK);
             }
             else {
-                MessageBox(NULL, "δ֪ԭ��", MB_OK);
+                MessageBox(NULL, "Unknown", MB_OK);
             }
         }
     }
