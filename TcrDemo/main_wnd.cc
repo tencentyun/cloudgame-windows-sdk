@@ -182,11 +182,11 @@ void MainWnd::OnButtonClick() {
     if (ui_ == UI::CONNECT_TO_SERVER) {
         exprience_code_ = GetWindowText(edit1_);
 
-        // ´´½¨²¢ÉèÖÃTcrLogger£¬ÓÃÓÚ×Ô¶¨Òå´òÓ¡TCRSDKÄÚ²¿µÄÈÕÖ¾
+        // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½TcrLoggerï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô¶ï¿½ï¿½ï¿½ï¿½Ó¡TCRSDKï¿½Ú²ï¿½ï¿½ï¿½ï¿½ï¿½Ö¾
         logger_ = std::make_shared<MyTcrLogger>();
         tcrsdk::LogUtils::SetLogger(logger_);
 
-        // ´´½¨²¢³õÊ¼»¯TcrSdk
+        // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê¼ï¿½ï¿½TcrSdk
         tcr_session_ = std::make_unique<tcrsdk::TcrSession>(shared_from_this());
         tcr_session_->Init();
 
@@ -196,6 +196,15 @@ void MainWnd::OnButtonClick() {
 
 bool MainWnd::OnMessage(UINT msg, WPARAM wp, LPARAM lp, LRESULT* result) {
     switch (msg) {
+    case WM_CREATE:
+        SetFocus(wnd_);
+        break;
+    case WM_ACTIVATE:
+        if (LOWORD(wp) != WA_INACTIVE)
+        {
+            SetFocus(wnd_);
+        }
+        break;
     case WM_ERASEBKGND:
         *result = TRUE;
         return true;
@@ -230,6 +239,7 @@ bool MainWnd::OnMessage(UINT msg, WPARAM wp, LPARAM lp, LRESULT* result) {
         if (button_ == reinterpret_cast<HWND>(lp)) {
             if (BN_CLICKED == HIWORD(wp))
                 OnButtonClick();
+            SetFocus(wnd_);
         }
         return true;
     case WM_LBUTTONDOWN:
@@ -297,7 +307,7 @@ bool MainWnd::OnMessage(UINT msg, WPARAM wp, LPARAM lp, LRESULT* result) {
 
             if (keyCode == VK_SHIFT || keyCode == VK_CONTROL || keyCode == VK_MENU)
             {
-                // »ñÈ¡×óÓÒShift¡¢CtrlºÍAlt¼üµÄ×´Ì¬
+                // ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½Shiftï¿½ï¿½Ctrlï¿½ï¿½Altï¿½ï¿½ï¿½ï¿½×´Ì¬
                 short lShiftState = GetKeyState(VK_LSHIFT);
                 short rShiftState = GetKeyState(VK_RSHIFT);
                 short lCtrlState = GetKeyState(VK_LCONTROL);
@@ -305,7 +315,7 @@ bool MainWnd::OnMessage(UINT msg, WPARAM wp, LPARAM lp, LRESULT* result) {
                 short lAltState = GetKeyState(VK_LMENU);
                 short rAltState = GetKeyState(VK_RMENU);
 
-                // ¼ì²é°´ÏÂµÄShift¼üÊÇ×ó²à»¹ÊÇÓÒ²à
+                // ï¿½ï¿½é°´ï¿½Âµï¿½Shiftï¿½ï¿½ï¿½ï¿½ï¿½ï¿½à»¹ï¿½ï¿½ï¿½Ò²ï¿½
                 if (keyCode == VK_SHIFT)
                 {
                     if (lShiftState & 0x8000)
@@ -320,7 +330,7 @@ bool MainWnd::OnMessage(UINT msg, WPARAM wp, LPARAM lp, LRESULT* result) {
                     }
                 }
 
-                // ¼ì²é°´ÏÂµÄCtrl¼üÊÇ×ó²à»¹ÊÇÓÒ²à
+                // ï¿½ï¿½é°´ï¿½Âµï¿½Ctrlï¿½ï¿½ï¿½ï¿½ï¿½ï¿½à»¹ï¿½ï¿½ï¿½Ò²ï¿½
                 if (keyCode == VK_CONTROL)
                 {
                     if (lCtrlState & 0x8000)
@@ -335,7 +345,7 @@ bool MainWnd::OnMessage(UINT msg, WPARAM wp, LPARAM lp, LRESULT* result) {
                     }
                 }
 
-                // ¼ì²é°´ÏÂµÄAlt¼üÊÇ×ó²à»¹ÊÇÓÒ²à
+                // ï¿½ï¿½é°´ï¿½Âµï¿½Altï¿½ï¿½ï¿½ï¿½ï¿½ï¿½à»¹ï¿½ï¿½ï¿½Ò²ï¿½
                 if (keyCode == VK_MENU)
                 {
                     if (lAltState & 0x8000)
@@ -364,7 +374,7 @@ bool MainWnd::OnMessage(UINT msg, WPARAM wp, LPARAM lp, LRESULT* result) {
             if (keyCode == VK_SHIFT || keyCode == VK_CONTROL || keyCode == VK_MENU) {
                 int scanCode = (lp & 0x00FF0000) >> 16;
 
-                // Ê¹ÓÃMapVirtualKey½«É¨ÃèÂë×ª»»ÎªÐéÄâ¼ü´úÂë
+                // Ê¹ï¿½ï¿½MapVirtualKeyï¿½ï¿½É¨ï¿½ï¿½ï¿½ï¿½×ªï¿½ï¿½Îªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
                 int mappedKeyCode = MapVirtualKey(scanCode, MAPVK_VSC_TO_VK_EX);
 
                 if (keyCode == VK_SHIFT)
@@ -625,7 +635,7 @@ void MainWnd::onEvent(tcrsdk::TcrSession::Event event, const char* eventData)
 }
 
 void MainWnd::onSuccess(std::string body) {
-    // ½âÎöresponse
+    // ï¿½ï¿½ï¿½ï¿½response
     Json::Reader reader;
     Json::Value root;
     if (reader.parse(body, root)) {
@@ -635,7 +645,7 @@ void MainWnd::onSuccess(std::string body) {
         if (code == 0) {
             //tcrsdk::LogUtils::i(TAG, "starting connect to game";
             if (!tcr_session_->Start(serverSession.c_str())) {
-                MessageBox(NULL, "Æô¶¯ÓÎÏ·Ê§°Ü", MB_OK);
+                MessageBox(NULL, "ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ï·Ê§ï¿½ï¿½", MB_OK);
                 tcrsdk::LogUtils::e(TAG, "start game failed");
             }
             std::thread t([this]() {
@@ -647,13 +657,13 @@ void MainWnd::onSuccess(std::string body) {
         else {
             tcrsdk::LogUtils::w(TAG, "start game failed");
             if (code == 402) {
-                MessageBox(NULL, "ÌåÑéÂëÎÞÐ§£¬ÇëÁªÏµÌÚÑ¶ÔÆäÖÈ¾»ñÈ¡ÌåÑéÂë", MB_OK);
+                MessageBox(NULL, "ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð§ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ïµï¿½ï¿½Ñ¶ï¿½ï¿½ï¿½ï¿½È¾ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½", MB_OK);
             }
             else if (code == 408) {
-                MessageBox(NULL, "·þÎñ·±Ã¦£¬ÇëÖØÊÔ", MB_OK);
+                MessageBox(NULL, "ï¿½ï¿½ï¿½ï¿½Ã¦ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½", MB_OK);
             }
             else {
-                MessageBox(NULL, "Î´ÖªÔ­Òò", MB_OK);
+                MessageBox(NULL, "Î´ÖªÔ­ï¿½ï¿½", MB_OK);
             }
         }
     }
