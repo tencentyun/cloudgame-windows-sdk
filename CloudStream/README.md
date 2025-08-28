@@ -18,11 +18,13 @@
 ---
 ## 2. 工程环境准备
 
-**SDK 为纯 C 接口，无 Qt 依赖，可在任意 C++ 工程中集成**。本文以 Qt Quick 工程为例，介绍典型的集成流程和注意事项。
+**TcrSdk为纯 C 接口，无 Qt 依赖，可在任意 C++ 工程中集成**。本文以 Qt Quick 工程为例，介绍典型的集成流程和注意事项。
+
 ### 2.1 依赖环境
 
-- **TcrSdk**（云手机 C/C++ SDK，含头文件、lib、dll）
-- 若您的工程使用Visual Studio开发可以直接集成，若您的工程使用Qt或者其他项目，您需要确认编译器使用的是`MSVC 2022 64-bit`
+- 从[TcrSdk发布记录](https://github.com/tencentyun/cloudgame-windows-sdk/blob/main/Docs/Release_Note.md)下载最新版本SDK(含头文件、lib、dll), 并拷贝到`third_party/TcrSdk` 目录
+- 若您的工程使用Visual Studio开发可以直接集成，若您的客户端是Qt工程，您需要确认编译器使用的是`MSVC 2022 64-bit`
+
 ### 2.2 目录结构建议
 
 ```
@@ -41,7 +43,8 @@ CloudPhone_QtQuick/
 
 ## 3. CMake 工程配置
 
-参考如下 CMake 配置片段，确保 SDK 头文件、lib、dll 正确集成：
+参考如下 CMake 配置片段，确保 SDK 头文件、lib、dll 正确集成:
+
 
 ```cmake
 # 源码与头文件
