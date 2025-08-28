@@ -9,3 +9,12 @@
 ### Download
 - [TcrSdk-Debug-1.8.0-20250727-65e8d51dd.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Debug-1.8.0-20250727-65e8d51dd.zip)
 - [TcrSdk-Release-1.8.0-20250727-65e8d51dd.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Release-1.8.0-20250727-65e8d51dd.zip)
+
+## Version 1.10.4
+### Features
+- 支持云手机摄像头上行能力
+- 支持云手机麦克风上行能力
+
+### Download
+- [TcrSdk-Release-1.10.4-20250828-0fe461a74](https://cg-sdk-1258344699.cos-internal.ap-nanjing.tencentcos.cn/CloudDeviceWinSDK/sdk/TcrSdk-Release-1.10.4-20250828-0fe461a74.zip)
+- [TcrSdk-Debug-1.10.4-20250828-0fe461a74](https://cg-sdk-1258344699.cos-internal.ap-nanjing.tencentcos.cn/CloudDeviceWinSDK/sdk/TcrSdk-Debug-1.10.4-20250828-0fe461a74.zip)
