@@ -1,10 +1,10 @@
 # 云手机SDK集成指引
 
-## 1. 云手机 PaaS 架构概览
+## 1. 前后端架构概览
 站在SDK的角度整体架构由**业务后台**、**云 API**和**客户端 SDK**三个部分组成
+- **客户端 SDK**：业务客户端集成 SDK，实现云手机实例的截图展示、实时串流、事件监听等功能。
 - **业务后台**: 帮客户端转发CreateAndroidInstancesAccessToken请求以便获取Token及AccessInfo
 - **云 API**：业务后台通过 HTTP/RESTful API 实现AccessToken的创建和返回。
-- **客户端 SDK**：业务客户端集成 SDK，实现云手机实例的截图展示、实时串流、事件监听等功能。
 ![arch](https://cg-sdk-1258344699.cos.ap-nanjing.myqcloud.com/CloudDeviceWinSDK/docs/images/cloud_phone_arch.png)
 **业务接入流程：**
 
@@ -13,7 +13,7 @@
 
 本指南面向需要在**Windows C++项目**（如 Qt Quick 工程）中集成云手机 PaaS Windows SDK 的开发者，如果您的客户端使用跨端的Web技术进行开发，请参考[前端JS-SDK接入文档](https://ex.cloud-gaming.myqcloud.com/cloud_gaming_web/docs/index.html)。
 
-为了便于您快速接入Windows SDK，我们提供了一个基于**QtQuick**的Demo工程，可以通过[Cloud Phone QtQuick Demo快速上手指南](CloudStream_QtQuick_Demo/README.md)下载和了解Demo运行流程。
+为了便于您快速接入Windows SDK，我们提供了一个基于**QtQuick**的Demo工程，可以通过[CloudStream_QtQuick_Demo](CloudStream_QtQuick_Demo/README.md)下载和了解Demo运行流程。
 
 ---
 ## 2. 工程环境准备
