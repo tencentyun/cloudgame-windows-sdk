@@ -1,13 +1,13 @@
 # Release Notes
 
-## Version 1.10.4
+## Version 1.10.5
 ### Features
 - 支持云手机摄像头上行能力
 - 支持云手机麦克风上行能力
 
 ### Download
-- [TcrSdk-Release-1.10.4-20250828-0fe461a74](https://cg-sdk-1258344699.cos-internal.ap-nanjing.tencentcos.cn/CloudDeviceWinSDK/sdk/TcrSdk-Release-1.10.4-20250828-0fe461a74.zip)
-- [TcrSdk-Debug-1.10.4-20250828-0fe461a74](https://cg-sdk-1258344699.cos-internal.ap-nanjing.tencentcos.cn/CloudDeviceWinSDK/sdk/TcrSdk-Debug-1.10.4-20250828-0fe461a74.zip)
+- [TcrSdk-Release-1.10.5-20250829-2741552e0](https://cg-sdk-1258344699.cos-internal.ap-nanjing.tencentcos.cn/CloudDeviceWinSDK/sdk/TcrSdk-Release-1.10.5-20250829-2741552e0.zip)
+- [TcrSdk-Debug-1.10.5-20250829-2741552e0](https://cg-sdk-1258344699.cos-internal.ap-nanjing.tencentcos.cn/CloudDeviceWinSDK/sdk/TcrSdk-Debug-1.10.5-20250829-2741552e0.zip)
 
 
 ## Version 1.8.0

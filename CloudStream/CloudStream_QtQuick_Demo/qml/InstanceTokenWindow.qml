@@ -71,7 +71,7 @@ Window {
                 TextField {
                     id: userIpField
                     placeholderText: "例如：192.168.1.100（可选）"
-                    text: "1.1.128.123"
+                    text: "43.152.247.219"
                     Layout.fillWidth: true
                     font.pixelSize: 14
                     inputMethodHints: Qt.ImhDigitsOnly

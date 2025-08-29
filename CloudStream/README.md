@@ -174,10 +174,11 @@ tcr_client_destroy_session(tcrClient, tcrSession);
 
 ---
 
-## 5. 常见问题与建议
+## 5. 注意事项
 
 - 会话管理: 每一个`TcrClientHandle`只能调用一次`tcr_session_access`, 如需多个会话请创建多个实例并释放使用过的实例。
 - **日志调试**：您需要通过 `tcr_set_log_callback`、`tcr_set_log_level` 配置日志，以便在出现问题之后将日志反馈给开发团队定位问题。
+- Demo [CloudStream_QtQuick_Demo](CloudStream_QtQuick_Demo/README.md) 演示了串流场景下SDK能力(截图展示及串流交互等)，[SDK接口](https://cloud.tencent.com/document/product/1162/122588) 支持的其他功能为云手机Paas功能。
 
 ---
 
