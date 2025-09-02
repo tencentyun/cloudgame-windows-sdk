@@ -5,7 +5,9 @@
 - **客户端 SDK**：业务客户端集成 SDK，实现云手机实例的截图展示、实时串流、事件监听等功能。
 - **业务后台**: 帮客户端转发CreateAndroidInstancesAccessToken请求以便获取Token及AccessInfo
 - **云 API**：业务后台通过 HTTP/RESTful API 实现AccessToken的创建和返回。
-![arch](https://cg-sdk-1258344699.cos.ap-nanjing.myqcloud.com/CloudDeviceWinSDK/docs/images/cloud_phone_arch.png)
+![arch](https://cg-sdk-1258344699.cos.ap-nanjing.myqcloud.com/CloudDeviceWinSDK/docs/images/cloud_stream_arch.png)
+
+
 **业务接入流程：**
 
 1. 业务后台对接云 API。(开发团队会提供业务后台的源码)
