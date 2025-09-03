@@ -98,7 +98,8 @@ QString TcrInstanceManager::getImageUrl(const QString &instanceId) {
         return QString();
     }
 
-    if (!tcr_instance_get_image(m_tcrAndroidInstance, buffer.data(), BUFFER_SIZE, instanceId.toUtf8().constData())) {
+    if (!tcr_instance_get_image(m_tcrAndroidInstance, buffer.data(), BUFFER_SIZE, instanceId.toUtf8().constData(),135, 240, 20)) {
+        Logger::error(QString("cyy_test tcr_instance_get_image failed"));
         return QString();
     }
     

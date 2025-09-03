@@ -33,6 +33,7 @@ Window {
 
     Component.onCompleted: {
         instanceManager.initialize(instanceIds, accessInfo, token);
+        // mainWindow.visibility = Window.Maximized;
     }
 
     // 顶部按钮区域
@@ -102,8 +103,8 @@ Window {
         anchors.right: parent.right
         anchors.margins: 10
         clip: true
-        cellWidth: 320
-        cellHeight: 569
+        cellWidth: (parent.width - 20) / 20
+        cellHeight: cellWidth * 240 / 135
         model: instanceManager.instances
         property bool isScrolling: false
         property var visibleInstanceIds: []
@@ -137,8 +138,8 @@ Window {
             instanceManager.resumeImageDownload();
         }
         delegate: Rectangle {
-            width: 310
-            height: 559
+            width: gridView.cellWidth - 10
+            height: gridView.cellHeight - 10
             border.color: "gray"
             MouseArea {
                 anchors.fill: parent

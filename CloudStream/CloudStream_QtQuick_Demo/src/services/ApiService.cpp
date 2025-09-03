@@ -74,7 +74,9 @@ void ApiService::processCommonResponse(QNetworkReply* reply,
 void ApiService::createAndroidInstancesAccessToken(const QStringList& androidInstanceIds, const QString& userIp) {
     QJsonObject data;
     data["RequestId"] = QUuid::createUuid().toString();
-    data["UserIp"] = userIp;
+    if (!userIp.isEmpty()) {
+        data["UserIp"] = userIp;
+    }
     
     QJsonArray instanceIdsArray;
     for (const QString& id : androidInstanceIds) {

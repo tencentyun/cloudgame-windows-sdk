@@ -61,7 +61,7 @@ void ImageDownloader::downloadBatch()
         }
 
         QString imageUrl = m_instanceManager->getImageUrl(instanceId);
-        if (imageUrl.isEmpty() || !imageUrl.startsWith("http")) {
+        if (imageUrl.isEmpty() || !imageUrl.startsWith("http") || !imageUrl.startsWith("https")) {
             Logger::error(QString("ImageDownloader: Invalid image URL for instance %1: %2").arg(instanceId).arg(imageUrl));
             continue;
         }

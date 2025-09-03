@@ -71,7 +71,7 @@ Window {
                 TextField {
                     id: userIpField
                     placeholderText: "例如：192.168.1.100（可选）"
-                    text: "43.152.247.219"
+                    text: "1.1.128.123"
                     Layout.fillWidth: true
                     font.pixelSize: 14
                     inputMethodHints: Qt.ImhDigitsOnly
@@ -141,26 +141,37 @@ Window {
         }
     }
     
+    property var mainWindowRef: null   // 主窗口引用
+
     // 处理ViewModel信号
     Connections {
         target: instanceAccessViewModel
         
         function onAccessTokenCreated(accessInfo, token) {
-            var component = Qt.createComponent("MainWindow.qml");
-            if (component.status === Component.Ready) {
-                var mainWindow = component.createObject(null, {
-                    "instanceIds": instanceIdsField.text.trim().split(","),
-                    "accessInfo": accessInfo,
-                    "token": token
-                });
-                if (mainWindow) {
-                    mainWindow.show();
-                    instanceAccessWindow.close();
+            if (!mainWindowRef) {
+                var component = Qt.createComponent("MainWindow.qml");
+                if (component.status === Component.Ready) {
+                    mainWindowRef = component.createObject(null, {
+                        "instanceIds": instanceIdsField.text.trim().split(","),
+                        "accessInfo": accessInfo,
+                        "token": token
+                    });
+                    if (mainWindowRef) {
+                        mainWindowRef.visible = true;
+                        instanceAccessWindow.hide();   // 隐藏
+                    } else {
+                        console.error("创建主窗口对象失败");
+                    }
                 } else {
-                    console.error("创建主窗口对象失败");
+                    console.error("创建主窗口失败:", component.errorString());
                 }
             } else {
-                console.error("创建主窗口失败:", component.errorString());
+                // 已存在主窗口，直接显示
+                mainWindowRef.instanceIds = instanceIdsField.text.trim().split(",");
+                mainWindowRef.accessInfo   = accessInfo;
+                mainWindowRef.token        = token;
+                mainWindowRef.visible      = true;
+                instanceAccessWindow.hide();
             }
         }
         
