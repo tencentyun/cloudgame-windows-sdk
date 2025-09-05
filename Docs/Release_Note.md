@@ -1,5 +1,15 @@
 # Release Notes
 
+## Version 1.10.8
+### Features
+- 支持单独控制音频视频暂停和恢复接口
+- 支持变更云端视频流分辨率
+- 单连走新鉴权逻辑
+
+### Download
+- [TcrSdk-Debug-1.10.8-20250904-a54add26f](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Debug-1.10.8-20250904-a54add26f.zip)
+- [TcrSdk-Release-1.10.8-20250904-a54add26f](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Release-1.10.8-20250904-a54add26f.zip)
+
 ## Version 1.10.5
 ### Features
 - 支持云手机摄像头上行能力
