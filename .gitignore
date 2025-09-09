@@ -1,1 +1,3 @@
-.vs/
+# 忽略 DLL 和 PDB 文件
+CloudStream/CloudStream_QtQuick_Demo/third_party/TcrSdk/**/*.dll
+CloudStream/CloudStream_QtQuick_Demo/third_party/TcrSdk/**/*.pdb
