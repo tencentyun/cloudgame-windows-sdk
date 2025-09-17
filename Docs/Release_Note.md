@@ -1,5 +1,14 @@
 # Release Notes
 
+## Version 1.12.0
+### Features
+- 支持新的前后端串流架构
+- `tcr_client_create_session`新增一个参数`TcrSessionConfig`支持传入`user_id`
+
+### Download
+- [TcrSdk-Debug-1.12.0-20250917-a558cd6ac](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Debug-1.12.0-20250917-a558cd6ac.zip)
+- [TcrSdk-Release-1.12.0-20250917-a558cd6ac](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Release-1.12.0-20250917-a558cd6ac.zip)
+
 ## Version 1.10.8
 ### Features
 - 支持单独控制音频视频暂停和恢复接口

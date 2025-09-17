@@ -154,6 +154,29 @@ typedef struct {
 } TcrVideoFrame;
 
 /**
+ * @brief 拉流参数配置结构体
+ * 用于设置视频流的参数配置。可以单独指定视频宽高，或者帧率，或者码率。
+ * 设定码率时必须同时指定min_bitrate、max_bitrate和unit，否则不生效。
+ */
+typedef struct {
+    int32_t video_width;    ///< 视频宽度（像素）, 0表示不指定视频宽度
+    int32_t video_height;   ///< 视频高度（像素）, 0表示不指定视频高度
+    int32_t fps;            ///< 帧率, 0表示不指定帧率
+    int32_t max_bitrate;    ///< 最大码率, 0表示不指定最大码率
+    int32_t min_bitrate;    ///< 最小码率, 0表示不指定最小码率
+    const char* unit;       ///< 码率单位：仅 "Kbps" 或 "Mbps"
+} TcrStreamProfile;
+
+/**
+ * @brief 会话配置结构体
+ * 用于配置会话的各种参数
+ */
+typedef struct {
+    TcrStreamProfile stream_profile;  ///< 拉流参数配置
+    const char* user_id;              ///< 用户ID，用于标识当前会话的用户
+} TcrSessionConfig;
+
+/**
  * @brief 所有文件上传进度回调函数指针定义。
  *
  * @param instance_id 当前操作的实例ID。
@@ -183,7 +206,7 @@ typedef struct TcrVideoConfig {
     int height;             // 视频高度
     int max_fps;            // 最大帧率
     int max_bitrate_bps;    // 最大码率
-    const char* device_id;// 摄像头设备ID，为空则使用默认摄像头
+    const char* device_id;  // 摄像头设备ID，为空则使用默认摄像头
 } TcrVideoConfig;
 
 /**
@@ -239,10 +262,22 @@ typedef enum {
      * 事件数据类型JSON格式字符串：
      * @code{.json}
      * {
-     *      "bitrate":number, // 音视频码率
-     *      "fps":number,     // 帧率
-     *      "packet_lost":number, // 丢包数
-     *      "rtt":number // RTT
+     *      "audio_packet_recv":number,    // 接收到的音频包数量
+     *      "audio_packet_sent":number,    // 发送的音频包数量
+     *      "bitrate":number,              // 接收到的音视频码率
+     *      "fps":number,                  // 视频接收帧率
+     *      "fps_sent":number,             // 视频发送帧率
+     *      "frame_decode":number,         // 解码帧数
+     *      "frame_drop":number,           // 丢帧数
+     *      "frame_encoded":number,        // 编码帧数
+     *      "frame_recv":number,           // 接收帧数
+     *      "frame_recv_res":string,       // 视频接收分辨率(如"1080x2408")
+     *      "frame_sent":number,           // 视频发送帧数
+     *      "nack_count":number,           // NACK重传请求数量
+     *      "rtt":number,                  // 往返时延RTT(毫秒)
+     *      "video_packet_lost":number,    // 视频丢包数
+     *      "video_packet_recv":number,    // 接收到的视频包数量
+     *      "video_packet_sent":number     // 发送的视频包数量
      * }
      * @endcode
      */

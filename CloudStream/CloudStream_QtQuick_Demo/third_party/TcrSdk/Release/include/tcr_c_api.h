@@ -125,9 +125,10 @@ TCRSDK_API TcrErrorCode tcr_client_init(TcrClientHandle client, const TcrConfig*
 /**
  * @brief 创建会话对象, 以便进行串流和控制云手机实例
  * @param client TcrClientHandle
+ * @param session_config 会话配置参数，可为NULL表示使用默认配置
  * @return 会话句柄，成功返回非空，若Client未初始化（即未调用tcr_client_init或初始化失败），则返回nullptr。
  */
-TCRSDK_API TcrSessionHandle tcr_client_create_session(TcrClientHandle client);
+TCRSDK_API TcrSessionHandle tcr_client_create_session(TcrClientHandle client, const TcrSessionConfig* session_config = nullptr);
 
 /**
  * @brief 销毁会话对象，释放相关资源
@@ -697,23 +698,28 @@ TCRSDK_API void tcr_session_access(TcrSessionHandle session, const char** instan
 /**
  * @brief 暂停媒体流（如视频流），通常用于临时挂起
  * @param session 会话句柄
+ * @param media_type 媒体类型，可选，取值为 "audio"、"video" 或空字符串；空字符串时暂停音视频流
  */
-TCRSDK_API void tcr_session_pause_streaming(TcrSessionHandle session);
+TCRSDK_API void tcr_session_pause_streaming(TcrSessionHandle session, const char* media_type = nullptr);
 
 /**
  * @brief 恢复媒体流（如视频流），与暂停配合使用
  * @param session 会话句柄
+ * @param media_type 媒体类型，可选，取值为 "audio"、"video" 或空字符串；空字符串时恢复音视频流
  */
-TCRSDK_API void tcr_session_resume_streaming(TcrSessionHandle session);
+TCRSDK_API void tcr_session_resume_streaming(TcrSessionHandle session, const char* media_type = nullptr);
 
 /**
  * @brief 设置远端视频流参数（帧率、码率等）
  * @param session 会话句柄
- * @param fps 视频帧率（建议 30）
- * @param minBitrate 最小码率（单位 kbps，建议 512）
- * @param maxBitrate 最大码率（单位 kbps，建议 1024）
+ * @param fps 视频帧率（可选参数，设置为 0 或负数表示不设置此参数，有效范围：1-60）
+ * @param minBitrate 最小码率（可选参数，单位 kbps，设置为 0 或负数表示不设置码率参数，需与 maxBitrate 同时设置）
+ * @param maxBitrate 最大码率（可选参数，单位 kbps，设置为 0 或负数表示不设置码率参数，需与 minBitrate 同时设置）
+ * @param video_width 视频宽度（可选参数，单位 px，设置为 0 或负数表示不设置分辨率参数，需与 video_height 同时设置）
+ * @param video_height 视频高度（可选参数，单位 px，设置为 0 或负数表示不设置分辨率参数，需与 video_width 同时设置）
+ * 
  */
-TCRSDK_API void tcr_session_set_remote_video_profile(TcrSessionHandle session, int32_t fps, int32_t minBitrate, int32_t maxBitrate);
+TCRSDK_API void tcr_session_set_remote_video_profile(TcrSessionHandle session, int32_t fps, int32_t minBitrate, int32_t maxBitrate, int32_t video_width, int32_t video_height);
 
 /**
  * @brief 启用本地摄像头
