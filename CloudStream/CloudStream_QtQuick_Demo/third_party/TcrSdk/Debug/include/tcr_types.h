@@ -123,18 +123,6 @@ typedef struct {
 } TcrD3D11Buffer;
 
 /**
- * @brief 通用视频帧缓冲区联合体
- * 支持多种视频缓冲区类型
- */
-typedef struct {
-    TcrVideoBufferType type;  ///< 缓冲区类型
-    union {
-        TcrI420Buffer i420;   ///< I420格式缓冲区
-        TcrD3D11Buffer d3d11; ///< D3D11格式缓冲区
-    } buffer;                 ///< 具体缓冲区数据
-} TcrVideoFrameBuffer;
-
-/**
  * @brief 视频旋转角度枚举
  */
 typedef enum {
@@ -143,6 +131,22 @@ typedef enum {
     TCR_VIDEO_ROTATION_180 = 180,///< 旋转180度
     TCR_VIDEO_ROTATION_270 = 270 ///< 顺时针旋转270度
 } TcrVideoRotation;
+
+/**
+ * @brief 通用视频帧缓冲区联合体
+ * 支持多种视频缓冲区类型
+ */
+typedef struct TcrVideoFrameBuffer {
+    TcrVideoBufferType type;    ///< 缓冲区类型
+    union {
+        TcrI420Buffer i420;    ///< I420格式缓冲区
+        TcrD3D11Buffer d3d11;  ///< D3D11格式缓冲区
+    } buffer;                  ///< 具体缓冲区数据
+    int64_t timestamp_us;      ///< 视频帧时间戳(微秒)
+    TcrVideoRotation rotation; ///< 视频帧需要旋转的角度
+    const char* instance_id;   ///< 实例ID
+    int instance_index;        ///< 实例索引，在非群控模式下表示当前视频流对应instanceIds数组中的第几路(从0开始)，用于区分相同ID的多路视频流
+} TcrVideoFrameBuffer;
 
 /**
  * @brief 视频帧结构体
@@ -174,7 +178,50 @@ typedef struct {
 typedef struct {
     TcrStreamProfile stream_profile;  ///< 拉流参数配置
     const char* user_id;              ///< 用户ID，用于标识当前会话的用户
+    bool enable_audio;                ///< 是否启用音频功能，默认启用, 若不需要音频功能建议关闭以降低cpu使用率
 } TcrSessionConfig;
+
+/**
+ * @brief 创建默认的会话配置
+ * 
+ * 该函数返回一个预设了合理默认值的TcrSessionConfig结构体，
+ * 使用者可以在此基础上修改需要自定义的字段。
+ * 
+ * 默认配置说明：
+ * - stream_profile: 所有参数设为0，表示不指定具体的流参数
+ * - user_id: 设为NULL，使用者需要根据实际情况设置
+ * - enable_audio: 设为true，默认启用音频功能
+ * 
+ * @return 返回带有默认值的TcrSessionConfig结构体
+ * 
+ * @note 使用示例：
+ * @code
+ * TcrSessionConfig config = tcr_session_config_default();
+ * config.user_id = "user123";  // 设置用户ID
+ * config.stream_profile.video_width = 1280;  // 可选：自定义视频宽度
+ * config.stream_profile.video_height = 720;  // 可选：自定义视频高度
+ * @endcode
+ */
+static inline TcrSessionConfig tcr_session_config_default(void) {
+    TcrSessionConfig config;
+    
+    // 初始化流配置参数
+    // 所有参数设为0表示不指定，由服务端根据实际情况决定
+    config.stream_profile.video_width = 0;
+    config.stream_profile.video_height = 0;
+    config.stream_profile.fps = 0;
+    config.stream_profile.max_bitrate = 0;
+    config.stream_profile.min_bitrate = 0;
+    config.stream_profile.unit = NULL;
+    
+    // 用户ID默认为NULL，使用者必须设置此字段
+    config.user_id = NULL;
+    
+    // 默认启用音频功能
+    config.enable_audio = true;
+    
+    return config;
+}
 
 /**
  * @brief 所有文件上传进度回调函数指针定义。

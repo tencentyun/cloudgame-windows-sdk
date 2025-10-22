@@ -14,163 +14,303 @@
 class ApiService;
 
 /**
- * @brief 串流业务核心 ViewModel，演示了 TcrSdk 的完整使用流程。
+ * @brief 串流业务核心 ViewModel，演示 TcrSdk 的完整使用流程
  *
- * 使用步骤（典型流程）：
- * 1. 创建会话：tcr_client_create_session(client)
- * 2. 连接实例：tcr_session_access(session, instanceIds, count, isGroupControl)
- * 3. 设置回调：
- *    - 视频帧：tcr_session_set_video_frame_observer(...)
- *    - 会话事件：tcr_session_set_observer(...)
- * 4. 云机交互：键盘/触摸/摄像头/麦克风等
- * 5. 释放资源：tcr_client_destroy_session(...)
+ * 本类封装了云串流的完整生命周期管理，展示了如何使用 TcrSdk C API。
  *
- * 本类已把上述步骤封装成 connectSession / connectGroupSession / closeSession
- * 等 Q_INVOKABLE 函数，QML 侧可直接调用。
+ * ==================== SDK 使用流程 ====================
+ * 
+ * 【阶段1：初始化】
+ *   1. 获取 TcrClient 实例：tcr_client_get_instance()
+ *   2. 初始化客户端：tcr_client_init(client, config)
+ *
+ * 【阶段2：创建会话】
+ *   3. 创建会话对象：tcr_client_create_session(client, config)
+ *   4. 设置会话观察者：tcr_session_set_observer(session, observer)
+ *   5. 设置视频帧观察者：tcr_session_set_video_frame_observer(session, observer)
+ *
+ * 【阶段3：连接实例】
+ *   6. 连接云手机实例：tcr_session_access(session, instanceIds, count, isGroupControl)
+ *      - 单实例模式：isGroupControl = false
+ *      - 群控模式：isGroupControl = true
+ *
+ * 【阶段4：业务交互】
+ *   7. 接收视频帧：通过 VideoFrameCallback 获取解码后的视频数据
+ *   8. 发送控制指令：
+ *      - 触摸事件：tcr_session_touchscreen_touch()
+ *      - 键盘事件：tcr_session_send_keyboard_event()
+ *      - 文本输入：tcr_session_paste_text()
+ *   9. 设备控制：
+ *      - 摄像头：tcr_session_enable_local_camera()
+ *      - 麦克风：tcr_session_enable_local_microphone()
+ *   10. 流控制：
+ *      - 暂停/恢复：tcr_session_pause_streaming() / tcr_session_resume_streaming()
+ *      - 调整参数：tcr_session_set_remote_video_profile()
+ *
+ * 【阶段5：资源释放】
+ *   11. 清理观察者：tcr_session_set_observer(session, nullptr)
+ *   12. 销毁会话：tcr_client_destroy_session(client, session)
+ *
+ * ==================== 注意事项 ====================
+ * - 观察者生命周期必须覆盖整个会话周期
+ * - 销毁会话前必须先取消观察者
+ * - 视频帧需要手动管理引用计数
+ * - 所有回调函数都在非主线程，需要使用 QMetaObject::invokeMethod 切换到主线程
  */
 class StreamingViewModel : public QObject
 {
     Q_OBJECT
+    Q_PROPERTY(QString clientStats READ clientStats NOTIFY clientStatsChanged)
+
 public:
     explicit StreamingViewModel(QObject *parent = nullptr);
     ~StreamingViewModel() override;
 
+    // ==================== 视频渲染相关 ====================
+    
     /**
-     * @brief 将 QML 侧的 VideoRenderItem 传入 C++，用于渲染视频帧。
-     * @param item 已在 QML 中实例化的 VideoRenderItem 指针
-     *
-     * 内部会把 newVideoFrame 信号与 VideoRenderItem::setFrame 槽函数
-     * 通过 Qt::QueuedConnection 连接，确保线程安全。
+     * @brief 设置视频渲染组件（C++ 版本）
+     * @param item VideoRenderItem 指针
+     * 
+     * 内部会连接 newVideoFrame 信号到 VideoRenderItem::setFrame 槽
      */
     void setVideoRenderItem(VideoRenderItem* item);
 
     /**
-     * @brief QML 侧调用的重载版本，自动做类型转换。
+     * @brief 设置视频渲染组件（QML 版本）
+     * @param item QObject 指针，会自动转换为 VideoRenderItem*
      */
     Q_INVOKABLE void setVideoRenderItem(QObject* item);
 
+    // ==================== 统计信息 ====================
+    
     /**
-     * @brief 主动关闭当前会话，释放 TcrSdk 资源。
-     *
-     * 应在窗口关闭或切换页面时调用，防止内存泄漏。
+     * @brief 获取客户端统计数据（JSON 格式）
+     * @return 包含帧率、码率、延迟等信息的 JSON 字符串
+     */
+    QString clientStats() const { return m_clientStats; }
+
+    // ==================== 会话管理 ====================
+    
+    /**
+     * @brief 连接云手机实例
+     * @param instanceIds 实例 ID 列表
+     * @param isGroupControl 是否启用群控模式
+     * 
+     * 【单实例模式】instanceIds.size() == 1 && isGroupControl == false
+     *   - 连接单个实例，所有操作仅作用于该实例
+     * 
+     * 【群控模式】instanceIds.size() >= 1 && isGroupControl == true
+     *   - 连接多个实例，操作会同步到所有实例
+     *   - 第一个实例默认设为主控实例
+     */
+    Q_INVOKABLE void connectSession(const QVariantList& instanceIds, bool isGroupControl);
+
+    /**
+     * @brief 关闭当前会话并释放资源
+     * 
+     * 执行流程：
+     *   1. 取消会话观察者
+     *   2. 取消视频帧观察者
+     *   3. 销毁会话对象
      */
     Q_INVOKABLE void closeSession();
 
     /**
-     * @brief 群控场景下动态更新需要同步的实例列表。
-     * @param instanceIds 勾选的实例 ID 列表
-     *
-     * 内部会调用 tcr_instance_join_group(...) 把实例加入群控组。
+     * @brief 更新群控实例列表（仅群控模式有效）
+     * @param instanceIds 当前选中的所有实例 ID
+     * @param addedInstanceIds 本次新增的实例 ID（可选）
+     * 
+     * 内部调用：
+     *   - tcr_instance_join_group()：将新实例加入群控组
+     *   - tcr_instance_set_sync_list()：更新同步列表
      */
-    Q_INVOKABLE void updateCheckedInstanceIds(const QVariantList& instanceIds);
+    Q_INVOKABLE void updateCheckedInstanceIds(const QVariantList& instanceIds, 
+                                              const QVariantList& addedInstanceIds = QVariantList());
 
 signals:
     /**
-     * @brief 每当 TcrSdk 产生新的解码帧时触发。
-     * @param frame 封装好的 YUV(I420) 数据，可直接送入渲染管线。
+     * @brief 新视频帧到达信号
+     * @param frame 封装的 YUV(I420) 视频帧数据
+     * 
+     * 由 VideoFrameCallback 触发，在主线程中发射
      */
     void newVideoFrame(VideoFrameDataPtr frame);
 
-private:
-    VideoRenderItem* m_videoRenderItem = nullptr;
-    TcrClientHandle  m_tcrClient  = nullptr;        ///< TcrSdk 客户端句柄
-    TcrAndroidInstance m_instance = nullptr;        ///< Android 实例操作句柄
-    TcrSessionHandle   m_session  = nullptr;        ///< 当前会话句柄
-    TcrSessionObserver m_sessionObserver = {};      ///< 会话事件回调结构体
-    TcrVideoFrameObserver m_videoFrameObserver = {};///< 视频帧回调结构体
-    ApiService* m_apiService = nullptr;
-    QStringList m_groupInstanceIds; ///< 群控时缓存的实例 ID
-    bool m_sessionConnected = false;///< 会话是否已建立
+    /**
+     * @brief 统计数据更新信号
+     * 
+     * 当收到 TCR_SESSION_EVENT_CLIENT_STATS 事件时触发
+     */
+    void clientStatsChanged();
+
+public slots:
+    // ==================== 触摸输入 ====================
+    
+    /**
+     * @brief 发送触摸事件到云端
+     * @param x, y 触摸点坐标
+     * @param width, height 屏幕分辨率
+     * @param eventType 事件类型：0=按下, 1=移动, 2=抬起
+     * @param timestamp 事件时间戳（毫秒）
+     * 
+     * 对应 SDK API：tcr_session_touchscreen_touch()
+     */
+    void handleMouseEvent(int x, int y, int width, int height,
+                          int eventType, qint64 timestamp);
+
+    // ==================== 系统按键 ====================
+    
+    /**
+     * @brief 发送返回键（Keycode: 158）
+     * 对应 SDK API：tcr_session_send_keyboard_event(session, 158, true/false)
+     */
+    void onBackClicked();
+    
+    /**
+     * @brief 发送 Home 键（Keycode: 172）
+     */
+    void onHomeClicked();
+    
+    /**
+     * @brief 发送菜单键（Keycode: 139）
+     */
+    void onMenuClicked();
+    
+    /**
+     * @brief 发送音量加键（Keycode: 58）
+     */
+    void onVolumUp();
+    
+    /**
+     * @brief 发送音量减键（Keycode: 59）
+     */
+    void onVolumDown();
+
+    // ==================== 流控制 ====================
+    
+    /**
+     * @brief 暂停远端推流
+     * 对应 SDK API：tcr_session_pause_streaming()
+     */
+    void onPauseStreamClicked();
+    
+    /**
+     * @brief 恢复远端推流
+     * 对应 SDK API：tcr_session_resume_streaming()
+     */
+    void onResumeStreamClicked();
+
+    // ==================== 设备控制 ====================
+    
+    /**
+     * @brief 开启本地摄像头
+     * 对应 SDK API：tcr_session_enable_local_camera(session, true)
+     */
+    void onEnableCameraClicked();
+    
+    /**
+     * @brief 关闭本地摄像头
+     * 对应 SDK API：tcr_session_disable_local_camera()
+     */
+    void onDisableCameraClicked();
 
     /**
+     * @brief 开启本地麦克风
+     * 对应 SDK API：tcr_session_enable_local_microphone(session, true)
+     */
+    void onEnableMicrophoneClicked();
+    
+    /**
+     * @brief 关闭本地麦克风
+     * 对应 SDK API：tcr_session_enable_local_microphone(session, false)
+     */
+    void onDisableMicrophoneClicked();
+
+private:
+    // ==================== 成员变量 ====================
+    
+    // 渲染相关
+    VideoRenderItem* m_videoRenderItem = nullptr;  ///< 视频渲染组件
+    
+    // SDK 句柄
+    TcrClientHandle      m_tcrClient   = nullptr;  ///< TcrSdk 客户端句柄（单例）
+    TcrSessionHandle     m_session     = nullptr;  ///< 当前会话句柄
+    TcrAndroidInstance   m_instance    = nullptr;  ///< Android 实例操作句柄
+    TcrDataChannelHandle m_dataChannel = nullptr;  ///< 自定义数据通道句柄
+    
+    // SDK 回调结构体（生命周期必须覆盖整个会话）
+    TcrSessionObserver    m_sessionObserver    = {};  ///< 会话事件回调
+    TcrVideoFrameObserver m_videoFrameObserver = {};  ///< 视频帧回调
+    
+    // 业务数据
+    ApiService*  m_apiService       = nullptr;  ///< API 服务（用于获取 Token 等）
+    QStringList  m_groupInstanceIds;            ///< 群控模式下的实例 ID 列表
+    bool         m_sessionConnected = false;    ///< 会话连接状态标志
+    QString      m_clientStats;                 ///< 客户端统计数据（JSON 格式）
+
+    // ==================== 内部方法 ====================
+    
+    /**
      * @brief 创建并初始化会话
-     *
-     * 会先 closeSession() 清理旧会话，再：
-     * - tcr_client_create_session
-     * - tcr_session_set_observer
-     * - tcr_session_set_video_frame_observer
+     * 
+     * 执行流程：
+     *   1. 关闭旧会话（如果存在）
+     *   2. 获取 TcrClient 实例
+     *   3. 创建新会话：tcr_client_create_session()
+     *   4. 设置观察者：setSessionObservers()
      */
     void createAndInitSession();
 
     /**
-     * @brief 给当前会话注册 observer。
+     * @brief 设置会话观察者
+     * 
+     * 注册两个核心回调：
+     *   - 会话事件：tcr_session_set_observer()
+     *   - 视频帧：tcr_session_set_video_frame_observer()
      */
     void setSessionObservers();
 
     /**
-     * @brief 会话事件回调（C 静态函数）。
-     *
-     * SDK 会在以下时机回调：
-     * - 连接成功：TCR_SESSION_EVENT_STATE_CONNECTED
-     * - 连接断开：TCR_SESSION_EVENT_STATE_CLOSED
-     * - 摄像头状态：TCR_SESSION_EVENT_CAMERA_STATUS
-     * 内部通过 QMetaObject::invokeMethod 切换到主线程处理。
+     * @brief 请求改变推流状态（内部辅助方法）
+     * @param paused 是否暂停推流
+     */
+    void requestStreaming(bool paused);
+
+    // ==================== SDK 回调函数（静态方法） ====================
+    
+    /**
+     * @brief 会话事件回调（C 风格静态函数）
+     * @param user_data 用户数据指针（指向 StreamingViewModel 实例）
+     * @param event 事件类型
+     * @param eventData 事件数据（JSON 字符串）
+     * 
+     * 处理的事件类型：
+     *   - TCR_SESSION_EVENT_STATE_CONNECTED：连接成功
+     *   - TCR_SESSION_EVENT_STATE_CLOSED：连接断开
+     *   - TCR_SESSION_EVENT_CAMERA_STATUS：摄像头状态变化
+     *   - TCR_SESSION_EVENT_CLIENT_STATS：统计数据更新
+     * 
+     * 注意：此函数在 SDK 内部线程调用，需要通过 QMetaObject::invokeMethod 切换到主线程
      */
     static void SessionEventCallback(void* user_data,
                                      TcrSessionEvent event,
                                      const char* eventData);
 
     /**
-     * @brief 视频帧回调（C 静态函数）。
-     *
-     * SDK 每产生一帧解码数据即调用，内部把裸数据封装成 VideoFrameDataPtr
-     * 后通过 newVideoFrame 信号抛到主线程。
+     * @brief 视频帧回调（C 风格静态函数）
+     * @param user_data 用户数据指针（指向 StreamingViewModel 实例）
+     * @param frame 视频帧句柄
+     * 
+     * 执行流程：
+     *   1. 增加帧引用计数：tcr_video_frame_add_ref()
+     *   2. 获取帧数据：tcr_video_frame_get_buffer()
+     *   3. 封装为 VideoFrameDataPtr（智能指针，自动释放, 释放时会调用tcr_video_frame_release）
+     *   4. 通过信号发送到主线程
+     * 
+     * 注意：此函数在解码线程调用，频率较高（通常 30-60 FPS）
      */
     static void VideoFrameCallback(void* user_data,
-                                   const TcrVideoFrameBuffer* frame_buffer,
-                                   int64_t timestamp_us,
-                                   TcrVideoRotation rotation);
-
-    /** 
-     * @brief 请求改变推流状态
-     * @param paused 是否暂停推流
-     */
-    void requestStreaming(bool paused);
-
-public slots:
-    /**
-     * @brief 发送触摸事件到云端实例。
-     * @param x,y,width,height 相对坐标及分辨率
-     * @param eventType 0=按下 1=移动 2=抬起
-     * @param timestamp 毫秒时间戳
-     *
-     * 内部直接调用 tcr_session_touchscreen_touch(...)
-     */
-    void handleMouseEvent(int x, int y, int width, int height,
-                          int eventType, qint64 timestamp);
-
-    /**
-     * @brief 单实例连接入口（QML 调用）。
-     * @param instanceId 目标实例 ID
-     *
-     * 内部流程：
-     * 1. createAndInitSession()
-     * 2. tcr_session_access(session, &idPtr, 1, false)
-     */
-    void connectSession(const QString& instanceId);
-
-    /**
-     * @brief 多实例(群控)连接入口。
-     * @param instanceIds 实例 ID 列表
-     *
-     * 内部流程：
-     * 1. createAndInitSession()
-     * 2. tcr_session_access(session, ids, count, true)
-     * 3. 连接成功后把第一个实例设为主控
-     */
-    void connectGroupSession(const QVariantList& instanceIds);
-
-    /* 以下触发云机按键事件，内部通过 tcr_session_send_keyboard_event 实现 */
-    void onBackClicked();
-    void onHomeClicked();
-    void onMenuClicked();
-    void onVolumUp();
-    void onVolumDown();
-
-    /**
-     * @brief 暂停/恢复远端推流，对应 SDK：
-     * tcr_session_pause_streaming / resume_streaming
-     */
-    void onPauseStreamClicked();
-    void onResumeStreamClicked();
+                                   TcrVideoFrameHandle frame);
 };
+

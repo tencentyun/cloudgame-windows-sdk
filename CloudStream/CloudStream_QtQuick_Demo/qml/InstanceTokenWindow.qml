@@ -39,7 +39,7 @@ Window {
                 TextArea {
                     id: instanceIdsField
                     placeholderText: "请输入实例ID，多个实例用逗号分隔\n例如：ACP250819OHEI9BD,ACP250819OHEI9B2,ACP250819OHEI9B3"
-                    text: "ACP250819RHPCLIB,ACP250819OHEI9BD"
+                    text: "ACP250819RHPCLIB,ACP250912DUBYJUH,ACP250819OHEI9BD,ACP250819ZRW142U,ACP250912VLR5Y1C"
                     Layout.fillWidth: true
                     Layout.preferredHeight: 100
                     wrapMode: Text.Wrap
@@ -71,7 +71,7 @@ Window {
                 TextField {
                     id: userIpField
                     placeholderText: "例如：192.168.1.100（可选）"
-                    text: "1.1.128.123"
+                    text: ""
                     Layout.fillWidth: true
                     font.pixelSize: 14
                     inputMethodHints: Qt.ImhDigitsOnly

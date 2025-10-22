@@ -11,7 +11,6 @@ CloudStream_QtQuick_Demo 是一个基于 Qt 6/QML 的云手机串流客户端演
 - **实例展示**：卡片展示云手机实例画面
 - **视频串流**：支持单实例和多实例同步视频流渲染与交互。
 - **自定义渲染**：基于 OpenGL Shader 的 YUV 视频渲染。
-- **高性能图片加载**：实例卡片图片异步加载，滚动时自动暂停/恢复下载。
 
 ## 目录结构
 
@@ -33,8 +32,6 @@ CloudStream_QtQuick_Demo 是一个基于 Qt 6/QML 的云手机串流客户端演
 ├── src/                          # C++ 源码
 │   ├── main.cpp                  # 程序入口
 │   ├── core/                     # 业务核心与渲染
-│   │   ├── TcrInstanceManager.h  # 演示如何初始化TcrSdk以及并获取云手机实例画面截图进行渲染
-│   │   ├── TcrInstanceManager.cpp
 │   │   └── video/                # 视频渲染相关
 │   │       ├── Frame.h           # 视频帧数据结构
 │   │       ├── VideoRenderItem.h # QQuickItem视频渲染组件
@@ -51,10 +48,6 @@ CloudStream_QtQuick_Demo 是一个基于 Qt 6/QML 的云手机串流客户端演
 │   │   └── NetworkService.h      # 网络请求服务接口
 │   │   ├── NetworkService.cpp
 │   ├── utils/                    # 工具类
-│   │   ├── ImageDownloader.h     # 云手机截图异步图片下载管理工具
-│   │   ├── ImageDownloader.cpp
-│   │   ├── ImageProvider.h       # QML图片提供器
-│   │   ├── ImageProvider.cpp     
 │   │   ├── Logger.h              # 日志工具
 │   │   ├── Logger.cpp
 │   │   ├── VariantListConverter.h # 数据类型转换工具

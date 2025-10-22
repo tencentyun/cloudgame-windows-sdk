@@ -90,13 +90,67 @@ typedef void* TcrSessionHandle;
 typedef void* TcrAndroidInstance;
 typedef void* TcrDataChannelHandle;
 
+// 视频帧句柄类型
+typedef void* TcrVideoFrameHandle;
+
+// 视频帧观察者回调类型
+typedef void (*TcrVideoFrameCallback)(void* user_data, TcrVideoFrameHandle frame_handle);
+
 // 视频帧观察者结构体
 typedef struct TcrVideoFrameObserver {
     void* user_data;
-    // 视频帧回调函数，解码后的视频帧数据通过此回调返回
-    void (*on_frame_buffer)(void* user_data, const TcrVideoFrameBuffer* frame_buffer, 
-                           int64_t timestamp_us, TcrVideoRotation rotation);
+    TcrVideoFrameCallback on_frame;
 } TcrVideoFrameObserver;
+
+// 视频帧访问接口
+
+/**
+ * @brief 获取视频帧的缓冲区数据
+ * @param frame_handle 视频帧句柄，由视频帧回调函数传入
+ * @return 视频帧缓冲区指针，包含视频帧的像素数据、宽高、格式等信息；失败返回NULL
+ * @note 返回的指针生命周期由frame_handle管理，不需要手动释放
+ * @note 该指针仅在frame_handle有效期内可用，若需要在回调函数外使用，需调用tcr_video_frame_add_ref增加引用计数
+ */
+TCRSDK_API const TcrVideoFrameBuffer* tcr_video_frame_get_buffer(TcrVideoFrameHandle frame_handle);
+
+/**
+ * @brief 增加视频帧的引用计数
+ * @param frame_handle 视频帧句柄
+ * @note 当需要在视频帧回调函数外继续使用frame_handle时，必须调用此函数增加引用计数
+ * @note 每次调用tcr_video_frame_add_ref后，必须对应调用tcr_video_frame_release释放引用
+ * @warning 若不增加引用计数就在回调外使用frame_handle，可能导致访问已释放的内存而崩溃
+ * 
+ * @example 典型用法
+ * @code
+ * void VideoFrameCallback(void* user_data, TcrVideoFrameHandle frame_handle) {
+ *     // 增加引用计数以便在回调外使用
+ *     tcr_video_frame_add_ref(frame_handle);
+ *     
+ *     // 将frame_handle传递到其他线程或队列处理
+ *     post_to_render_thread(frame_handle);
+ * }
+ * 
+ * void render_thread_handler(TcrVideoFrameHandle frame_handle) {
+ *     const TcrVideoFrameBuffer* buffer = tcr_video_frame_get_buffer(frame_handle);
+ *     // 使用buffer进行渲染...
+ *     
+ *     // 使用完毕后释放引用
+ *     tcr_video_frame_release(frame_handle);
+ * }
+ * @endcode
+ */
+TCRSDK_API void tcr_video_frame_add_ref(TcrVideoFrameHandle frame_handle);
+
+/**
+ * @brief 释放视频帧的引用计数
+ * @param frame_handle 视频帧句柄
+ * @note 每次调用tcr_video_frame_add_ref后，必须对应调用此函数释放引用
+ * @note 当引用计数降为0时，frame_handle将被自动销毁，之后不可再使用
+ * @warning 释放后继续使用frame_handle将导致崩溃
+ * @warning 必须确保add_ref和release成对调用，否则会导致内存泄漏或过早释放
+ */
+TCRSDK_API void tcr_video_frame_release(TcrVideoFrameHandle frame_handle);
+
 
 // 会话事件观察者结构体
 typedef struct TcrSessionObserver {
@@ -140,9 +194,36 @@ TCRSDK_API void tcr_client_destroy_session(TcrClientHandle client, TcrSessionHan
 /**
  * @brief 设置会话事件观察者，用于接收会话生命周期及业务事件
  * @param session 会话句柄
- * @param observer 观察者结构体指针
- * @note 调用时序要求：
- *       - 当会话配置中的 TcrSdkType 为 CloudStream 时，必须在成功调用 tcr_session_init 之后方可调用本接口
+ * @param observer 观察者结构体指针，传入NULL表示取消当前观察者
+ * 
+ * @section 生命周期管理说明
+ * - SDK内部不会复制或释放observer结构体，仅保存指针引用
+ * - 客户端必须确保observer的生命周期覆盖整个会话周期
+ * - 在销毁session前，必须显式调用本接口传入NULL取消观察者
+ * - 典型使用流程：
+ *   1. 创建并初始化observer结构体
+ *   2. 调用本接口设置观察者
+ *   3. 业务处理期间observer必须保持有效
+ *   4. 销毁session前调用本接口(observer=NULL)
+ *   5. 安全释放observer内存
+ * 
+ * @warning 重要警告
+ * - 若observer在会话期间被提前释放，将导致崩溃!
+ * - 未在销毁session前取消观察者可能导致内存泄漏
+ * - observer结构体必须保持稳定，禁止在会话期间修改其内容
+ * 
+ * @example 正确用法示例
+ * @code
+ * // 初始化阶段
+ * static TcrSessionObserver g_observer;
+ * g_observer.user_data = this;
+ * g_observer.on_event = SessionEventCallback;
+ * tcr_session_set_observer(session, &g_observer);
+ * 
+ * // 销毁阶段
+ * tcr_session_set_observer(session, NULL);
+ * tcr_client_destroy_session(client, session);
+ * @endcode
  */
 TCRSDK_API void tcr_session_set_observer(TcrSessionHandle session, const TcrSessionObserver* observer);
 
@@ -630,17 +711,36 @@ TCRSDK_API void tcr_instance_free_result(TcrAndroidInstance op, char* output);
 // ==================== 音视频会话接口 ====================
 
 /**
- * @brief 创建自定义数据通道
+ * @brief 创建自定义数据通道并设置观察者
  * @param session 会话句柄
  * @param port 云端唯一标识数据通道的端口号
- * @param observer 观察者结构体指针（生命周期由调用方保证有效，回调时会传入 user_data）
- * @return 数据通道句柄，失败返回 NULL
+ * @param observer 数据通道观察者结构体指针，传入NULL表示不使用观察者
+ * @param type 仅支持 "" 或 "android" 或 "android_broadcast", 默认值为 "android"
+ * 
+ * @section 生命周期管理说明
+ * - SDK内部不会复制或释放observer结构体，仅保存指针引用
+ * - 客户端必须确保observer的生命周期覆盖整个数据通道使用周期
+ * - 在关闭数据通道前，必须显式调用tcr_data_channel_close
+ * - 典型使用流程：
+ *   1. 创建并初始化observer结构体
+ *   2. 调用本接口创建数据通道
+ *   3. 业务处理期间observer必须保持有效
+ *   4. 使用完毕后调用tcr_data_channel_close关闭通道
+ *   5. 安全释放observer内存
+ * 
+ * @warning 重要警告
+ * - 若observer在数据通道使用期间被提前释放，将导致访问违例崩溃
+ * - 未正确关闭数据通道可能导致资源泄漏
+ * - observer结构体必须保持稳定，禁止在数据通道使用期间修改其内容
+ * 
+ * @return 数据通道句柄，失败返回NULL
  */
 TCRSDK_API TcrDataChannelHandle tcr_session_create_data_channel(
     TcrSessionHandle session,
     int32_t port,
-    const TcrDataChannelObserver* observer
-);
+    const TcrDataChannelObserver* observer,
+    const char* type = "android"
+); 
 
 /**
  * @brief 通过自定义数据通道发送数据
@@ -670,19 +770,58 @@ TCRSDK_API void tcr_data_channel_close(TcrDataChannelHandle channel);
 TCRSDK_API void tcr_session_init(TcrSessionHandle session);
 
 /**
- * 开始会话.
- * 注意这个函数对于每个会话只能调用一次，
+ * @brief 开始会话.
+ * @param session 会话句柄
+ * @param serverSession 从云端获取的服务器会话字符串
+ * 
+ * @warning 请注意:
+ * 这个函数对于每个会话只能调用一次，
+ * 
  */
 TCRSDK_API void tcr_session_start(TcrSessionHandle session, const char* serverSession);
 
+/**
+* @brief 获取会话的RequestId
+* @param session 会话句柄
+* @param buffer 用于存储RequestId的缓冲区
+* @param buffer_size 缓冲区大小
+* @return 成功返回true，失败返回false
+*/
+TCRSDK_API bool tcr_session_get_request_id(TcrSessionHandle session, char* buffer, int buffer_size);
 
 /**
- * @brief 设置远端视频帧观察者，用于接收解码后的视频帧数据
+ * @brief 设置视频帧观察者，用于接收解码后的视频帧数据
  * @param session 会话句柄
- * @param observer 视频帧观察者结构体指针
- * @note 在释放 observer 前，必须先调用本接口传入 NULL，否则可能导致崩溃
- * @note 调用时序要求：
- *       - 当会话配置中的 TcrSdkType 为 CloudStream 时，必须在成功调用 tcr_session_init 之后方可调用本接口
+ * @param observer 视频帧观察者结构体指针，传入NULL表示取消当前观察者
+ * 
+ * @section 生命周期管理说明
+ * - SDK内部不会复制或释放observer结构体，仅保存指针引用
+ * - 客户端必须确保observer的生命周期覆盖整个session生命周期
+ * - 在销毁session前，必须显式调用本接口传入NULL取消观察者
+ * - 典型使用流程：
+ *   1. 创建并初始化observer结构体
+ *   2. 调用本接口设置观察者
+ *   3. 业务处理期间observer必须保持有效
+ *   4. 销毁session前调用本接口(observer=NULL)
+ *   5. 安全释放observer内存
+ * 
+ * @warning 重要警告
+ * - 若observer在会话期间被提前释放，将导致访问违例崩溃
+ * - 未在销毁session前取消观察者可能导致内存泄漏
+ * - observer结构体必须保持稳定，禁止在会话期间修改其内容
+ * 
+ * @example 正确用法示例
+ * @code
+ * // 初始化阶段
+ * static TcrVideoFrameObserver g_video_observer;
+ * g_video_observer.user_data = this;
+ * g_video_observer.on_frame = VideoFrameCallback;
+ * tcr_session_set_video_frame_observer(session, &g_video_observer);
+ * 
+ * // 销毁阶段
+ * tcr_session_set_video_frame_observer(session, NULL);
+ * tcr_client_destroy_session(client, session);
+ * @endcode
  */
 TCRSDK_API void tcr_session_set_video_frame_observer(TcrSessionHandle session, const TcrVideoFrameObserver* observer);
 
@@ -934,17 +1073,11 @@ TCRSDK_API bool tcr_video_frame_buffer_is_d3d11(const TcrVideoFrameBuffer* buffe
 TCRSDK_API void* tcr_video_frame_buffer_get_d3d11_texture(const TcrVideoFrameBuffer* buffer);
 
 /**
- * @brief 启用本地麦克风
+ * @brief 启用/关闭麦克风
  * @param session 会话句柄
  * @return 是否成功启用，true表示成功
  */
-TCRSDK_API bool tcr_session_enable_local_microphone(TcrSessionHandle session);
-
-/**
- * @brief 禁用本地麦克风
- * @param session 会话句柄
- */
-TCRSDK_API void tcr_session_disable_local_microphone(TcrSessionHandle session);
+TCRSDK_API bool tcr_session_enable_local_microphone(TcrSessionHandle session, bool enable);
 
 /**
  * @brief 检查本地麦克风是否已启用
