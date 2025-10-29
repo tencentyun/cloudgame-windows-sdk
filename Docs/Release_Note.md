@@ -1,5 +1,13 @@
 # Release Notes
 
+## Version 1.13.2
+### Bugfix
+- 修复个别工程加载程序时崩溃的问题
+
+### Download
+- [TcrSdk-Debug-1.13.2-20251029-a7e7a38b1](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Debug-1.13.2-20251029-a7e7a38b1.zip)
+- [TcrSdk-Release-1.13.2-20251029-a7e7a38b1](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Release-1.13.2-20251029-a7e7a38b1.zip)
+
 ## Version 1.13.1
 ### Features
 1. **视频帧回调与数据结构调整**
