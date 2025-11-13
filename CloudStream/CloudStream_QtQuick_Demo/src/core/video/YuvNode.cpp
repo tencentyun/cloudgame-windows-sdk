@@ -33,8 +33,9 @@ void YuvNode::setFrame(QQuickWindow* window,
                        const QSizeF& itemSize, 
                        bool frameDirty)
 {
-    // 验证帧数据有效性
+    // 验证帧数据有效性和类型
     if (frame && 
+        frame->frame_type == VideoFrameType::I420_CPU &&  // 仅处理YUV420格式
         frame->width > 0 && 
         frame->height > 0 &&
         frame->data_y && 
@@ -55,7 +56,8 @@ void YuvNode::setFrame(QQuickWindow* window,
     } 
     else 
     {
-        // 清除材质（无效帧）
+        // 清除材质（无效帧或不支持的类型）
+        // TODO: 未来在此处添加D3D11_GPU类型的处理分支
         updateMaterial(window, 
                       nullptr, 
                       nullptr, 

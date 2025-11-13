@@ -114,8 +114,23 @@ Window {
         // 绑定窗口关闭事件
         syncWindow.closing.connect(function() {
             console.log("同步窗口关闭");
-            syncWindow = null;
-            syncViewModel = null;
+            
+            // 1. 关闭会话，释放TcrSdk资源
+            if (syncViewModel && syncViewModel.closeSession) {
+                syncViewModel.closeSession();
+            }
+            
+            // 2. 销毁视图模型
+            if (syncViewModel) {
+                syncViewModel.destroy();
+                syncViewModel = null;
+            }
+            
+            // 3. 销毁窗口
+            if (syncWindow) {
+                syncWindow.destroy();
+                syncWindow = null;
+            }
         });
     }
     
@@ -149,12 +164,36 @@ Window {
         var window = createWindow(viewModel);
         if (!window) return;
         
-        singleInstanceWindows[instanceId] = window;
+        singleInstanceWindows[instanceId] = {
+            window: window,
+            viewModel: viewModel
+        };
         
         // 绑定窗口关闭事件
         window.closing.connect(function() {
             console.log("单实例窗口关闭:", instanceId);
-            singleInstanceWindows[instanceId] = undefined;
+            
+            // 获取窗口信息
+            var windowInfo = singleInstanceWindows[instanceId];
+            if (windowInfo) {
+                // 1. 关闭会话，释放TcrSdk资源
+                if (windowInfo.viewModel && windowInfo.viewModel.closeSession) {
+                    windowInfo.viewModel.closeSession();
+                }
+                
+                // 2. 销毁视图模型
+                if (windowInfo.viewModel) {
+                    windowInfo.viewModel.destroy();
+                }
+                
+                // 3. 销毁窗口
+                if (windowInfo.window) {
+                    windowInfo.window.destroy();
+                }
+            }
+            
+            // 4. 清除引用
+            delete singleInstanceWindows[instanceId];
         });
     }
     
@@ -312,7 +351,7 @@ Window {
         anchors.margins: 10
         clip: true
         
-        cellWidth: (parent.width - 20) / 20
+        cellWidth: (parent.width - 20) / 10
         cellHeight: cellWidth * 240 / 135
         
         model: instanceConfigs

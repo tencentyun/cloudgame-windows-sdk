@@ -256,24 +256,44 @@ void StreamingViewModel::onVolumDown()
 
 // ==================== 流控制 ====================
 
-void StreamingViewModel::onPauseStreamClicked()
+void StreamingViewModel::onPauseVideoStreamClicked()
 {
     if (!m_session || !m_sessionConnected) {
-        Logger::debug("[onPauseStreamClicked] session not ready");
+        Logger::debug("[onPauseVideoStreamClicked] session not ready");
         return;
     }
-    // SDK API: 暂停音视频推流
-    tcr_session_pause_streaming(m_session);
+    // SDK API: 暂停视频推流
+    tcr_session_pause_streaming(m_session, "video");
 }
 
-void StreamingViewModel::onResumeStreamClicked()
+void StreamingViewModel::onResumeVideoStreamClicked()
 {
     if (!m_session || !m_sessionConnected) {
-        Logger::debug("[onResumeStreamClicked] session not ready");
+        Logger::debug("[onResumeVideoStreamClicked] session not ready");
         return;
     }
-    // SDK API: 恢复音视频推流
-    tcr_session_resume_streaming(m_session);
+    // SDK API: 恢复视频推流
+    tcr_session_resume_streaming(m_session, "video");
+}
+
+void StreamingViewModel::onPauseAudioStreamClicked()
+{
+    if (!m_session || !m_sessionConnected) {
+        Logger::debug("[onPauseAudioStreamClicked] session not ready");
+        return;
+    }
+    // SDK API: 暂停音频推流
+    tcr_session_pause_streaming(m_session, "audio");
+}
+
+void StreamingViewModel::onResumeAudioStreamClicked()
+{
+    if (!m_session || !m_sessionConnected) {
+        Logger::debug("[onPauseAudioStreamClicked] session not ready");
+        return;
+    }
+    // SDK API: 恢复音频推流
+    tcr_session_resume_streaming(m_session, "audio");
 }
 
 // ==================== 设备控制 ====================
@@ -346,11 +366,11 @@ void StreamingViewModel::SessionEventCallback(void* user_data,
             // 调整视频流参数
             // SDK API: 设置视频流参数
             tcr_session_set_remote_video_profile(self->m_session, 
-                                                  30,    // fps: 30帧/秒
-                                                  100,   // minBitrate: 100 kbps
-                                                  200,   // maxBitrate: 200 kbps
-                                                  720,   // height: 720p
-                                                  1280); // width: 1280p
+                                                  60,      // fps: 1帧/秒
+                                                  1000,   // minBitrate: 1000 kbps
+                                                  2000,   // maxBitrate: 2000 kbps
+                                                  720,    // height: 720
+                                                  1280);  // width: 1280
 
             // ========== 创建自定义数据通道示例 ==========
             // 数据通道用于与云端App进行自定义数据交互
@@ -441,7 +461,7 @@ void StreamingViewModel::SessionEventCallback(void* user_data,
  * 
  * 处理流程：
  *   1. 增加帧引用计数（防止 SDK 提前释放）
- *   2. 获取帧数据（YUV I420 格式）
+ *   2. 获取帧数据（支持 I420 CPU 格式和 D3D11 GPU 格式）
  *   3. 封装为智能指针（自动管理生命周期）
  *   4. 通过信号发送到主线程
  * 
@@ -452,30 +472,60 @@ void StreamingViewModel::VideoFrameCallback(void* user_data, TcrVideoFrameHandle
     StreamingViewModel* self = static_cast<StreamingViewModel*>(user_data);
     if (!self || !frame_handle) return;
     
-    // 【步骤1】增加引用计数
+    // 【步骤1】获取视频帧缓冲区
+    // SDK API: tcr_video_frame_get_buffer(frame_handle)
+    const TcrVideoFrameBuffer* frame_buffer = tcr_video_frame_get_buffer(frame_handle);
+    if (!frame_buffer) {
+        return;
+    }
+    
+    // 【步骤2】增加引用计数
     // SDK API: tcr_video_frame_add_ref(frame_handle)
     // 防止 SDK 在我们使用期间释放帧数据
     tcr_video_frame_add_ref(frame_handle);
 
-    // 【步骤2】创建智能指针封装帧数据
+    // 【步骤3】创建智能指针封装帧数据
     // VideoFrameDataPtr 析构时会自动调用 tcr_video_frame_release()
     VideoFrameDataPtr frameDataPtr(new VideoFrameData);
-
-    // 【步骤3】获取帧缓冲区数据
-    // SDK API: tcr_video_frame_get_buffer(frame_handle)
-    const TcrI420Buffer& buffer = tcr_video_frame_get_buffer(frame_handle)->buffer.i420;
     
-    // 【步骤4】填充帧数据结构
+    // 【步骤4】填充通用帧数据
     frameDataPtr->frame_handle = frame_handle;
-    frameDataPtr->width = buffer.width;
-    frameDataPtr->height = buffer.height;
-    frameDataPtr->strideY = buffer.stride_y;
-    frameDataPtr->strideU = buffer.stride_u;
-    frameDataPtr->strideV = buffer.stride_v;
-    frameDataPtr->data_y = buffer.data_y;
-    frameDataPtr->data_u = buffer.data_u;
-    frameDataPtr->data_v = buffer.data_v;
+    frameDataPtr->timestamp_us = frame_buffer->timestamp_us;
+    
+    // 【步骤5】根据缓冲区类型填充不同的数据
+    if (frame_buffer->type == TCR_VIDEO_BUFFER_TYPE_I420) {
+        // I420格式：CPU内存中的YUV数据
+        const TcrI420Buffer& i420Buffer = frame_buffer->buffer.i420;
+        
+        frameDataPtr->frame_type = VideoFrameType::I420_CPU;
+        frameDataPtr->width = i420Buffer.width;
+        frameDataPtr->height = i420Buffer.height;
+        frameDataPtr->strideY = i420Buffer.stride_y;
+        frameDataPtr->strideU = i420Buffer.stride_u;
+        frameDataPtr->strideV = i420Buffer.stride_v;
+        frameDataPtr->data_y = i420Buffer.data_y;
+        frameDataPtr->data_u = i420Buffer.data_u;
+        frameDataPtr->data_v = i420Buffer.data_v;
+    }
+    else if (frame_buffer->type == TCR_VIDEO_BUFFER_TYPE_D3D11) {
+        // D3D11格式：GPU纹理数据
+        const TcrD3D11Buffer& d3d11Buffer = frame_buffer->buffer.d3d11;
+        
+        frameDataPtr->frame_type = VideoFrameType::D3D11_GPU;
+        frameDataPtr->width = d3d11Buffer.width;
+        frameDataPtr->height = d3d11Buffer.height;
+        frameDataPtr->d3d11_data.texture = d3d11Buffer.texture;
+        frameDataPtr->d3d11_data.device = d3d11Buffer.device;
+        frameDataPtr->d3d11_data.array_index = d3d11Buffer.array_index;
+        frameDataPtr->d3d11_data.format = d3d11Buffer.format;
+    }
+    else {
+        // 未知类型，释放引用并返回
+        Logger::warning(QString("[VideoFrameCallback] 未知的帧类型: %1").arg(frame_buffer->type));
+        tcr_video_frame_release(frame_handle);
+        return;
+    }
 
-    // 【步骤5】发送到主线程进行渲染
+    // 【步骤6】发送到主线程进行渲染
     emit self->newVideoFrame(frameDataPtr);
 }

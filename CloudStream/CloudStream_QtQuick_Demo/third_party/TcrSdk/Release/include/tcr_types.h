@@ -86,12 +86,60 @@ typedef struct {
     const char* token;      ///< 业务后台返回的token
     const char* accessInfo; ///< 业务后台返回的accessInfo
     TcrSdkType sdkType;     ///< SDK类型，默认为CloudStream
-    bool streamOpt;         ///< 是否开启串流优化，默认为false
+    bool streamOpt;         ///< 是否开启串流优化(仅用于测试, 正式版本不可开启)，默认为false
+    bool hardwareDecode;    ///< 是否启用硬件解码，默认为false
 } TcrConfig;
+
+/**
+ * @brief 创建默认的会话配置
+ * 
+ * 该函数返回一个预设了合理默认值的TcrConfig结构体，
+ * 使用者可以在此基础上修改需要自定义的字段。
+ * 
+ * 默认配置说明：
+ * - token: 设为NULL，使用者必须设置此字段
+ * - accessInfo: 设为NULL，使用者必须设置此字段
+ * - sdkType: SDK类型, 默认为CloudStream
+ * - streamOpt: 设为false，默认不开启串流优化
+ * - hardwareDecode: 设为false，默认不启用硬件解码
+ * 
+ * @return 返回带有默认值的TcrConfig结构体
+ * 
+ * @note 使用示例：
+ * @code
+ * TcrConfig config = tcr_config_default();
+ * config.token = tokenStr.c_str();           // 必须设置：访问令牌
+ * config.accessInfo = accessInfoStr.c_str(); // 必须设置：访问信息
+ * config.hardwareDecode = true;              // 可选：启用硬件解码
+ * @endcode
+ */
+static inline TcrConfig tcr_config_default(void) {
+    TcrConfig config;
+    
+    // token和accessInfo必须由使用者设置
+    config.token = NULL;
+    config.accessInfo = NULL;
+    
+    // SDK类型默认为CloudStream（云串流）
+    config.sdkType = CloudStream;
+    
+    // 默认不开启串流优化
+    config.streamOpt = false;
+    
+    // 默认不启用硬件解码
+    config.hardwareDecode = false;
+    
+    return config;
+}
 
 /**
  * @brief I420(YUV420P)格式的视频帧缓冲区
  * 常用的YUV格式，包含亮度(Y)和色度(U,V)分量
+ * 
+ * @note 该格式在以下情况下使用：
+ * 1. 配置中禁用硬件解码（enable_hardware_decode = false）
+ * 2. 启用硬件解码但设备不支持，SDK自动回退到软件解码
+ * 3. 硬件解码过程中出现错误，临时回退到软件解码
  */
 typedef struct {
     const uint8_t* data_y;    ///< 亮度(Y)分量数据指针
@@ -106,20 +154,99 @@ typedef struct {
 
 /**
  * @brief 视频缓冲区类型枚举
+ * 
+ * 该枚举定义了视频帧回调时可能的缓冲区类型，类型由解码方式决定：
+ * - 硬件解码成功时返回D3D11类型
+ * - 软件解码或硬件解码回退时返回I420类型
  */
 typedef enum {
-    TCR_VIDEO_BUFFER_TYPE_I420 = 0,   ///< I420(YUV420P)格式的CPU缓冲区
-    TCR_VIDEO_BUFFER_TYPE_D3D11 = 1   ///< D3D11格式的GPU纹理缓冲区
+    TCR_VIDEO_BUFFER_TYPE_I420 = 0,   ///< I420(YUV420P)格式的CPU缓冲区，用于软件解码
+    TCR_VIDEO_BUFFER_TYPE_D3D11 = 1   ///< D3D11格式的GPU纹理缓冲区，用于硬件解码
 } TcrVideoBufferType;
 
 /**
  * @brief D3D11视频帧缓冲区
- * 使用Direct3D 11的GPU纹理格式
+ * 使用Direct3D 11的GPU纹理格式，适用于硬件解码场景
+ * 
+ * @note 该格式仅在硬件解码成功时使用。如果设备不支持硬件解码，
+ *       SDK会自动回退到软件解码，此时视频帧将以TcrI420Buffer格式回调。
+ *       因此，应用程序需要同时实现D3D11和I420两种格式的渲染逻辑。
+ * 
+ * @note 纹理格式说明：
+ *       SDK内部已将硬件解码器输出的NV12格式转换为标准的RGBA格式，
+ *       因此format字段固定为DXGI_FORMAT_R8G8B8A8_UNORM (值为28)。
+ *       这意味着：
+ *       - 无需在shader中进行YUV到RGB的颜色空间转换
+ *       - 可以直接作为标准颜色纹理使用，渲染实现简单
+ *       - 纹理通道顺序为：红(R) - 绿(G) - 蓝(B) - 透明(A)
+ *       - 每个通道为8位无符号归一化整数 (0-255映射到0.0-1.0)
+ * 
+ * @note 使用说明：
+ * 1. texture指针指向ID3D11Texture2D对象，可直接用于GPU渲染
+ * 2. device指针指向ID3D11Device对象，用于创建渲染资源
+ * 3. array_index指定纹理数组中的索引（如果纹理是Texture2DArray）
+ * 4. 纹理数据位于GPU显存中，避免了CPU-GPU数据传输开销
+ * 5. 如需CPU访问，需要创建staging texture并执行CopyResource
+ * 6. **纹理生命周期管理**：
+ *    - 回调中收到的frame默认在回调结束后释放
+ *    - 如需延长生命周期，调用 tcr_video_frame_add_ref(frame) 增加引用计数
+ *    - 使用完毕后必须调用 tcr_video_frame_release(frame) 释放引用
+ *    - 引用计数归零时，纹理资源会自动释放
+ * 
+ * @warning 跨线程使用时需要注意D3D11的线程安全性
+ * 
+ * @example 渲染示例
+ * @code
+ * void on_video_frame(void* user_data, const TcrVideoFrame* frame) {
+ *     if (frame->frame_buffer.type == TCR_VIDEO_BUFFER_TYPE_D3D11) {
+ *         // 增加引用计数
+ *         tcr_video_frame_add_ref((TcrVideoFrame*)frame);
+ *         render_queue_push(frame);
+ *     }
+ * }
+ * 
+ * void render_thread() {
+ *     TcrVideoFrame* frame = render_queue_pop();
+ *     const TcrD3D11Buffer* d3d11 = &frame->frame_buffer.buffer.d3d11;
+ *     
+ *     // 获取D3D11资源
+ *     ID3D11Device* device = (ID3D11Device*)d3d11->device;
+ *     ID3D11Texture2D* texture = (ID3D11Texture2D*)d3d11->texture;
+ *     
+ *     // 创建Shader Resource View用于渲染
+ *     // 注意：format固定为DXGI_FORMAT_R8G8B8A8_UNORM
+ *     ID3D11ShaderResourceView* srv = nullptr;
+ *     D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc = {};
+ *     srv_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;  // SDK保证为RGBA格式
+ *     srv_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2DARRAY;
+ *     srv_desc.Texture2DArray.MipLevels = 1;
+ *     srv_desc.Texture2DArray.ArraySize = 1;
+ *     srv_desc.Texture2DArray.FirstArraySlice = d3d11->array_index;  // 使用array_index
+ *     device->CreateShaderResourceView(texture, &srv_desc, &srv);
+ *     
+ *     // 使用标准的RGBA纹理shader进行渲染
+ *     // 在shader中可以直接采样：vec4 color = texture(sampler, texCoord);
+ *     render_rgba_texture(srv);
+ *     
+ *     // 清理
+ *     srv->Release();
+ *     tcr_video_frame_release(frame);
+ * }
+ * @endcode
  */
 typedef struct {
-    void* texture;            ///< ID3D11Texture2D指针
+    void* texture;            ///< 转换为ID3D11Texture2D*使用
+    void* device;             ///< ID3D11Device指针，用于创建渲染资源
     int32_t width;            ///< 视频帧的宽度(像素)
     int32_t height;           ///< 视频帧的高度(像素)
+    int32_t array_index;      ///< 纹理数组索引（如果纹理是Texture2DArray，通常为0表示单个纹理）
+    int32_t format;           ///< 纹理格式(DXGI_FORMAT枚举值)
+                              ///< SDK保证该值固定为 28 (DXGI_FORMAT_R8G8B8A8_UNORM)
+                              ///< 表示标准的RGBA格式，每通道8位，通道顺序为R-G-B-A
+                              ///< 
+                              ///< @note SDK内部实现说明（使用者无需关心）：
+                              ///< 硬件解码器输出的NV12格式已通过GPU加速转换为RGBA格式，
+                              ///< 转换使用D3D11 VideoProcessor实现，性能开销极小
 } TcrD3D11Buffer;
 
 /**
@@ -135,6 +262,32 @@ typedef enum {
 /**
  * @brief 通用视频帧缓冲区联合体
  * 支持多种视频缓冲区类型
+ * 
+ * @note 使用说明：
+ * 1. 必须先检查type字段，确定实际的缓冲区类型
+ * 2. 根据type访问对应的buffer成员：
+ *    - type == TCR_VIDEO_BUFFER_TYPE_I420: 使用buffer.i420
+ *    - type == TCR_VIDEO_BUFFER_TYPE_D3D11: 使用buffer.d3d11
+ * 3. 即使配置中启用了硬件解码，也可能因设备不支持而回退到I420格式
+ * 4. 渲染实现需要同时支持两种格式的处理
+ * 
+ * @example 视频帧处理示例
+ * @code
+ * void on_video_frame(void* user_data, const TcrVideoFrame* frame) {
+ *     switch (frame->frame_buffer.type) {
+ *         case TCR_VIDEO_BUFFER_TYPE_D3D11:
+ *             // 硬件解码：使用RGBA格式的D3D11纹理渲染
+ *             // SDK已完成YUV到RGB转换，可直接作为颜色纹理使用
+ *             render_d3d11_rgba_texture(&frame->frame_buffer.buffer.d3d11);
+ *             break;
+ *         case TCR_VIDEO_BUFFER_TYPE_I420:
+ *             // 软件解码：使用I420数据渲染
+ *             // 需要在shader中进行YUV到RGB的颜色空间转换
+ *             render_i420_buffer(&frame->frame_buffer.buffer.i420);
+ *             break;
+ *     }
+ * }
+ * @endcode
  */
 typedef struct TcrVideoFrameBuffer {
     TcrVideoBufferType type;    ///< 缓冲区类型
@@ -143,7 +296,7 @@ typedef struct TcrVideoFrameBuffer {
         TcrD3D11Buffer d3d11;  ///< D3D11格式缓冲区
     } buffer;                  ///< 具体缓冲区数据
     int64_t timestamp_us;      ///< 视频帧时间戳(微秒)
-    TcrVideoRotation rotation; ///< 视频帧需要旋转的角度
+    TcrVideoRotation rotation; ///< 该字段暂不支持
     const char* instance_id;   ///< 实例ID
     int instance_index;        ///< 实例索引，在非群控模式下表示当前视频流对应instanceIds数组中的第几路(从0开始)，用于区分相同ID的多路视频流
 } TcrVideoFrameBuffer;
@@ -179,6 +332,17 @@ typedef struct {
     TcrStreamProfile stream_profile;  ///< 拉流参数配置
     const char* user_id;              ///< 用户ID，用于标识当前会话的用户
     bool enable_audio;                ///< 是否启用音频功能，默认启用, 若不需要音频功能建议关闭以降低cpu使用率
+    bool enable_hardware_decode;      ///< 是否启用硬件解码，默认启用
+                                      ///< 启用后的行为说明：
+                                      ///< - 硬件解码成功：视频帧回调类型为TCR_VIDEO_BUFFER_TYPE_D3D11
+                                      ///<   纹理格式为DXGI_FORMAT_R8G8B8A8_UNORM (RGBA格式)
+                                      ///< - 硬件解码失败或设备不支持：SDK会自动回退到软件解码
+                                      ///<   视频帧回调类型为TCR_VIDEO_BUFFER_TYPE_I420
+                                      ///< - 禁用硬件解码：视频帧回调类型始终为TCR_VIDEO_BUFFER_TYPE_I420
+                                      ///< 
+                                      ///< 渲染时必须根据frame_buffer.type字段判断实际的缓冲区类型：
+                                      ///< - D3D11类型：使用标准RGBA纹理shader渲染，无需YUV转换
+                                      ///< - I420类型：需要在shader中进行YUV到RGB的颜色空间转换
 } TcrSessionConfig;
 
 /**
@@ -219,6 +383,10 @@ static inline TcrSessionConfig tcr_session_config_default(void) {
     
     // 默认启用音频功能
     config.enable_audio = true;
+    
+    // 默认启用硬件解码（性能更好，但会根据设备能力自动回退）
+    // 注意：即使启用，SDK也会在检测到设备不支持时自动回退到软件解码
+    config.enable_hardware_decode = false;
     
     return config;
 }
@@ -283,6 +451,29 @@ typedef struct TcrDataChannelObserver {
     void (*on_error)(void* user_data, const int32_t port, const TcrErrorCode& code, const char* msg);
     void (*on_message)(void* user_data, const int32_t port, const uint8_t* data, size_t size);
 } TcrDataChannelObserver;
+
+/**
+ * @brief 流媒体请求项结构体
+ * 用于多用户流媒体请求
+ */
+typedef struct {
+    const char* instanceId; ///< 实例ID
+    const char* status;     ///< 状态："open" 或 "close"
+} TcrStreamingRequestItem;
+
+/**
+ * @brief 流配置项结构体（C接口）
+ * 用于多路流的配置参数设置
+ */
+typedef struct {
+    const char* instanceId;      ///< 实例ID
+    int32_t fps;                 ///< 视频帧率（可选参数，设置为 0 或负数表示不设置此参数，有效范围：1-60）
+    int32_t min_bitrate;         ///< 最小码率（可选参数，单位 kbps，设置为 0 或负数表示不设置码率参数，需与 maxBitrate 同时设置）
+    int32_t max_bitrate;         ///< 最大码率（可选参数，单位 kbps，设置为 0 或负数表示不设置码率参数，需与 minBitrate 同时设置）
+    int32_t video_width;         ///< 视频宽度（可选参数，单位 px，设置为 0 或负数表示不设置分辨率参数，需与 video_height 同时设置）
+    int32_t video_height;        ///< 视频高度（可选参数，单位 px，设置为 0 或负数表示不设置分辨率参数，需与 video_width 同时设置）
+} TcrStreamProfileItem;
+
 /**
  * @brief 会话事件类型枚举，定义了客户端与云端会话过程中可能产生的所有事件类型。
  */

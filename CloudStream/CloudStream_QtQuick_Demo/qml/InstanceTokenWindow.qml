@@ -39,16 +39,11 @@ Window {
                 TextArea {
                     id: instanceIdsField
                     placeholderText: "请输入实例ID，多个实例用逗号分隔\n例如：ACP250819OHEI9BD,ACP250819OHEI9B2,ACP250819OHEI9B3"
-                    text: "ACP250819RHPCLIB,ACP250912DUBYJUH,ACP250819OHEI9BD,ACP250819ZRW142U,ACP250912VLR5Y1C"
+                    text: "cai-1300056159-fe2dcsmxqau,cai-1300056159-fe2dt96vxhv,cai-1300056159-fe2da9jdiql,cai-1300056159-fe2dwr51rko,cai-1300056159-fe2dpkbknte,cai-1300056159-fe2dll9blqj,cai-1300056159-fe2dxz6qicx,cai-1300056159-fe2dlgandqc,cai-1300056159-fe2d2v8980c,cai-1300056159-fe2d892wi9y"
                     Layout.fillWidth: true
                     Layout.preferredHeight: 100
                     wrapMode: Text.Wrap
                     font.pixelSize: 14
-                    
-                    onTextChanged: {
-                        // 移除空格和特殊字符
-                        text = text.replace(/[^A-Za-z0-9,]/g, '')
-                    }
                 }
                 
                 Label {

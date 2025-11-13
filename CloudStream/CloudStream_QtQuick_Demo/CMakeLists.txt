@@ -31,6 +31,8 @@ qt6_add_shaders(CloudStream_QtQuick_Demo "shaders"
     FILES
         "shaders/yuv.vert"
         "shaders/yuv.frag"
+        "shaders/d3d11_texture.vert"
+        "shaders/d3d11_texture.frag"
 )
 
 # 获取qml目录下的所有QML文件（相对路径）
@@ -58,23 +60,23 @@ target_link_libraries(CloudStream_QtQuick_Demo
             Qt6::Concurrent
 )
 
-# 处理 TcrSdk 库和 DLL
-set(TCRSDK_BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/TcrSdk)
+    # 处理 TcrSdk 库和 DLL
+    set(TCRSDK_BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/TcrSdk)
 
-if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-    set(TCRSDK_PLATFORM x64)
-else()
-    set(TCRSDK_PLATFORM Win32)
-endif()
+    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+        set(TCRSDK_PLATFORM x64)
+    else()
+        set(TCRSDK_PLATFORM Win32)
+    endif()
 
-# 用生成器表达式拼接路径
-set(TCRSDK_DLL "$<IF:$<CONFIG:Debug>,${TCRSDK_BASE_DIR}/Debug/${TCRSDK_PLATFORM}/TcrSdk.dll,${TCRSDK_BASE_DIR}/Release/${TCRSDK_PLATFORM}/TcrSdk.dll>")
-set(TCRSDK_PDB "$<IF:$<CONFIG:Debug>,${TCRSDK_BASE_DIR}/Debug/${TCRSDK_PLATFORM}/TcrSdk.pdb,${TCRSDK_BASE_DIR}/Release/${TCRSDK_PLATFORM}/TcrSdk.pdb>")
-set(TCRSDK_LIB "$<IF:$<CONFIG:Debug>,${TCRSDK_BASE_DIR}/Debug/${TCRSDK_PLATFORM}/TcrSdk.lib,${TCRSDK_BASE_DIR}/Release/${TCRSDK_PLATFORM}/TcrSdk.lib>")
+    # 用生成器表达式拼接路径
+    set(TCRSDK_DLL "$<IF:$<CONFIG:Debug>,${TCRSDK_BASE_DIR}/Debug/${TCRSDK_PLATFORM}/TcrSdk.dll,${TCRSDK_BASE_DIR}/Release/${TCRSDK_PLATFORM}/TcrSdk.dll>")
+    set(TCRSDK_PDB "$<IF:$<CONFIG:Debug>,${TCRSDK_BASE_DIR}/Debug/${TCRSDK_PLATFORM}/TcrSdk.pdb,${TCRSDK_BASE_DIR}/Release/${TCRSDK_PLATFORM}/TcrSdk.pdb>")
+    set(TCRSDK_LIB "$<IF:$<CONFIG:Debug>,${TCRSDK_BASE_DIR}/Debug/${TCRSDK_PLATFORM}/TcrSdk.lib,${TCRSDK_BASE_DIR}/Release/${TCRSDK_PLATFORM}/TcrSdk.lib>")
 
-target_link_libraries(CloudStream_QtQuick_Demo PRIVATE ${TCRSDK_LIB})
+    target_link_libraries(CloudStream_QtQuick_Demo PRIVATE ${TCRSDK_LIB})
 
-add_custom_command(TARGET CloudStream_QtQuick_Demo POST_BUILD
+    add_custom_command(TARGET CloudStream_QtQuick_Demo POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E echo "Copying TcrSdk DLL: ${TCRSDK_DLL}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         ${TCRSDK_DLL}

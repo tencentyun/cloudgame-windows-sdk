@@ -8,9 +8,12 @@ CloudStream_QtQuick_Demo 是一个基于 Qt 6/QML 的云手机串流客户端演
 
 ## 主要功能
 
-- **实例展示**：卡片展示云手机实例画面
-- **视频串流**：支持单实例和多实例同步视频流渲染与交互。
-- **自定义渲染**：基于 OpenGL Shader 的 YUV 视频渲染。
+- **实例展示**：卡片展示云手机实例画面，支持实时预览
+- **视频串流**：支持单实例和多实例同步视频流渲染与交互
+- **多渲染路径**：
+  - YUV软件渲染：基于 OpenGL Shader 的 I420 格式视频渲染
+  - D3D11硬件渲染：支持 D3D11 GPU 纹理直接渲染RGBA纹理
+- **多会话管理**：演示如何使用 TcrSdk 创建多个会话，实现多实例同时串流
 
 ## 目录结构
 
@@ -27,19 +30,25 @@ CloudStream_QtQuick_Demo 是一个基于 Qt 6/QML 的云手机串流客户端演
 │       └── Dialogs.qml           # 对话框
 ├── README.md                     # 本文档
 ├── shaders/                      # OpenGL 着色器
-│   ├── yuv.frag                  # YUV片段着色器
-│   └── yuv.vert                  # YUV顶点着色器
+│   ├── yuv.frag                  # YUV片段着色器（I420格式）
+│   ├── yuv.vert                  # YUV顶点着色器
+│   ├── d3d11_texture.frag        # D3D11纹理片段着色器（RGBA格式）
+│   └── d3d11_texture.vert        # D3D11纹理顶点着色器
 ├── src/                          # C++ 源码
 │   ├── main.cpp                  # 程序入口
 │   ├── core/                     # 业务核心与渲染
 │   │   └── video/                # 视频渲染相关
-│   │       ├── Frame.h           # 视频帧数据结构
+│   │       ├── Frame.h           # 视频帧数据结构（支持I420_CPU和D3D11_GPU）
 │   │       ├── VideoRenderItem.h # QQuickItem视频渲染组件
 │   │       ├── VideoRenderItem.cpp
-│   │       ├── YuvMaterial.h     # OpenGL YUV着色材质
+│   │       ├── YuvMaterial.h     # OpenGL YUV着色材质（I420格式）
 │   │       ├── YuvMaterial.cpp
 │   │       ├── YuvNode.h         # 场景图YUV渲染节点
 │   │       ├── YuvNode.cpp
+│   │       ├── D3D11Material.h   # D3D11纹理材质（支持NV12转RGBA）
+│   │       ├── D3D11Material.cpp
+│   │       ├── D3D11Node.h       # 场景图D3D11渲染节点
+│   │       ├── D3D11Node.cpp
 │   │       ├── YuvTestPattern.h  # YUV测试模式工具
 │   │       └── YuvTestPattern.cpp
 │   ├── services/                 # 网络与API服务
@@ -51,12 +60,15 @@ CloudStream_QtQuick_Demo 是一个基于 Qt 6/QML 的云手机串流客户端演
 │   │   ├── Logger.h              # 日志工具
 │   │   ├── Logger.cpp
 │   │   ├── VariantListConverter.h # 数据类型转换工具
-│   │   └── VariantListConverter.cpp
+│   │   ├── VariantListConverter.cpp
+│   │   └── EnvInfoPrinter.h      # 环境信息打印工具
 │   └── viewmodels/               # QML 绑定的 ViewModel
 │       ├── InstanceTokenViewModel.h   # 演示如何请求业务后台接口拿到AccessToken
 │       ├── InstanceTokenViewModel.cpp
-│       ├── StreamingViewModel.h   # 串流交互控制管理
-│       └── StreamingViewModel.cpp
+│       ├── StreamingViewModel.h   # 单实例串流交互控制管理
+│       ├── StreamingViewModel.cpp
+│       ├── MultiStreamViewModel.h # 多实例串流管理（演示多会话）
+│       └── MultiStreamViewModel.cpp
 └── third_party/
     └── TcrSdk/                   # 云手机SDK（含头文件、lib、dll）
         ├── Debug/                # Debug版本SDK

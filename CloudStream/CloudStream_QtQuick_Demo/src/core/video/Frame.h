@@ -7,28 +7,60 @@
 #include "tcr_c_api.h"
 
 /**
+ * @brief 视频帧类型枚举
+ * 
+ * 标识视频帧数据的存储格式和位置
+ */
+enum class VideoFrameType {
+    I420_CPU = 0,    ///< I420(YUV420P)格式，数据位于CPU内存
+    D3D11_GPU = 1    ///< D3D11纹理格式，数据位于GPU显存
+};
+
+/**
+ * @brief D3D11纹理数据结构
+ * 
+ * 存储GPU纹理相关信息，用于硬件加速渲染
+ */
+struct D3D11TextureData {
+    void* texture = nullptr;      ///< ID3D11Texture2D指针
+    void* device = nullptr;       ///< ID3D11Device指针
+    int array_index = 0;          ///< 纹理数组索引
+    int format = 0;               ///< 纹理格式(DXGI_FORMAT)
+};
+
+/**
  * @brief 视频帧数据结构体
  * 
- * 存储YUV格式的视频帧数据，包含Y、U、V三个分量的数据指针和步长信息。
+ * 统一的视频帧数据结构，支持多种帧类型：
+ * - I420_CPU: YUV420格式的CPU内存数据
+ * - D3D11_GPU: D3D11格式的GPU纹理数据
+ * 
  * 使用引用计数管理底层帧资源的生命周期。
  */
 struct VideoFrameData {
-    // YUV数据指针（只读引用，不拥有所有权）
+    // 帧类型标识
+    VideoFrameType frame_type = VideoFrameType::I420_CPU;  ///< 帧数据类型
+    
+    // YUV数据指针（仅当frame_type为I420_CPU时有效）
     const uint8_t* data_y = nullptr;  ///< Y分量数据指针
     const uint8_t* data_u = nullptr;  ///< U分量数据指针
     const uint8_t* data_v = nullptr;  ///< V分量数据指针
     
-    // 帧资源管理
-    void* frame_handle = nullptr;     ///< 底层帧句柄，用于引用计数管理
-    
-    // 步长信息（每行字节数，可能大于实际宽度）
+    // 步长信息（仅当frame_type为I420_CPU时有效）
     int strideY = 0;                  ///< Y分量每行字节数
     int strideU = 0;                  ///< U分量每行字节数
     int strideV = 0;                  ///< V分量每行字节数
     
-    // 帧尺寸信息
+    // D3D11纹理数据（仅当frame_type为D3D11_GPU时有效）
+    D3D11TextureData d3d11_data;      ///< D3D11纹理信息
+    
+    // 帧资源管理
+    void* frame_handle = nullptr;     ///< 底层帧句柄，用于引用计数管理
+    
+    // 帧尺寸信息（所有类型通用）
     int width = 0;                    ///< 帧宽度（像素）
     int height = 0;                   ///< 帧高度（像素）
+    int64_t timestamp_us = 0;         ///< 时间戳（微秒）
     
     /**
      * @brief 析构函数

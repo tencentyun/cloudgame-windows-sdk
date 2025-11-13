@@ -835,6 +835,44 @@ TCRSDK_API void tcr_session_set_video_frame_observer(TcrSessionHandle session, c
 TCRSDK_API void tcr_session_access(TcrSessionHandle session, const char** instanceIds, int32_t length, bool isGroupControl);
 
 /**
+ * @brief 连接多个云端实例并接收各自独立的视频流
+ * 
+ * 该接口用于同时连接多个云端实例，每个实例都会产生独立的视频流回调。
+ * 与tcr_session_access的群控模式不同，此接口不进行同步控制，仅用于多流观看场景。
+ * 
+ * @param session 会话句柄
+ * @param instanceIds 云端实例ID数组
+ * @param length 实例ID数组长度
+ * @param stream_configs 可选参数，每个实例的流配置数组（可为NULL使用默认配置）
+ * 
+ * @note 使用限制：
+ *   - 每个实例的视频流通过tcr_session_set_video_frame_observer回调
+ *   - 回调中的TcrVideoFrameHandle需包含实例ID信息以区分不同流
+ *   - 同时连接的实例数最多不超过20个.
+ * 
+ * @warning 
+ *   - 此接口与tcr_session_access互斥，同一session只能调用其中一个
+ *   - 调用此接口后，群控相关接口（如tcr_instance_set_sync_list）针对该会话将不可用
+ * 
+ * @example 典型用法
+ * @code
+ * const char* instances[] = {"cai-xxx-001", "cai-xxx-002", "cai-xxx-003"};
+ * tcr_session_access_multi_stream(session, instances, 3, NULL);
+ * 
+ * // 在视频帧回调中区分不同实例的流
+ * void VideoFrameCallback(void* user_data, TcrVideoFrameHandle frame_handle) {
+ *     const char* instance_id = tcr_video_frame_get_instance_id(frame_handle);
+ *     // 根据instance_id处理不同实例的视频帧
+ * }
+ * @endcode
+ */
+TCRSDK_API void tcr_session_access_multi_stream(
+    TcrSessionHandle session, 
+    const char** instanceIds, 
+    int32_t length
+);
+
+/**
  * @brief 暂停媒体流（如视频流），通常用于临时挂起
  * @param session 会话句柄
  * @param media_type 媒体类型，可选，取值为 "audio"、"video" 或空字符串；空字符串时暂停音视频流
@@ -847,6 +885,31 @@ TCRSDK_API void tcr_session_pause_streaming(TcrSessionHandle session, const char
  * @param media_type 媒体类型，可选，取值为 "audio"、"video" 或空字符串；空字符串时恢复音视频流
  */
 TCRSDK_API void tcr_session_resume_streaming(TcrSessionHandle session, const char* media_type = nullptr);
+
+/**
+ * @brief 请求多个实例的流媒体推流
+ * 
+ * 该函数用于批量请求多个用户的流媒体推流状态。
+ * 
+ * @param session 会话句柄
+ * @param items 流媒体请求项数组
+ * @param item_count 数组中的项数
+ * 
+ * @note 使用示例：
+ * @code
+ * TcrStreamingRequestItem items[2];
+ * items[0].instanceId = "cai-123456-cgxxxxxx";
+ * items[0].status = "open";
+ * items[0].ssrc = "video_track_ssrc_1";
+ * 
+ * items[1].instanceId = "cai-123456-cgyyyyyy";
+ * items[1].status = "close";
+ * items[1].ssrc = "video_track_ssrc_2";
+ * 
+ * tcr_session_request_multi_streaming(session, items, 2);
+ * @endcode
+ */
+TCRSDK_API void tcr_session_request_multi_streaming(TcrSessionHandle session, const TcrStreamingRequestItem* items, int32_t item_count);
 
 /**
  * @brief 设置远端视频流参数（帧率、码率等）
@@ -1051,14 +1114,6 @@ TCRSDK_API void tcr_set_log_level(TcrLogLevel level);
 TCRSDK_API TcrLogLevel tcr_get_log_level();
 
 /**
- * @brief 将视频帧缓冲区转换为I420格式
- * @param buffer 输入的视频帧缓冲区
- * @param output_i420 输出的I420缓冲区指针
- * @return 转换是否成功
- */
-TCRSDK_API bool tcr_video_frame_buffer_to_i420(const TcrVideoFrameBuffer* buffer, TcrI420Buffer* output_i420);
-
-/**
  * @brief 检查视频帧缓冲区是否为D3D11格式
  * @param buffer 视频帧缓冲区
  * @return 是否为D3D11格式
@@ -1085,6 +1140,23 @@ TCRSDK_API bool tcr_session_enable_local_microphone(TcrSessionHandle session, bo
  * @return 是否已启用，true表示已启用
  */
 TCRSDK_API bool tcr_session_is_local_microphone_enabled(TcrSessionHandle session);
+
+
+/**
+ * @brief 将TcrSessionEvent枚举值转换为事件类型字符串
+ * 
+ * @param event 会话事件枚举值
+ * @return 返回对应的事件类型字符串，如果事件类型未知则返回"UNKNOWN_EVENT"
+ * 
+ * @note 返回的字符串是静态常量，不需要调用者释放
+ * 
+ * @code
+ * TcrSessionEvent event = TCR_SESSION_EVENT_STATE_CONNECTED;
+ * const char* event_str = tcr_session_event_to_string(event);
+ * // event_str 将是 "STATE_CONNECTED"
+ * @endcode
+ */
+TCRSDK_API const char* tcr_session_event_to_string(TcrSessionEvent event);
 
 #ifdef __cplusplus
 }

@@ -190,16 +190,29 @@ public slots:
     // ==================== 流控制 ====================
     
     /**
-     * @brief 暂停远端推流
+     * @brief 暂停远端视频推流
      * 对应 SDK API：tcr_session_pause_streaming()
      */
-    void onPauseStreamClicked();
+    void onPauseVideoStreamClicked();
     
     /**
-     * @brief 恢复远端推流
+     * @brief 恢复远端视频推流
      * 对应 SDK API：tcr_session_resume_streaming()
      */
-    void onResumeStreamClicked();
+    void onResumeVideoStreamClicked();
+
+    /**
+     * @brief 暂停远端音频推流
+     * 对应 SDK API：tcr_session_pause_streaming()
+     */
+    void onPauseAudioStreamClicked();
+    
+    /**
+     * @brief 恢复远端音频推流
+     * 对应 SDK API：tcr_session_resume_streaming()
+     */
+    void onResumeAudioStreamClicked();
+
 
     // ==================== 设备控制 ====================
     

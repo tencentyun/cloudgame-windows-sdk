@@ -11,8 +11,11 @@ class YuvMaterial;
 /**
  * @brief YUV渲染节点类
  * 
- * 负责将YUV格式的视频帧渲染到QML场景图中。
+ * 负责将YUV420格式的视频帧渲染到QML场景图中。
  * 该类继承自QSGGeometryNode，管理渲染所需的几何信息和材质。
+ * 
+ * @note 当前版本仅支持I420_CPU类型的帧数据
+ * @todo 未来需要扩展支持D3D11_GPU类型的纹理渲染
  */
 class YuvNode : public QSGGeometryNode
 {
@@ -33,9 +36,11 @@ public:
      * @brief 设置视频帧数据并更新渲染
      * 
      * @param window 渲染窗口指针，用于创建纹理
-     * @param frame 视频帧数据指针，包含YUV平面数据
+     * @param frame 视频帧数据指针，当前仅支持I420_CPU类型
      * @param itemSize 渲染区域的尺寸
      * @param frameDirty 标识帧数据是否已更新，需要重新上传到GPU
+     * 
+     * @note 如果传入D3D11_GPU类型的帧，当前会被忽略
      */
     void setFrame(QQuickWindow* window, 
                   const VideoFrameData* frame, 

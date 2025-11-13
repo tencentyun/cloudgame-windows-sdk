@@ -1,5 +1,17 @@
 # Release Notes
 
+## Version 1.14.0
+### Bugfix
+- 修复`tcr_session_pause_streaming`无法停止和恢复音频问题
+
+### Features
+- 新增函数`tcr_config_default()`用于获取客户端默认配置
+- `TcrSessionConfig`新增参数`enable_hardware_decode`支持输出硬解RGBA纹理
+
+### Download
+- [TcrSdk-Debug-1.14.0-20251113-177ec1791.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Debug-1.14.0-20251113-177ec1791.zip)
+- [TcrSdk-Release-1.14.0-20251113-177ec1791.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Release-1.14.0-20251113-177ec1791.zip)
+
 ## Version 1.13.2
 ### Bugfix
 - 修复个别工程加载程序时崩溃的问题

@@ -60,11 +60,10 @@ void MultiStreamViewModel::initialize(const QStringList& instanceIds,
 
     // 步骤1：配置 TcrSdk 初始化参数
     // TcrConfig 包含两个必填字段：Token 和 AccessInfo
-    TcrConfig config = {
-        tokenStr.c_str(),      // Token: 访问令牌，用于身份验证
-        accessInfoStr.c_str(), // AccessInfo: 访问信息，包含服务器地址等配置
-        CloudStream            // 产品类型
-    };
+    TcrConfig config = tcr_config_default();
+    config.token = tokenStr.c_str();
+    config.accessInfo = accessInfoStr.c_str();
+    config.hardwareDecode = true;
     
     // 步骤2：获取 TcrClient 全局单例句柄
     // tcr_client_get_instance() 返回全局唯一的 TcrClientHandle
@@ -168,8 +167,8 @@ void MultiStreamViewModel::createSessionsWithConfigs(const QVariantList& session
         TcrSessionConfig config = tcr_session_config_default();
         
         // 自定义视频流参数
-        config.stream_profile.video_width = 144;   // 视频宽度
-        config.stream_profile.video_height = 256;  // 视频高度
+        config.stream_profile.video_width = 720;   // 视频宽度
+        config.stream_profile.video_height = 1280;  // 视频高度
         config.stream_profile.fps = 1;             // 帧率
         config.stream_profile.max_bitrate = 4000;  // 最大码率
         config.stream_profile.min_bitrate = 1000;  // 最小码率
@@ -214,7 +213,7 @@ void MultiStreamViewModel::createSessionsWithConfigs(const QVariantList& session
                 m_sessions[i].session,
                 result.pointers.data(),
                 static_cast<int32_t>(result.pointers.size()),
-                false  // isGroupControl: false 表示非群控模式
+                false
             );
             Logger::debug(QString("[createSessionsWithConfigs] 会话 %1 开始连接实例").arg(i));
         }
@@ -299,7 +298,7 @@ void MultiStreamViewModel::SessionEventCallback(void* user_data,
         
         // 处理不同的事件类型
         switch (event) {
-            case TCR_SESSION_EVENT_STATE_CONNECTED:
+            case TCR_SESSION_EVENT_STATE_CONNECTED: {
                 // 会话连接成功
                 Logger::info(QString("[SessionEventCallback] 会话 %1 连接成功，实例: %2")
                             .arg(sessionIndex).arg(sessionInfo.instanceIds.join(",")));
@@ -308,7 +307,17 @@ void MultiStreamViewModel::SessionEventCallback(void* user_data,
                 for (const QString& instanceId : sessionInfo.instanceIds) {
                     emit self->instanceConnectionChanged(instanceId, true);
                 }
+
+                // 设置码流参数
+                tcr_session_set_remote_video_profile(sessionInfo.session, 
+                    1,     // fps: 1帧/秒
+                    100,   // minBitrate: 100 kbps
+                    200,   // maxBitrate: 200 kbps
+                    188,   // height: 144
+                    256);  // width: 256
+
                 break;
+            }
                 
             case TCR_SESSION_EVENT_STATE_CLOSED:
                 // 会话关闭
@@ -320,11 +329,13 @@ void MultiStreamViewModel::SessionEventCallback(void* user_data,
                     emit self->instanceConnectionChanged(instanceId, false);
                 }
                 break;
-                
+            case TCR_SESSION_EVENT_CLIENT_STATS:
+                // 持续回调的性能统计数据(可机忽略)
+                break;
             default:
                 // 其他事件类型
                 Logger::debug(QString("[SessionEventCallback] 会话 %1 事件: %2")
-                             .arg(sessionIndex).arg(static_cast<int>(event)));
+                             .arg(sessionIndex).arg(tcr_session_event_to_string(event)));
                 break;
         }
     }, Qt::QueuedConnection);
@@ -380,30 +391,53 @@ void MultiStreamViewModel::VideoFrameCallback(void* user_data,
         return;
     }
 
-    // 步骤6：提取 I420 格式的视频数据
-    const TcrI420Buffer& buffer = frame_buffer->buffer.i420;
-
-    // 步骤7：增加引用计数
+    // 步骤6：增加引用计数
     // 重要：必须调用 tcr_video_frame_add_ref() 增加引用计数
     // 否则帧数据可能在使用前被释放
     tcr_video_frame_add_ref(frame_handle);
     
-    // 步骤8：创建视频帧数据智能指针
+    // 步骤7：创建视频帧数据智能指针
     // VideoFrameDataPtr 是智能指针，析构时会自动调用 tcr_video_frame_release()
     VideoFrameDataPtr frameDataPtr(new VideoFrameData);
     
+    // 步骤8：根据缓冲区类型填充不同的数据
     frameDataPtr->frame_handle = frame_handle;
-    frameDataPtr->width = buffer.width;
-    frameDataPtr->height = buffer.height;
-    frameDataPtr->strideY = buffer.stride_y;
-    frameDataPtr->strideU = buffer.stride_u;
-    frameDataPtr->strideV = buffer.stride_v;
-    frameDataPtr->data_y = buffer.data_y;
-    frameDataPtr->data_u = buffer.data_u;
-    frameDataPtr->data_v = buffer.data_v;
+    frameDataPtr->timestamp_us = frame_buffer->timestamp_us;
+    
+    if (frame_buffer->type == TCR_VIDEO_BUFFER_TYPE_I420) {
+        // I420格式：CPU内存中的YUV数据
+        const TcrI420Buffer& i420Buffer = frame_buffer->buffer.i420;
+        
+        frameDataPtr->frame_type = VideoFrameType::I420_CPU;
+        frameDataPtr->width = i420Buffer.width;
+        frameDataPtr->height = i420Buffer.height;
+        frameDataPtr->strideY = i420Buffer.stride_y;
+        frameDataPtr->strideU = i420Buffer.stride_u;
+        frameDataPtr->strideV = i420Buffer.stride_v;
+        frameDataPtr->data_y = i420Buffer.data_y;
+        frameDataPtr->data_u = i420Buffer.data_u;
+        frameDataPtr->data_v = i420Buffer.data_v;
+    }
+    else if (frame_buffer->type == TCR_VIDEO_BUFFER_TYPE_D3D11) {
+        // D3D11格式：GPU纹理数据
+        const TcrD3D11Buffer& d3d11Buffer = frame_buffer->buffer.d3d11;
+        
+        frameDataPtr->frame_type = VideoFrameType::D3D11_GPU;
+        frameDataPtr->width = d3d11Buffer.width;
+        frameDataPtr->height = d3d11Buffer.height;
+        frameDataPtr->d3d11_data.texture = d3d11Buffer.texture;
+        frameDataPtr->d3d11_data.device = d3d11Buffer.device;
+        frameDataPtr->d3d11_data.array_index = d3d11Buffer.array_index;
+        frameDataPtr->d3d11_data.format = d3d11Buffer.format;
+    }
+    else {
+        // 未知类型，释放引用并返回
+        Logger::warning(QString("[VideoFrameCallback] 未知的帧类型: %1").arg(frame_buffer->type));
+        tcr_video_frame_release(frame_handle);
+        return;
+    }
 
     // 步骤9：发送视频帧信号
     // 通过信号槽机制将帧数据发送到对应的 VideoRenderItem
     emit self->newVideoFrameForInstance(uniqueKey, frameDataPtr);
 }
-

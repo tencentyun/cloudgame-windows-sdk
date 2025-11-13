@@ -153,8 +153,11 @@ ApplicationWindow {
 
                 Rectangle { width: parent.width; height: 1; color: "#cccccc" }
 
-                Button { text: "暂停推流"; onClicked: streamingViewModel.onPauseStreamClicked() }
-                Button { text: "恢复推流"; onClicked: streamingViewModel.onResumeStreamClicked() }
+                Button { text: "暂停视频推流"; onClicked: streamingViewModel.onPauseVideoStreamClicked() }
+                Button { text: "恢复视频推流"; onClicked: streamingViewModel.onResumeVideoStreamClicked() }
+
+                Button { text: "暂停音频推流"; onClicked: streamingViewModel.onPauseAudioStreamClicked() }
+                Button { text: "恢复音频推流"; onClicked: streamingViewModel.onResumeAudioStreamClicked() }
 
                 Rectangle { width: parent.width; height: 1; color: "#cccccc" }
 

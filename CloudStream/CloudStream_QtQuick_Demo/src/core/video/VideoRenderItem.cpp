@@ -1,5 +1,6 @@
 #include "VideoRenderItem.h"
 #include "YuvNode.h"
+#include "D3D11Node.h"
 #include "YuvTestPattern.h"
 #include <QSGNode>
 #include <QSGGeometryNode>
@@ -56,7 +57,9 @@ void VideoRenderItem::setFrame(VideoFrameDataPtr frame)
 /**
  * @brief 判断当前是否有有效的帧数据
  * 
- * 检查帧数据是否存在且有效（尺寸合法且YUV数据指针非空）。
+ * 检查帧数据是否存在且有效：
+ * - 对于I420_CPU类型：检查尺寸和YUV数据指针
+ * - 对于D3D11_GPU类型：检查尺寸和纹理指针
  */
 bool VideoRenderItem::hasFrame() const
 {
@@ -65,16 +68,28 @@ bool VideoRenderItem::hasFrame() const
         return false;
     }
     
-    // 检查YUV三个分量的数据指针是否都有效
-    return m_frame->data_y != nullptr && 
-           m_frame->data_u != nullptr && 
-           m_frame->data_v != nullptr;
+    // 根据帧类型检查数据有效性
+    if (m_frame->frame_type == VideoFrameType::I420_CPU) {
+        // YUV420格式：检查三个分量的数据指针
+        return m_frame->data_y != nullptr && 
+               m_frame->data_u != nullptr && 
+               m_frame->data_v != nullptr;
+    } 
+    else if (m_frame->frame_type == VideoFrameType::D3D11_GPU) {
+        // D3D11纹理格式：检查纹理和设备指针
+        return m_frame->d3d11_data.texture != nullptr && 
+               m_frame->d3d11_data.device != nullptr;
+    }
+    
+    return false;
 }
 
 /**
  * @brief 更新渲染节点
  * 
- * 在渲染线程中被调用，负责创建或更新YUV渲染节点。
+ * 在渲染线程中被调用，负责根据帧类型创建或更新对应的渲染节点。
+ * - I420_CPU类型使用YuvNode渲染
+ * - D3D11_GPU类型使用D3D11Node渲染
  * 如果没有有效帧数据，返回nullptr表示不渲染任何内容。
  */
 QSGNode* VideoRenderItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData*)
@@ -85,19 +100,49 @@ QSGNode* VideoRenderItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData*
         return nullptr;
     }
     
-    // 尝试复用旧节点
-    YuvNode* node = dynamic_cast<YuvNode*>(oldNode);
-    if (!node) {
-        // 如果旧节点不是YuvNode类型，删除并创建新节点
-        delete oldNode;
-        node = new YuvNode();
+    // 根据帧类型选择对应的渲染节点
+    if (m_frame->frame_type == VideoFrameType::I420_CPU) 
+    {
+        // YUV420格式：使用YuvNode渲染
+        YuvNode* yuvNode = dynamic_cast<YuvNode*>(oldNode);
+        
+        // 如果旧节点类型不匹配，删除并创建新节点
+        if (!yuvNode) {
+            delete oldNode;
+            yuvNode = new YuvNode();
+        }
+        
+        // 更新节点的帧数据和渲染尺寸
+        yuvNode->setFrame(window(), m_frame.data(), QSizeF(width(), height()), m_frameDirty);
+        
+        // 清除脏标记
+        m_frameDirty = false;
+        
+        return yuvNode;
     }
-    
-    // 更新节点的帧数据和渲染尺寸
-    node->setFrame(window(), m_frame.data(), QSizeF(width(), height()), m_frameDirty);
-    
-    // 清除脏标记
-    m_frameDirty = false;
-    
-    return node;
+    else if (m_frame->frame_type == VideoFrameType::D3D11_GPU)
+    {
+        // D3D11纹理格式：使用D3D11Node渲染
+        D3D11Node* d3d11Node = dynamic_cast<D3D11Node*>(oldNode);
+        
+        // 如果旧节点类型不匹配，删除并创建新节点
+        if (!d3d11Node) {
+            delete oldNode;
+            d3d11Node = new D3D11Node();
+        }
+        
+        // 更新节点的帧数据和渲染尺寸
+        d3d11Node->setFrame(window(), m_frame.data(), QSizeF(width(), height()), m_frameDirty);
+        
+        // 清除脏标记
+        m_frameDirty = false;
+        
+        return d3d11Node;
+    }
+    else
+    {
+        // 未知类型，删除旧节点
+        delete oldNode;
+        return nullptr;
+    }
 }
