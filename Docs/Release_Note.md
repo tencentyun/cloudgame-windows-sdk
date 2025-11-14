@@ -1,5 +1,13 @@
 # Release Notes
 
+## Version 1.14.1
+### Bugfix
+- 删除`TcrSessionConfig`中流配置的unit规避指针传递时值无效问题
+
+### Download
+- [TcrSdk-Debug-1.14.1-20251114-281f04ccd.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Debug-1.14.1-20251114-281f04ccd.zip)
+- [TcrSdk-Release-1.14.1-20251114-281f04ccd.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Release-1.14.1-20251114-281f04ccd.zip)
+
 ## Version 1.14.0
 ### Bugfix
 - 修复`tcr_session_pause_streaming`无法停止和恢复音频问题

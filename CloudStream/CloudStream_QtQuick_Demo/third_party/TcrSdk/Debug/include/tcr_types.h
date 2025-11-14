@@ -313,15 +313,14 @@ typedef struct {
 /**
  * @brief 拉流参数配置结构体
  * 用于设置视频流的参数配置。可以单独指定视频宽高，或者帧率，或者码率。
- * 设定码率时必须同时指定min_bitrate、max_bitrate和unit，否则不生效。
+ * 设定码率时必须同时指定min_bitrate、max_bitrate，否则不生效。
  */
 typedef struct {
     int32_t video_width;    ///< 视频宽度（像素）, 0表示不指定视频宽度
     int32_t video_height;   ///< 视频高度（像素）, 0表示不指定视频高度
     int32_t fps;            ///< 帧率, 0表示不指定帧率
-    int32_t max_bitrate;    ///< 最大码率, 0表示不指定最大码率
-    int32_t min_bitrate;    ///< 最小码率, 0表示不指定最小码率
-    const char* unit;       ///< 码率单位：仅 "Kbps" 或 "Mbps"
+    int32_t max_bitrate;    ///< 最大码率Kbps, 0表示不指定最大码率
+    int32_t min_bitrate;    ///< 最小码率Kbps, 0表示不指定最小码率
 } TcrStreamProfile;
 
 /**
@@ -376,7 +375,6 @@ static inline TcrSessionConfig tcr_session_config_default(void) {
     config.stream_profile.fps = 0;
     config.stream_profile.max_bitrate = 0;
     config.stream_profile.min_bitrate = 0;
-    config.stream_profile.unit = NULL;
     
     // 用户ID默认为NULL，使用者必须设置此字段
     config.user_id = NULL;
@@ -460,19 +458,6 @@ typedef struct {
     const char* instanceId; ///< 实例ID
     const char* status;     ///< 状态："open" 或 "close"
 } TcrStreamingRequestItem;
-
-/**
- * @brief 流配置项结构体（C接口）
- * 用于多路流的配置参数设置
- */
-typedef struct {
-    const char* instanceId;      ///< 实例ID
-    int32_t fps;                 ///< 视频帧率（可选参数，设置为 0 或负数表示不设置此参数，有效范围：1-60）
-    int32_t min_bitrate;         ///< 最小码率（可选参数，单位 kbps，设置为 0 或负数表示不设置码率参数，需与 maxBitrate 同时设置）
-    int32_t max_bitrate;         ///< 最大码率（可选参数，单位 kbps，设置为 0 或负数表示不设置码率参数，需与 minBitrate 同时设置）
-    int32_t video_width;         ///< 视频宽度（可选参数，单位 px，设置为 0 或负数表示不设置分辨率参数，需与 video_height 同时设置）
-    int32_t video_height;        ///< 视频高度（可选参数，单位 px，设置为 0 或负数表示不设置分辨率参数，需与 video_width 同时设置）
-} TcrStreamProfileItem;
 
 /**
  * @brief 会话事件类型枚举，定义了客户端与云端会话过程中可能产生的所有事件类型。
