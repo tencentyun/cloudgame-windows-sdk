@@ -240,6 +240,33 @@ public slots:
      */
     void onDisableMicrophoneClicked();
 
+    /**
+     * @brief 设置远端视频流配置
+     * 对应 SDK tcr_session_set_remote_video_profile()
+     */
+    void onVideoStreamSettingsClicked();
+
+    // ==================== 摄像头设备管理 ====================
+    
+    /**
+     * @brief 获取本地摄像头设备列表
+     * @return 返回摄像头设备ID列表
+     * 
+     * 对应 SDK API：
+     *   - tcr_session_get_camera_device_count()：获取设备数量
+     *   - tcr_session_get_camera_device()：获取设备信息
+     */
+    Q_INVOKABLE QStringList getCameraDeviceList();
+
+    /**
+     * @brief 启用指定的摄像头设备
+     * @param deviceId 摄像头设备ID
+     * 
+     * 对应 SDK API：
+     *   - tcr_session_enable_local_camera_with_config()：使用配置启用摄像头
+     */
+    Q_INVOKABLE void enableCameraWithDevice(const QString& deviceId);
+
 private:
     // ==================== 成员变量 ====================
     

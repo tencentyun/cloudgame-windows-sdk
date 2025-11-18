@@ -1,4 +1,4 @@
-// tcr_c_api.h
+﻿// tcr_c_api.h
 #pragma once
 
 /**
@@ -35,7 +35,7 @@
  *
  * -------------------- 代码示例 --------------------
  * 
- *   TcrConfig config;
+ *   TcrConfig config = tcr_session_config_default();;
  *   config.Token = tokenResult.token.c_str();
  *   config.AccessInfo = tokenResult.accessInfo.c_str();
  * 
@@ -102,6 +102,34 @@ typedef struct TcrVideoFrameObserver {
     TcrVideoFrameCallback on_frame;
 } TcrVideoFrameObserver;
 
+/**
+ * @brief 创建默认的视频帧观察者配置
+ * 
+ * 该函数返回一个预设了合理默认值的TcrVideoFrameObserver结构体，
+ * 所有回调函数指针初始化为NULL，使用者可以在此基础上设置需要的回调。
+ * 
+ * 默认配置说明：
+ * - user_data: 设为NULL，使用者可根据需要设置
+ * - on_frame: 设为NULL，使用者需要设置此回调以接收视频帧
+ * 
+ * @return 返回带有默认值的TcrVideoFrameObserver结构体
+ * 
+ * @note 使用示例：
+ * @code
+ * // 创建默认视频帧观察者配置
+ * static TcrVideoFrameObserver video_observer = tcr_video_frame_observer_default();
+ * video_observer.user_data = this;
+ * video_observer.on_frame = VideoFrameCallback;
+ * tcr_session_set_video_frame_observer(tcr_session_, &video_observer);
+ * @endcode
+ */
+static inline TcrVideoFrameObserver tcr_video_frame_observer_default(void) {
+    TcrVideoFrameObserver observer;
+    observer.user_data = NULL;
+    observer.on_frame = NULL;
+    return observer;
+}
+
 // 视频帧访问接口
 
 /**
@@ -157,7 +185,39 @@ typedef struct TcrSessionObserver {
     void* user_data;
     // 会话事件回调函数，所有会话相关事件通过此回调返回
     void (*on_event)(void* user_data, TcrSessionEvent event, const char* eventData);
+    // 实例事件回调函数，用于多实例场景下接收会话相关事件（可选，为NULL时使用on_event）
+    void (*on_instance_event)(void* user_data, const char* instanceId, TcrSessionEvent event, const char* eventData);
 } TcrSessionObserver;
+
+/**
+ * @brief 创建默认的会话观察者配置
+ * 
+ * 该函数返回一个预设了合理默认值的TcrSessionObserver结构体，
+ * 所有回调函数指针初始化为NULL，使用者可以在此基础上设置需要的回调。
+ * 
+ * 默认配置说明：
+ * - user_data: 设为NULL，使用者可根据需要设置
+ * - on_event: 设为NULL，使用者需要设置此回调以接收会话事件
+ * - on_instance_event: 设为NULL，多路流场景下需要设置此回调
+ * 
+ * @return 返回带有默认值的TcrSessionObserver结构体
+ * 
+ * @note 使用示例：
+ * @code
+ * // 创建默认观察者配置
+ * static TcrSessionObserver session_observer = tcr_session_observer_default();
+ * session_observer.user_data = this;
+ * session_observer.on_event = SessionEventCallback;
+ * tcr_session_set_observer(tcr_session_, &session_observer);
+ * @endcode
+ */
+static inline TcrSessionObserver tcr_session_observer_default(void) {
+    TcrSessionObserver observer;
+    observer.user_data = NULL;
+    observer.on_event = NULL;
+    observer.on_instance_event = NULL;
+    return observer;
+}
 
 // ==================== Client 相关接口 ====================
 
@@ -170,7 +230,7 @@ TCRSDK_API TcrClientHandle tcr_client_get_instance();
 /**
  * @brief 初始化TcrClientHandle
  * @param client TcrClientHandle
- * @param config TcrConfig参数指针
+ * @param config TcrConfig参数指针, 通过tcr_config_default()获取默认配置
  * @return 错误码，TCR_SUCCESS 表示初始化成功，TCR_ERR_INVALID_PARAMS 表示参数有误
  * @note 这个函数可以重复调用以便更新TcrConfig中的Token和AccessInfo
  */
@@ -179,7 +239,7 @@ TCRSDK_API TcrErrorCode tcr_client_init(TcrClientHandle client, const TcrConfig*
 /**
  * @brief 创建会话对象, 以便进行串流和控制云手机实例
  * @param client TcrClientHandle
- * @param session_config 会话配置参数，可为NULL表示使用默认配置
+ * @param session_config 会话配置参数，通过tcr_session_config_default()获取默认配置
  * @return 会话句柄，成功返回非空，若Client未初始化（即未调用tcr_client_init或初始化失败），则返回nullptr。
  */
 TCRSDK_API TcrSessionHandle tcr_client_create_session(TcrClientHandle client, const TcrSessionConfig* session_config = nullptr);
@@ -926,7 +986,7 @@ TCRSDK_API void tcr_session_set_remote_video_profile(TcrSessionHandle session, i
 /**
  * @brief 启用本地摄像头
  * @param session 会话句柄
- * @param config 视频配置参数
+ * @param config 视频配置参数, 通过tcr_video_config_default()获取默认配置
  * @return 是否成功启用，true表示成功
  * 
  * @note TcrVideoConfig中的配置参数为推荐配置，内部会自动查找并选择最匹配的摄像头。

@@ -39,7 +39,7 @@ Window {
                 TextArea {
                     id: instanceIdsField
                     placeholderText: "请输入实例ID，多个实例用逗号分隔\n例如：ACP250819OHEI9BD,ACP250819OHEI9B2,ACP250819OHEI9B3"
-                    text: "cai-1300056159-fe2dcsmxqau,cai-1300056159-fe2dt96vxhv,cai-1300056159-fe2da9jdiql,cai-1300056159-fe2dwr51rko,cai-1300056159-fe2dpkbknte,cai-1300056159-fe2dll9blqj,cai-1300056159-fe2dxz6qicx,cai-1300056159-fe2dlgandqc,cai-1300056159-fe2d2v8980c,cai-1300056159-fe2d892wi9y"
+                    text: "cai-1300056159-fe2dcsmxqau,cai-1300056159-fe2dt96vxhv,cai-1300056159-fe2da9jdiql"
                     Layout.fillWidth: true
                     Layout.preferredHeight: 100
                     wrapMode: Text.Wrap

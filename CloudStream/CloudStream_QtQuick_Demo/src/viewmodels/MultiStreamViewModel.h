@@ -7,6 +7,7 @@
 #include <QVector>
 #include <QJsonObject>
 #include <QJsonDocument>
+#include <QPointer>
 #include "core/video/Frame.h"
 #include "core/video/VideoRenderItem.h"
 #include "tcr_c_api.h"
@@ -147,7 +148,8 @@ private:
     QStringList m_connectedInstanceIds;     ///< 已连接的实例ID列表
     
     /// 视频渲染项映射："instanceId_instanceIndex" -> VideoRenderItem
-    QHash<QString, VideoRenderItem*> m_videoRenderItems;
+    /// 使用 QPointer 防止访问已销毁的对象
+    QHash<QString, QPointer<VideoRenderItem>> m_videoRenderItems;
 
     // ==================== 内部方法 ====================
 

@@ -91,7 +91,7 @@ void Logger::globalInit()
     tcr_set_log_callback(&logCallback);
 
     // 2. 设置TCR SDK日志等级为INFO
-    tcr_set_log_level(TCR_LOG_LEVEL_INFO);
+    tcr_set_log_level(TCR_LOG_LEVEL_DEBUG);
 
     // 3. 创建日志目录
     QString logDirPath = QCoreApplication::applicationDirPath() + "/logs";
@@ -100,10 +100,15 @@ void Logger::globalInit()
         logDir.mkpath(".");
     }
     
-    // 4. 配置日志文件路径并启用文件日志
-    Logger::instance()->setLogToFile(true, logDir.filePath("app.log"));
+    // 4. 生成基于日期时间和进程ID的日志文件名
+    QString dateTimeStr = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
+    qint64 processId = QCoreApplication::applicationPid();
+    QString logFileName = QString("%1_%2.log").arg(dateTimeStr).arg(processId);
+    
+    // 5. 配置日志文件路径并启用文件日志
+    Logger::instance()->setLogToFile(true, logDir.filePath(logFileName));
 
-    // 5. 打印运行环境信息
+    // 6. 打印运行环境信息
     EnvInfoPrinter::printEnvironmentInfo();
 }
 
@@ -132,6 +137,10 @@ void Logger::setLogToFile(bool enable, const QString& filePath)
         if (m_logFile.isOpen()) {
             m_logFile.close();
         }
+        
+        // 保存基础文件名（用于后续轮转）
+        m_baseLogFileName = filePath;
+        m_currentFileIndex = 0;
         
         // 打开新的日志文件
         m_logFilePath = filePath;
@@ -223,31 +232,56 @@ void Logger::rotateLogFileIfNeeded()
  * @brief 执行日志文件轮转操作
  * 
  * 轮转策略：
- * - app.log -> app.log.1
- * - app.log.1 -> app.log.2
- * - ...
- * - app.log.N-1 -> app.log.N
- * - 删除最老的备份文件（如果超过最大备份数）
+ * - 20251117_213828_26882.log (已满，关闭)
+ * - 创建 20251117_213828_26882_1.log (新文件)
+ * - 当 _1.log 满后，创建 20251117_213828_26882_2.log
+ * - 依此类推，直到达到最大备份数
+ * - 达到最大备份数后，删除最老的文件（序号最小的）
  */
 void Logger::doRotate()
 {
-    QString base = m_logFilePath;
+    // 增加文件序号
+    m_currentFileIndex++;
     
-    // 从后往前重命名备份文件
-    for (int i = m_maxBackupFiles - 1; i >= 1; --i) {
-        QString oldName = QString("%1.%2").arg(base).arg(i);
-        QString newName = QString("%1.%2").arg(base).arg(i + 1);
+    // 检查是否超过最大备份数
+    if (m_currentFileIndex > m_maxBackupFiles) {
+        // 删除最老的日志文件（序号为1的文件）
+        QFileInfo baseInfo(m_baseLogFileName);
+        QString baseName = baseInfo.completeBaseName(); // 不含扩展名的文件名
+        QString extension = baseInfo.suffix();           // 扩展名
+        QString dirPath = baseInfo.absolutePath();
         
-        if (QFile::exists(oldName)) {
-            QFile::remove(newName);         // 删除目标文件（如果存在）
-            QFile::rename(oldName, newName); // 重命名
+        QString oldestFile = QString("%1/%2_1.%3").arg(dirPath).arg(baseName).arg(extension);
+        if (QFile::exists(oldestFile)) {
+            QFile::remove(oldestFile);
         }
+        
+        // 将所有文件序号前移（_2变成_1，_3变成_2，...）
+        for (int i = 2; i <= m_maxBackupFiles; ++i) {
+            QString oldName = QString("%1/%2_%3.%4").arg(dirPath).arg(baseName).arg(i).arg(extension);
+            QString newName = QString("%1/%2_%3.%4").arg(dirPath).arg(baseName).arg(i - 1).arg(extension);
+            
+            if (QFile::exists(oldName)) {
+                QFile::remove(newName); // 删除目标文件（如果存在）
+                QFile::rename(oldName, newName);
+            }
+        }
+        
+        // 当前文件序号保持为最大值
+        m_currentFileIndex = m_maxBackupFiles;
     }
     
-    // 将当前日志文件重命名为 .1
-    QString firstBackup = QString("%1.1").arg(base);
-    QFile::remove(firstBackup);
-    QFile::rename(base, firstBackup);
+    // 生成新的日志文件路径
+    QFileInfo baseInfo(m_baseLogFileName);
+    QString baseName = baseInfo.completeBaseName();
+    QString extension = baseInfo.suffix();
+    QString dirPath = baseInfo.absolutePath();
+    
+    m_logFilePath = QString("%1/%2_%3.%4")
+        .arg(dirPath)
+        .arg(baseName)
+        .arg(m_currentFileIndex)
+        .arg(extension);
 }
 
 /**

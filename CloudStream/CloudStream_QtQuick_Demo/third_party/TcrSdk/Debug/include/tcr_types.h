@@ -1,4 +1,4 @@
-#ifndef TCRSDK_TCR_TYPES_H_
+﻿#ifndef TCRSDK_TCR_TYPES_H_
 #define TCRSDK_TCR_TYPES_H_
 
 #include <stdint.h>
@@ -423,6 +423,48 @@ typedef struct TcrVideoConfig {
 } TcrVideoConfig;
 
 /**
+ * @brief 创建默认的上行视频配置
+ * 
+ * 该函数返回一个预设了合理默认值的TcrVideoConfig结构体，
+ * 使用者可以在此基础上修改需要自定义的字段。
+ * 
+ * 默认配置说明：
+ * - width: 设为640，默认视频宽度
+ * - height: 设为480，默认视频高度
+ * - max_fps: 设为30，默认最大帧率
+ * - max_bitrate_bps: 设为1000000 (1Mbps)，默认最大码率
+ * - device_id: 设为NULL，使用默认摄像头
+ * 
+ * @return 返回带有默认值的TcrVideoConfig结构体
+ * 
+ * @note 使用示例：
+ * @code
+ * TcrVideoConfig config = tcr_video_config_default();
+ * config.width = 1280;           // 可选：自定义视频宽度
+ * config.height = 720;           // 可选：自定义视频高度
+ * config.device_id = "camera1";  // 可选：指定摄像头设备ID
+ * @endcode
+ */
+static inline TcrVideoConfig tcr_video_config_default(void) {
+    TcrVideoConfig config;
+    
+    // 默认视频分辨率：640x480 (VGA)
+    config.width = 640;
+    config.height = 480;
+    
+    // 默认最大帧率：30fps
+    config.max_fps = 30;
+    
+    // 默认最大码率：1Mbps
+    config.max_bitrate_bps = 1000000;
+    
+    // 默认使用系统默认摄像头
+    config.device_id = NULL;
+    
+    return config;
+}
+
+/**
  * 摄像头能力结构体
  */
 typedef struct TcrVideoCapability {
@@ -451,6 +493,41 @@ typedef struct TcrDataChannelObserver {
 } TcrDataChannelObserver;
 
 /**
+ * @brief 创建默认的数据通道观察者配置
+ * 
+ * 该函数返回一个预设了合理默认值的TcrDataChannelObserver结构体，
+ * 所有回调函数指针初始化为NULL，使用者可以在此基础上设置需要的回调。
+ * 
+ * 默认配置说明：
+ * - user_data: 设为NULL，使用者可根据需要设置
+ * - on_connected: 设为NULL，使用者可设置此回调以接收连接成功事件
+ * - on_error: 设为NULL，使用者可设置此回调以接收错误事件
+ * - on_message: 设为NULL，使用者需要设置此回调以接收数据消息
+ * 
+ * @return 返回带有默认值的TcrDataChannelObserver结构体
+ * 
+ * @note 使用示例：
+ * @code
+ * // 创建默认数据通道观察者配置
+ * TcrDataChannelObserver observer = tcr_data_channel_observer_default();
+ * observer.user_data = this;
+ * observer.on_connected = OnDataChannelConnected;
+ * observer.on_error = OnDataChannelError;
+ * observer.on_message = OnDataChannelMessage;
+ * 
+ * data_channel_ = tcr_session_create_data_channel(tcr_session_, 8080, &observer);
+ * @endcode
+ */
+static inline TcrDataChannelObserver tcr_data_channel_observer_default(void) {
+    TcrDataChannelObserver observer;
+    observer.user_data = NULL;
+    observer.on_connected = NULL;
+    observer.on_error = NULL;
+    observer.on_message = NULL;
+    return observer;
+}
+
+/**
  * @brief 流媒体请求项结构体
  * 用于多用户流媒体请求
  */
@@ -463,6 +540,10 @@ typedef struct {
  * @brief 会话事件类型枚举，定义了客户端与云端会话过程中可能产生的所有事件类型。
  */
 typedef enum {
+    /**
+     * @brief 未定义事件类型。
+     */
+    TCR_SESSION_EVENT_UNDEFINED = -1,
     /**
      * @brief 会话已初始化。
      * @note 状态已废弃。

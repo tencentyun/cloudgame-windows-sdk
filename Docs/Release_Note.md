@@ -1,5 +1,17 @@
 # Release Notes
 
+## Version 1.15.0
+### Features
+- 支持单会话拉最多路30路实例画面
+- 新增获取观察者配置方法`tcr_video_frame_observer_default()`、`tcr_session_observer_default()`、`tcr_video_config_default()`、`tcr_data_channel_observer_default()`
+
+### Bugfix
+- 修复`tcr_instance_set_master`不生效问题
+
+### Download
+- [TcrSdk-Debug-1.15.0-20251118-1830e0fb8.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Debug-1.15.0-20251118-1830e0fb8.zip)
+- [TcrSdk-Release-1.15.0-20251118-1830e0fb8.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Release-1.15.0-20251118-1830e0fb8.zip)
+
 ## Version 1.14.1
 ### Bugfix
 - 删除`TcrSessionConfig`中流配置的unit规避指针传递时值无效问题

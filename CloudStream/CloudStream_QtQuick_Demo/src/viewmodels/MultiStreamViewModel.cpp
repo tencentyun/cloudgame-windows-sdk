@@ -101,10 +101,17 @@ void MultiStreamViewModel::registerVideoRenderItem(const QString& instanceId,
     
     // 连接信号槽，使用 QueuedConnection 确保线程安全
     // 视频帧回调可能在非主线程执行，需要通过信号槽切换到主线程
+    // 使用 QPointer 捕获 vrItem，防止访问已销毁的对象
     connect(this, &MultiStreamViewModel::newVideoFrameForInstance,
-            this, [this, uniqueKey, vrItem](const QString& targetUniqueKey, VideoFrameDataPtr frame) {
+            this, [this, uniqueKey, vrItemPtr = QPointer<VideoRenderItem>(vrItem)](
+                      const QString& targetUniqueKey, VideoFrameDataPtr frame) {
                 if (targetUniqueKey == uniqueKey) {
-                    vrItem->setFrame(frame);
+                    // 检查对象是否仍然有效
+                    if (vrItemPtr) {
+                        vrItemPtr->setFrame(frame);
+                    } else {
+                        Logger::debug(QString("[VideoFrame] 渲染项已销毁: %1").arg(uniqueKey));
+                    }
                 }
             }, Qt::QueuedConnection);
     
@@ -172,7 +179,6 @@ void MultiStreamViewModel::createSessionsWithConfigs(const QVariantList& session
         config.stream_profile.fps = 1;             // 帧率
         config.stream_profile.max_bitrate = 4000;  // 最大码率
         config.stream_profile.min_bitrate = 1000;  // 最小码率
-        config.stream_profile.unit = "Kbps";       // 码率单位
         config.enable_audio = false;               // 禁用音频
         
         // 步骤2：创建会话
@@ -209,11 +215,17 @@ void MultiStreamViewModel::createSessionsWithConfigs(const QVariantList& session
         // tcr_session_access() 启动会话并连接到指定的云手机实例
         auto result = VariantListConverter::convert(sessionInstanceIds);
         if (!result.pointers.empty()) {
-            tcr_session_access(
+            // tcr_session_access(
+            //     m_sessions[i].session,
+            //     result.pointers.data(),
+            //     static_cast<int32_t>(result.pointers.size()),
+            //     false
+            // );
+
+            tcr_session_access_multi_stream(
                 m_sessions[i].session,
                 result.pointers.data(),
-                static_cast<int32_t>(result.pointers.size()),
-                false
+                static_cast<int32_t>(result.pointers.size())
             );
             Logger::debug(QString("[createSessionsWithConfigs] 会话 %1 开始连接实例").arg(i));
         }
@@ -384,9 +396,17 @@ void MultiStreamViewModel::VideoFrameCallback(void* user_data,
         }
     }
     
-    // 步骤5：检查是否有对应的渲染项
+    // 步骤5：检查是否有对应的渲染项，并验证对象仍然有效
     if (!self->m_videoRenderItems.contains(uniqueKey)) {
         // 没有注册的渲染项，直接释放帧资源
+        tcr_video_frame_release(frame_handle);
+        return;
+    }
+    
+    // 检查渲染项对象是否仍然有效（未被销毁）
+    if (!self->m_videoRenderItems[uniqueKey]) {
+        // 对象已被销毁，从映射中移除并释放帧资源
+        self->m_videoRenderItems.remove(uniqueKey);
         tcr_video_frame_release(frame_handle);
         return;
     }
@@ -397,9 +417,8 @@ void MultiStreamViewModel::VideoFrameCallback(void* user_data,
     tcr_video_frame_add_ref(frame_handle);
     
     // 步骤7：创建视频帧数据智能指针
-    // VideoFrameDataPtr 是智能指针，析构时会自动调用 tcr_video_frame_release()
-    VideoFrameDataPtr frameDataPtr(new VideoFrameData);
-    
+    VideoFrameDataPtr frameDataPtr(new VideoFrameData); 
+
     // 步骤8：根据缓冲区类型填充不同的数据
     frameDataPtr->frame_handle = frame_handle;
     frameDataPtr->timestamp_us = frame_buffer->timestamp_us;

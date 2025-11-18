@@ -338,6 +338,53 @@ void StreamingViewModel::onDisableMicrophoneClicked()
     tcr_session_enable_local_microphone(m_session, false);
 }
 
+void StreamingViewModel::onVideoStreamSettingsClicked()
+{
+    if (!m_session || !m_sessionConnected) {
+        Logger::debug("[onVideoStreamSettingsClicked] session not ready");
+        return;
+    }
+    tcr_session_set_remote_video_profile(m_session, 30, 1000, 2000, 720, 1280);
+}
+
+void StreamingViewModel::enableCameraWithDevice(const QString& deviceId)
+{
+    if (!m_session || !m_sessionConnected) {
+        Logger::debug("[enableCameraWithDevice] session not ready");
+        return;
+    }
+    
+    if (deviceId.isEmpty()) {
+        Logger::warning("[enableCameraWithDevice] deviceId is empty");
+        return;
+    }
+    
+    Logger::info(QString("[enableCameraWithDevice] 启用摄像头设备: %1").arg(deviceId));
+    
+    // 【步骤1】创建视频配置结构体
+    TcrVideoConfig videoConfig = tcr_video_config_default();
+    
+    // 【步骤2】设置设备ID
+    QByteArray deviceIdBytes = deviceId.toUtf8();
+    videoConfig.device_id = deviceIdBytes.constData();
+    
+    // 【步骤3】其他参数使用默认值（已通过 {} 初始化为0/nullptr）
+    // 可选参数包括：
+    // - width: 视频宽度（0表示使用默认值）
+    // - height: 视频高度（0表示使用默认值）
+    // - fps: 帧率（0表示使用默认值）
+    
+    // 【步骤4】调用SDK API启用摄像头
+    // SDK API: tcr_session_enable_local_camera_with_config(session, &config)
+    
+    if (tcr_session_enable_local_camera_with_config(m_session, &videoConfig)) {
+        Logger::info(QString("[enableCameraWithDevice] 摄像头启用成功: %1").arg(deviceId));
+    } else {
+        Logger::error(QString("[enableCameraWithDevice] 摄像头启用失败: deviceId=%1")
+                          .arg(deviceId));
+    }
+}
+
 // ==================== SDK 回调函数实现 ====================
 
 /**
@@ -362,15 +409,6 @@ void StreamingViewModel::SessionEventCallback(void* user_data,
         if (event == TCR_SESSION_EVENT_STATE_CONNECTED) {
             Logger::info("[SessionEventCallback] 会话连接成功");
             self->m_sessionConnected = true;
-
-            // 调整视频流参数
-            // SDK API: 设置视频流参数
-            tcr_session_set_remote_video_profile(self->m_session, 
-                                                  60,      // fps: 1帧/秒
-                                                  1000,   // minBitrate: 1000 kbps
-                                                  2000,   // maxBitrate: 2000 kbps
-                                                  720,    // height: 720
-                                                  1280);  // width: 1280
 
             // ========== 创建自定义数据通道示例 ==========
             // 数据通道用于与云端App进行自定义数据交互
@@ -528,4 +566,45 @@ void StreamingViewModel::VideoFrameCallback(void* user_data, TcrVideoFrameHandle
 
     // 【步骤6】发送到主线程进行渲染
     emit self->newVideoFrame(frameDataPtr);
+}
+
+// ==================== 摄像头设备管理 ====================
+
+QStringList StreamingViewModel::getCameraDeviceList()
+{
+    QStringList deviceList;
+    
+    if (!m_session) {
+        Logger::debug("[getCameraDeviceList] session not ready");
+        return deviceList;
+    }
+    
+    // 【步骤1】获取摄像头设备数量
+    // SDK API: tcr_session_get_camera_device_count(session)
+    int32_t deviceCount = tcr_session_get_camera_device_count(m_session);
+    Logger::info(QString("[getCameraDeviceList] 检测到 %1 个摄像头设备").arg(deviceCount));
+    
+    // 【步骤2】遍历获取每个设备的信息
+    for (int32_t i = 0; i < deviceCount; ++i) {
+        TcrCameraDeviceInfo deviceInfo;
+        
+        // SDK API: tcr_session_get_camera_device(session, index, &deviceInfo)
+        if (tcr_session_get_camera_device(m_session, i, &deviceInfo)) {
+            QString deviceId = QString::fromUtf8(deviceInfo.device_id);
+            QString deviceName = QString::fromUtf8(deviceInfo.device_name);
+            
+            Logger::info(QString("[getCameraDeviceList] 设备 %1: ID=%2, Name=%3")
+                             .arg(i)
+                             .arg(deviceId)
+                             .arg(deviceName));
+            
+            // 将设备ID添加到列表（也可以选择添加设备名称）
+            deviceList << deviceId;
+        } else {
+            Logger::error(QString("[getCameraDeviceList] 获取设备 %1 信息失败")
+                              .arg(i));
+        }
+    }
+    
+    return deviceList;
 }

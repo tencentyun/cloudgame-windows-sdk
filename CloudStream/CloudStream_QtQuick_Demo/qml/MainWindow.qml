@@ -19,7 +19,7 @@ Window {
     property var instanceIds: []                    // 传入的实例ID列表
     property var accessInfo: null                   // 访问信息
     property string token: ""                       // 认证令牌
-    readonly property int instancesPerSession: 1    // 硬编码的每个session的实例数量
+    readonly property int instancesPerSession: 30   // 硬编码的每个session的实例数量
     
     // 实例管理属性
     property var checkedInstanceIds: []             // 选中的实例ID列表
@@ -29,6 +29,9 @@ Window {
     property var syncWindow: null                   // 同步窗口（单例）
     property var syncViewModel: null                // 同步窗口的视图模型（单例）
     property var singleInstanceWindows: ({})        // instanceId -> window 映射（单实例窗口）
+    
+    // 全选状态
+    property bool isAllSelected: false              // 是否全选状态
     
     // 视图模型
     property MultiStreamViewModel multiInstanceViewModel: MultiStreamViewModel {}
@@ -261,6 +264,26 @@ Window {
             syncViewModel.updateCheckedInstanceIds(checkedInstanceIds, addedIds);
         }
     }
+    
+    /**
+     * 切换全选状态
+     */
+    function toggleSelectAll() {
+        var previousCheckedIds = checkedInstanceIds.slice();
+        
+        if (isAllSelected) {
+            // 取消全选
+            checkedInstanceIds = [];
+            isAllSelected = false;
+        } else {
+            // 全选
+            checkedInstanceIds = instanceIds.slice();
+            isAllSelected = true;
+        }
+        
+        // 同步到同步窗口
+        syncToSyncWindow(previousCheckedIds);
+    }
 
     // ============================================
     // 生命周期事件处理
@@ -308,6 +331,13 @@ Window {
             text: "多实例视频渲染 - 总计: " + instanceIds.length + " 个实例 (每会话" + instancesPerSession + "个)"
             font.pixelSize: 16
             font.bold: true
+        }
+        
+        Button {
+            text: isAllSelected ? "取消全选" : "全选"
+            onClicked: {
+                toggleSelectAll();
+            }
         }
 
         Button {

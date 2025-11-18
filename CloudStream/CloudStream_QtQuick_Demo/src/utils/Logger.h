@@ -166,5 +166,7 @@ private:
 
     // 日志轮转配置
     qint64 m_maxFileSize = 200 * 1024 * 1024;   // 单个日志文件最大大小（默认200MB）
-    int m_maxBackupFiles = 5;                    // 最大备份文件数（默认5个）
+    int m_maxBackupFiles = 50;                  // 最大备份文件数（默认50个）
+    QString m_baseLogFileName;                  // 基础日志文件名（不含序号），格式：YYYYMMDD_HHMMSS_PID.log
+    int m_currentFileIndex = 0;                 // 当前日志文件序号（0表示无序号）
 };
