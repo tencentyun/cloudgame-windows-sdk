@@ -698,8 +698,24 @@ typedef enum {
      * }
      * @endcode
      */
-    TCR_SESSION_EVENT_IME_STATUS_CHANGE = 12
+    TCR_SESSION_EVENT_IME_STATUS_CHANGE = 12,
 
+    /**
+     * @brief 云端桌面屏幕信息。
+     * 事件数据类型JSON格式字符串：
+     * @code{.json}
+     * {
+     *     "screen_width": number,   // 屏幕宽度(像素)
+     *     "screen_height": number,  // 屏幕高度(像素)
+     *     "screen_left": number,    // 屏幕左边界坐标
+     *     "screen_top": number      // 屏幕上边界坐标
+     * }
+     * @endcode
+     * 
+     * @note 该事件常用于云端桌面场景。
+     *       如果是云手机场景，请使用 TCR_SESSION_EVENT_SCREEN_CONFIG_CHANGE 事件。
+     */
+    TCR_SESSION_EVENT_REMOTE_DESKTOP_INFO = 13
 } TcrSessionEvent;
 
 /**

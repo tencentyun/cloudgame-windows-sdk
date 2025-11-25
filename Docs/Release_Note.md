@@ -1,5 +1,13 @@
 # Release Notes
 
+## Version 1.15.2
+### Features
+- 新增接口`tcr_session_touchscreen_touch_ex`接口
+
+### Download
+- [TcrSdk-Debug-1.15.2-20251125-0df05f8ee.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Debug-1.15.2-20251125-0df05f8ee.zip)
+- [TcrSdk-Release-1.15.2-20251125-0df05f8ee.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Release-1.15.2-20251125-0df05f8ee.zip)
+
 ## Version 1.15.0
 ### Features
 - 支持单会话拉最多路30路实例画面

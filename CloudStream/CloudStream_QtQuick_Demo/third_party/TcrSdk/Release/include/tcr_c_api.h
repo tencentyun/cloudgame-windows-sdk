@@ -1152,6 +1152,57 @@ TCRSDK_API void tcr_session_send_keyboard_event(TcrSessionHandle session, int32_
  */
 TCRSDK_API void tcr_session_touchscreen_touch(TcrSessionHandle session, float x, float y, int eventType, int width, int height, long timestamp);
 
+/**
+ * @brief 发送扩展触摸屏触摸事件（支持多点触控和更多触摸参数）
+ *
+ * 该接口用于向云端实例发送扩展触摸事件，支持多点触控、压力、方向、接触面积等高级参数。
+ * 适用于需要精细触摸控制的场景，如绘画应用、手写输入等。
+ *
+ * @param session 会话句柄
+ * @param x 触摸点的横坐标（相对于屏幕左上角，单位：像素）
+ * @param y 触摸点的纵坐标（相对于屏幕左上角，单位：像素）
+ * @param eventType 触摸事件类型，取值参考 Android MotionEvent 事件类型：
+ *   - 0: ACTION_DOWN（按下）
+ *   - 1: ACTION_MOVE（移动）
+ *   - 2: ACTION_UP（抬起）
+ * @param fingerID 指针ID（唯一标识符），用于多点触控场景区分不同手指，通常从0开始递增
+ * @param width 屏幕宽度（单位：像素），用于坐标归一化
+ * @param height 屏幕高度（单位：像素），用于坐标归一化
+ * @param timestamp 事件发生的时间戳（单位：毫秒）
+ * @param orientation 触摸方向（单位：弧度），表示触摸椭圆的旋转角度，范围通常为[-π, π]
+ * @param pressure 压力值，范围[0-1]，0表示无压力，1表示最大压力
+ * @param size 标准化尺寸，范围[0-1]，表示触摸区域相对于设备的大小
+ * @param tool_major 工具主轴尺寸（单位：像素），表示触摸工具（如手指、触控笔）接触椭圆的长轴
+ * @param tool_minor 工具次轴尺寸（单位：像素），表示触摸工具接触椭圆的短轴
+ * @param touch_major 接触主轴尺寸（单位：像素），表示实际接触区域椭圆的长轴
+ * @param touch_minor 接触次轴尺寸（单位：像素），表示实际接触区域椭圆的短轴
+ *
+ * @note 使用示例（多点触控）：
+ * @code
+ * // 第一个手指按下
+ * tcr_session_touchscreen_touch_ex(session, 100, 200, 0, 0, 1080, 1920, timestamp, 
+ *                                   0.0f, 0.5f, 0.3f, 10.0f, 8.0f, 9.0f, 7.0f);
+ * 
+ * // 第二个手指按下
+ * tcr_session_touchscreen_touch_ex(session, 300, 400, 0, 1, 1080, 1920, timestamp, 
+ *                                   0.0f, 0.5f, 0.3f, 10.0f, 8.0f, 9.0f, 7.0f);
+ * 
+ * // 第一个手指移动
+ * tcr_session_touchscreen_touch_ex(session, 110, 210, 1, 0, 1080, 1920, timestamp, 
+ *                                   0.0f, 0.6f, 0.3f, 10.0f, 8.0f, 9.0f, 7.0f);
+ * 
+ * // 第一个手指抬起
+ * tcr_session_touchscreen_touch_ex(session, 110, 210, 2, 0, 1080, 1920, timestamp, 
+ *                                   0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+ * @endcode
+ */
+TCRSDK_API void tcr_session_touchscreen_touch_ex(TcrSessionHandle session, 
+                                                 float x, float y, int eventType, int fingerID,
+                                                 int width, int height, long timestamp,
+                                                 float orientation, float pressure, float size,
+                                                 float tool_major, float tool_minor,
+                                                 float touch_major, float touch_minor);
+
 
 // ==================== 日志相关接口 ====================
 
