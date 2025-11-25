@@ -936,15 +936,29 @@ TCRSDK_API void tcr_session_access_multi_stream(
  * @brief 暂停媒体流（如视频流），通常用于临时挂起
  * @param session 会话句柄
  * @param media_type 媒体类型，可选，取值为 "audio"、"video" 或空字符串；空字符串时暂停音视频流
+ * @param instanceIds 实例ID数组，可选，为NULL时对所有实例生效
+ * @param instance_count 实例ID数组长度，当instanceIds为NULL时此参数无效
+ * 
+ * @note 参数instanceIds和instance_count只在调用tcr_session_access_multi_stream连接多个实例的情况下才有意义：
+ *   - 如果instanceIds为NULL或instance_count为0，则对所有已连接的实例生效
+ *   - 如果传入了具体的实例ID列表，则只对指定的实例ID生效
+ *   - 如果会话是通过tcr_session_access创建的（单实例或群控模式），这两个参数将被忽略
  */
-TCRSDK_API void tcr_session_pause_streaming(TcrSessionHandle session, const char* media_type = nullptr);
+TCRSDK_API void tcr_session_pause_streaming(TcrSessionHandle session, const char* media_type = nullptr, const char** instanceIds = nullptr, int32_t instance_count = 0);
 
 /**
  * @brief 恢复媒体流（如视频流），与暂停配合使用
  * @param session 会话句柄
  * @param media_type 媒体类型，可选，取值为 "audio"、"video" 或空字符串；空字符串时恢复音视频流
+ * @param instanceIds 实例ID数组，可选，为NULL时对所有实例生效
+ * @param instance_count 实例ID数组长度，当instanceIds为NULL时此参数无效
+ * 
+ * @note 参数instanceIds和instance_count只在调用tcr_session_access_multi_stream连接多个实例的情况下才有意义：
+ *   - 如果instanceIds为NULL或instance_count为0，则对所有已连接的实例生效
+ *   - 如果传入了具体的实例ID列表，则只对指定的实例ID生效
+ *   - 如果会话是通过tcr_session_access创建的（单实例或群控模式），这两个参数将被忽略
  */
-TCRSDK_API void tcr_session_resume_streaming(TcrSessionHandle session, const char* media_type = nullptr);
+TCRSDK_API void tcr_session_resume_streaming(TcrSessionHandle session, const char* media_type = nullptr, const char** instanceIds = nullptr, int32_t instance_count = 0);
 
 /**
  * @brief 请求多个实例的流媒体推流

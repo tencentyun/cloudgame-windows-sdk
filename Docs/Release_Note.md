@@ -1,5 +1,14 @@
 # Release Notes
 
+## Version 1.16.0
+### Features
+- 接口`tcr_session_resume_streaming`和`tcr_session_pause_streaming`支持传递实例ID
+
+### Download
+- [TcrSdk-Debug-1.16.0-20251125-3d00776ab.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Debug-1.16.0-20251125-3d00776ab.zip)
+- [TcrSdk-Release-1.16.0-20251125-3d00776ab.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Release-1.16.0-20251125-3d00776ab.zip)
+
+
 ## Version 1.15.2
 ### Features
 - 新增接口`tcr_session_touchscreen_touch_ex`接口
