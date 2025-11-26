@@ -1,5 +1,13 @@
 # Release Notes
 
+## Version 1.16.1
+### Bugfix
+- 群控和单连没有触发`TCR_SESSION_EVENT_SCREEN_CONFIG_CHANGE`消息的问题
+
+### Download
+- [TcrSdk-Debug-1.16.1-20251126-520c20b23.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Debug-1.16.1-20251126-520c20b23.zip)
+- [TcrSdk-Release-1.16.1-20251126-520c20b23.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Release-1.16.1-20251126-520c20b23.zip)
+
 ## Version 1.16.0
 ### Features
 - 接口`tcr_session_resume_streaming`和`tcr_session_pause_streaming`支持传递实例ID
