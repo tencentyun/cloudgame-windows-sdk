@@ -91,7 +91,7 @@ void Logger::globalInit()
     tcr_set_log_callback(&logCallback);
 
     // 2. 设置TCR SDK日志等级为INFO
-    tcr_set_log_level(TCR_LOG_LEVEL_DEBUG);
+    tcr_set_log_level(TCR_LOG_LEVEL_INFO);
 
     // 3. 创建日志目录
     QString logDirPath = QCoreApplication::applicationDirPath() + "/logs";

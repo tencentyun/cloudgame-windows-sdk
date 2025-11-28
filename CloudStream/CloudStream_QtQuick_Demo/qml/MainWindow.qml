@@ -35,6 +35,18 @@ Window {
     
     // 视图模型
     property MultiStreamViewModel multiInstanceViewModel: MultiStreamViewModel {}
+    
+    // 监听会话关闭事件
+    Connections {
+        target: multiInstanceViewModel
+        function onSessionClosed(sessionIndex, instanceIds, reason) {
+            // 弹出对话框
+            sessionClosedDialog.sessionIndex = sessionIndex;
+            sessionClosedDialog.instanceIds = instanceIds;
+            sessionClosedDialog.reason = reason;
+            sessionClosedDialog.open();
+        }
+    }
 
     // ============================================
     // 工具函数区域
@@ -350,6 +362,38 @@ Window {
             }
         }
 
+        Button {
+            text: "暂停音视频流(部分)"
+            enabled: instanceIds.length >= 2
+            onClicked: {
+                // 获取前两个实例ID
+                var targetInstanceIds = instanceIds.slice(0, 2);
+                console.log("暂停音视频流，实例:", targetInstanceIds);
+                
+                // 调用C++接口暂停流媒体
+                // 注意：需要在MultiStreamViewModel中添加对应的Q_INVOKABLE方法
+                if (multiInstanceViewModel.pauseStreaming) {
+                    multiInstanceViewModel.pauseStreaming(targetInstanceIds);
+                }
+            }
+        }
+
+        Button {
+            text: "恢复音视频流(部分)"
+            enabled: instanceIds.length >= 2
+            onClicked: {
+                // 获取前两个实例ID
+                var targetInstanceIds = instanceIds.slice(0, 2);
+                console.log("恢复音视频流，实例:", targetInstanceIds);
+                
+                // 调用C++接口恢复流媒体
+                // 注意：需要在MultiStreamViewModel中添加对应的Q_INVOKABLE方法
+                if (multiInstanceViewModel.resumeStreaming) {
+                    multiInstanceViewModel.resumeStreaming(targetInstanceIds);
+                }
+            }
+        }
+
         Item { Layout.fillWidth: true } // 弹性空间
 
         Button {
@@ -381,7 +425,7 @@ Window {
         anchors.margins: 10
         clip: true
         
-        cellWidth: (parent.width - 20) / 10
+        cellWidth: (parent.width - 20) / 30
         cellHeight: cellWidth * 240 / 135
         
         model: instanceConfigs
@@ -398,23 +442,14 @@ Window {
             property int instanceIndex: modelData.instanceIndex
             property int sessionIndex: modelData.sessionIndex
             property string uniqueKey: instanceId + "_" + instanceIndex
-            property bool isConnected: false
+            // 直接绑定到 connectedInstanceIds 列表，避免信号丢失
+            property bool isConnected: multiInstanceViewModel.connectedInstanceIds.indexOf(instanceId) !== -1
             
             // 点击事件处理
             MouseArea {
                 anchors.fill: parent
                 onClicked: {
                     createSingleInstanceWindow(videoCell.instanceId);
-                }
-            }
-            
-            // 连接状态监听
-            Connections {
-                target: multiInstanceViewModel
-                function onInstanceConnectionChanged(targetInstanceId, connected) {
-                    if (targetInstanceId === videoCell.instanceId) {
-                        videoCell.isConnected = connected;
-                    }
                 }
             }
             
@@ -515,6 +550,114 @@ Window {
             }
             
             Item { Layout.fillWidth: true }
+        }
+    }
+    
+    // 会话关闭对话框
+    Dialog {
+        id: sessionClosedDialog
+        title: "会话已关闭"
+        modal: true
+        anchors.centerIn: parent
+        width: 400
+        
+        property int sessionIndex: -1
+        property var instanceIds: []
+        property string reason: ""
+        
+        contentItem: Column {
+            spacing: 15
+            padding: 20
+            
+            Text {
+                text: "会话 " + sessionClosedDialog.sessionIndex + " 已断开连接"
+                font.pixelSize: 16
+                font.bold: true
+                color: "#d32f2f"
+            }
+            
+            Text {
+                text: "受影响的实例 (" + sessionClosedDialog.instanceIds.length + " 个):"
+                font.pixelSize: 14
+                wrapMode: Text.WordWrap
+                width: parent.width - 40
+            }
+            
+            Rectangle {
+                width: parent.width - 40
+                height: Math.min(instanceListText.contentHeight + 20, 150)
+                color: "#f5f5f5"
+                border.color: "#cccccc"
+                border.width: 1
+                radius: 4
+                
+                ScrollView {
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    clip: true
+                    
+                    Text {
+                        id: instanceListText
+                        text: sessionClosedDialog.instanceIds.join("\n")
+                        font.pixelSize: 12
+                        color: "#666666"
+                    }
+                }
+            }
+            
+            Text {
+                text: "关闭原因:"
+                font.pixelSize: 14
+                wrapMode: Text.WordWrap
+                width: parent.width - 40
+            }
+            
+            Rectangle {
+                width: parent.width - 40
+                height: Math.min(reasonText.contentHeight + 20, 100)
+                color: "#fff3e0"
+                border.color: "#ffb74d"
+                border.width: 1
+                radius: 4
+                
+                ScrollView {
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    clip: true
+                    
+                    Text {
+                        id: reasonText
+                        text: sessionClosedDialog.reason || "未知原因"
+                        font.pixelSize: 12
+                        color: "#e65100"
+                        wrapMode: Text.WordWrap
+                        width: parent.width
+                    }
+                }
+            }
+        }
+        
+        footer: DialogButtonBox {
+            Button {
+                text: "确定"
+                DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
+                onClicked: {
+                    sessionClosedDialog.close();
+                }
+            }
+            
+            Button {
+                text: "重新连接"
+                DialogButtonBox.buttonRole: DialogButtonBox.ActionRole
+                onClicked: {
+                    sessionClosedDialog.close();
+                    // 重新连接所有实例
+                    if (instanceIds && instanceIds.length > 0) {
+                        var sessionConfigs = calculateSessionConfigs(instanceIds);
+                        multiInstanceViewModel.connectMultipleInstances(sessionConfigs);
+                    }
+                }
+            }
         }
     }
 }

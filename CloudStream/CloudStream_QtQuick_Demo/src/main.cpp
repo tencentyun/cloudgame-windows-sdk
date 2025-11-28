@@ -6,6 +6,7 @@
 #include "services/NetworkService.h"
 #include "utils/Logger.h" 
 #include "core/video/VideoRenderItem.h"
+#include "core/video/VideoRenderPaintedItem.h"
 #include "viewmodels/StreamingViewModel.h"
 #include "viewmodels/MultiStreamViewModel.h"
 #include "viewmodels/InstanceTokenViewModel.h"
@@ -44,6 +45,7 @@ int main(int argc, char *argv[]) {
 
     /// 注册自定义视频渲染组件，供QML使用
     qmlRegisterType<VideoRenderItem>("CustomComponents", 1, 0, "VideoRenderItem");
+    qmlRegisterType<VideoRenderPaintedItem>("CustomComponents", 1, 0, "VideoRenderPaintedItem");
 
     /// 注册流媒体视图模型，供QML使用
     qmlRegisterType<StreamingViewModel>("CustomComponents", 1, 0, "StreamingViewModel");

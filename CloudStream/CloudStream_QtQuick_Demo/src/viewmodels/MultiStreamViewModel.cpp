@@ -19,12 +19,27 @@ MultiStreamViewModel::MultiStreamViewModel(QObject *parent)
     // 注册元类型，确保跨线程信号槽可用
     qRegisterMetaType<VideoFrameData>("VideoFrameData");
     qRegisterMetaType<VideoFrameDataPtr>("VideoFrameDataPtr");
+    
+    // 初始化渲染定时器（60fps = 16ms间隔）
+    m_renderTimer = new QTimer(this);
+    m_renderTimer->setInterval(16);  // 可根据需要调整：16ms(60fps), 33ms(30fps)
+    connect(m_renderTimer, &QTimer::timeout, this, &MultiStreamViewModel::batchRenderFrames);
+    m_renderTimer->start();
 }
 
 MultiStreamViewModel::~MultiStreamViewModel()
 {
     Logger::info("[MultiStreamViewModel] 开始析构");
     
+    // ===== 第一层防护：设置析构标志，阻止新的回调处理 =====
+    m_isDestroying.store(true, std::memory_order_release);
+    
+    // ===== 第二层防护：停止定时器，防止新的渲染任务 =====
+    if (m_renderTimer) {
+        m_renderTimer->stop();
+    }
+    
+    // ===== 第三层防护：取消观察者并等待回调完成 =====
     // 重要：先清理所有观察者，防止回调继续执行
     // 这是使用 TcrSdk 的关键步骤，必须在销毁会话前取消观察者
     for (auto& sessionInfo : m_sessions) {
@@ -34,8 +49,18 @@ MultiStreamViewModel::~MultiStreamViewModel()
         }
     }
     
-    // 清理 VideoRenderItem 映射
-    m_videoRenderItems.clear();
+    
+    // ===== 第四层防护：加锁清理资源 =====
+    {
+        QMutexLocker locker(&m_videoRenderItemsMutex);
+        m_videoRenderItems.clear();
+    }
+    
+    // 清理帧缓存
+    {
+        QMutexLocker locker(&m_frameCacheMutex);
+        m_frameCache.clear();
+    }
     
     // 关闭所有会话
     closeAllSessions();
@@ -63,7 +88,6 @@ void MultiStreamViewModel::initialize(const QStringList& instanceIds,
     TcrConfig config = tcr_config_default();
     config.token = tokenStr.c_str();
     config.accessInfo = accessInfoStr.c_str();
-    config.hardwareDecode = true;
     
     // 步骤2：获取 TcrClient 全局单例句柄
     // tcr_client_get_instance() 返回全局唯一的 TcrClientHandle
@@ -97,7 +121,12 @@ void MultiStreamViewModel::registerVideoRenderItem(const QString& instanceId,
     // 使用 "instanceId_instanceIndex" 作为唯一标识
     // 这个标识符与 TcrSdk 视频帧回调中的 instance_id 和 instance_index 对应
     QString uniqueKey = QString("%1_%2").arg(instanceId).arg(instanceIndex);
-    m_videoRenderItems[uniqueKey] = vrItem;
+    
+    // 加锁保护 m_videoRenderItems 的写操作
+    {
+        QMutexLocker locker(&m_videoRenderItemsMutex);
+        m_videoRenderItems[uniqueKey] = vrItem;
+    }
     
     // 连接信号槽，使用 QueuedConnection 确保线程安全
     // 视频帧回调可能在非主线程执行，需要通过信号槽切换到主线程
@@ -116,6 +145,43 @@ void MultiStreamViewModel::registerVideoRenderItem(const QString& instanceId,
             }, Qt::QueuedConnection);
     
     Logger::debug(QString("[registerVideoRenderItem] 注册成功: %1").arg(uniqueKey));
+}
+
+// ==================== 批量渲染处理 ====================
+
+void MultiStreamViewModel::batchRenderFrames()
+{
+    // 步骤1：加锁并交换缓存（最小化锁持有时间）
+    QMap<QString, VideoFrameDataPtr> framesToRender;
+    {
+        QMutexLocker locker(&m_frameCacheMutex);
+        if (m_frameCache.isEmpty()) {
+            return;  // 没有待渲染的帧
+        }
+        framesToRender.swap(m_frameCache);  // 交换而非复制，高效
+    }
+    
+    // 步骤2：批量渲染所有缓存的帧（需要加锁访问 m_videoRenderItems）
+    int renderedCount = 0;
+    for (auto it = framesToRender.begin(); it != framesToRender.end(); ++it) {
+        const QString& uniqueKey = it.key();
+        VideoFrameDataPtr frame = it.value();
+        
+        // 加锁检查渲染项是否仍然有效
+        QPointer<VideoRenderItem> renderItem;
+        {
+            QMutexLocker locker(&m_videoRenderItemsMutex);
+            if (m_videoRenderItems.contains(uniqueKey)) {
+                renderItem = m_videoRenderItems[uniqueKey];
+            }
+        }
+        
+        // 在锁外执行渲染操作（避免长时间持锁）
+        if (renderItem) {
+            renderItem->setFrame(frame);
+            renderedCount++;
+        }
+    }
 }
 
 // ==================== 多实例连接 ====================
@@ -174,11 +240,11 @@ void MultiStreamViewModel::createSessionsWithConfigs(const QVariantList& session
         TcrSessionConfig config = tcr_session_config_default();
         
         // 自定义视频流参数
-        config.stream_profile.video_width = 720;   // 视频宽度
-        config.stream_profile.video_height = 1280;  // 视频高度
+        config.stream_profile.video_width = 144;   // 视频宽度
+        config.stream_profile.video_height = 256;  // 视频高度
         config.stream_profile.fps = 1;             // 帧率
-        config.stream_profile.max_bitrate = 4000;  // 最大码率
-        config.stream_profile.min_bitrate = 1000;  // 最小码率
+        config.stream_profile.max_bitrate = 400;  // 最大码率
+        config.stream_profile.min_bitrate = 100;  // 最小码率
         config.enable_audio = false;               // 禁用音频
         
         // 步骤2：创建会话
@@ -283,6 +349,92 @@ void MultiStreamViewModel::closeAllSessions()
     Logger::info("[closeAllSessions] 所有会话已关闭");
 }
 
+void MultiStreamViewModel::pauseStreaming(const QStringList& instanceIds)
+{
+    Logger::info(QString("[pauseStreaming] 暂停流媒体，实例数: %1").arg(instanceIds.size()));
+    
+    if (instanceIds.isEmpty()) {
+        Logger::warning("[pauseStreaming] 实例ID列表为空");
+        return;
+    }
+    
+    // 转换 QStringList 到 C 字符串数组
+    auto result = VariantListConverter::convert(instanceIds);
+    if (result.pointers.empty()) {
+        Logger::error("[pauseStreaming] 转换实例ID列表失败");
+        return;
+    }
+    
+    // 注意：为了简单演示功能，这里只对第一个会话调用暂停接口
+    // 实际应用中需要根据实例ID查找对应的会话
+    if (m_sessions.empty()) {
+        Logger::warning("[pauseStreaming] 没有可用的会话");
+        return;
+    }
+    
+    const auto& sessionInfo = m_sessions[0];  // 只使用第一个会话
+    if (sessionInfo.session) {
+        // 调用 TcrSdk API 暂停流媒体
+        // 参数说明：
+        // - session: 会话句柄
+        // - media_type: nullptr 表示暂停音视频流
+        // - instanceIds: 实例ID数组
+        // - instance_count: 实例数量
+        tcr_session_pause_streaming(
+            sessionInfo.session,
+            nullptr,  // 暂停音视频流
+            result.pointers.data(),
+            static_cast<int32_t>(result.pointers.size())
+        );
+        
+        Logger::info(QString("[pauseStreaming] 会话 0 已暂停流媒体，实例: %1")
+                    .arg(instanceIds.join(",")));
+    }
+}
+
+void MultiStreamViewModel::resumeStreaming(const QStringList& instanceIds)
+{
+    Logger::info(QString("[resumeStreaming] 恢复流媒体，实例数: %1").arg(instanceIds.size()));
+    
+    if (instanceIds.isEmpty()) {
+        Logger::warning("[resumeStreaming] 实例ID列表为空");
+        return;
+    }
+    
+    // 转换 QStringList 到 C 字符串数组
+    auto result = VariantListConverter::convert(instanceIds);
+    if (result.pointers.empty()) {
+        Logger::error("[resumeStreaming] 转换实例ID列表失败");
+        return;
+    }
+    
+    // 注意：为了简单演示功能，这里只对第一个会话调用恢复接口
+    // 实际应用中需要根据实例ID查找对应的会话
+    if (m_sessions.empty()) {
+        Logger::warning("[resumeStreaming] 没有可用的会话");
+        return;
+    }
+    
+    const auto& sessionInfo = m_sessions[0];  // 只使用第一个会话
+    if (sessionInfo.session) {
+        // 调用 TcrSdk API 恢复流媒体
+        // 参数说明：
+        // - session: 会话句柄
+        // - media_type: nullptr 表示恢复音视频流
+        // - instanceIds: 实例ID数组
+        // - instance_count: 实例数量
+        tcr_session_resume_streaming(
+            sessionInfo.session,
+            nullptr,  // 恢复音视频流
+            result.pointers.data(),
+            static_cast<int32_t>(result.pointers.size())
+        );
+        
+        Logger::info(QString("[resumeStreaming] 会话 0 已恢复流媒体，实例: %1")
+                    .arg(instanceIds.join(",")));
+    }
+}
+
 // ==================== TcrSdk 回调函数实现 ====================
 
 void MultiStreamViewModel::SessionEventCallback(void* user_data,
@@ -325,7 +477,7 @@ void MultiStreamViewModel::SessionEventCallback(void* user_data,
                     1,     // fps: 1帧/秒
                     100,   // minBitrate: 100 kbps
                     200,   // maxBitrate: 200 kbps
-                    188,   // height: 144
+                    144,   // height: 144
                     256);  // width: 256
 
                 break;
@@ -344,11 +496,6 @@ void MultiStreamViewModel::SessionEventCallback(void* user_data,
             case TCR_SESSION_EVENT_CLIENT_STATS:
                 // 持续回调的性能统计数据(可机忽略)
                 break;
-            default:
-                // 其他事件类型
-                Logger::debug(QString("[SessionEventCallback] 会话 %1 事件: %2")
-                             .arg(sessionIndex).arg(tcr_session_event_to_string(event)));
-                break;
         }
     }, Qt::QueuedConnection);
 }
@@ -356,7 +503,7 @@ void MultiStreamViewModel::SessionEventCallback(void* user_data,
 void MultiStreamViewModel::VideoFrameCallback(void* user_data,
                                              TcrVideoFrameHandle frame_handle)
 {
-    // 步骤1：参数有效性检查
+    // ===== 步骤1：参数有效性检查 =====
     if (!user_data || !frame_handle) {
         return;
     }
@@ -367,25 +514,46 @@ void MultiStreamViewModel::VideoFrameCallback(void* user_data,
     }
     
     MultiStreamViewModel* self = userData->viewModel;
+    
+    // ===== 步骤2：快速检测析构状态（原子操作，无锁） =====
+    // 使用 memory_order_acquire 确保看到 store 之前的所有写操作
+    if (self->m_isDestroying.load(std::memory_order_acquire)) {
+        // 对象正在析构，立即返回，不处理任何数据
+        return;
+    }
+    
     int sessionIndex = userData->sessionIndex;
     
-    // 步骤2：获取视频帧缓冲区
+    // ===== 步骤3：获取视频帧缓冲区 =====
     // tcr_video_frame_get_buffer() 返回帧数据的只读指针
     const TcrVideoFrameBuffer* frame_buffer = tcr_video_frame_get_buffer(frame_handle);
     if (!frame_buffer) {
         return;
     }
 
-    // 步骤3：提取实例标识信息
-    // instance_id: 云手机实例ID
-    // instance_index: 实例索引（用于区分同一实例的多个视频流）
-    const char* instanceID = frame_buffer->instance_id;
-    const int instanceIndex = frame_buffer->instance_index;
-
-    QString instanceId = QString::fromUtf8(instanceID);
-    QString uniqueKey = QString("%1_%2").arg(instanceId).arg(instanceIndex);
+    // ===== 步骤4：立即复制字符串数据（防止指针失效）=====
+    // 重要：instance_id 指针来自 TcrSdk 内部，可能随时失效
+    // 必须在使用前立即复制到 QString 中
+    QString instanceId;
+    QString uniqueKey;
+    int instanceIndex = 0;
     
-    // 步骤4：验证实例是否属于当前会话
+    try {
+        // 防御性编程：检查指针有效性
+        if (frame_buffer->instance_id) {
+            instanceId = QString::fromUtf8(frame_buffer->instance_id);
+            instanceIndex = frame_buffer->instance_index;
+            uniqueKey = QString("%1_%2").arg(instanceId).arg(instanceIndex);
+        } else {
+            Logger::warning("[VideoFrameCallback] instance_id 为空指针");
+            return;
+        }
+    } catch (...) {
+        Logger::error("[VideoFrameCallback] 复制 instance_id 时发生异常");
+        return;
+    }
+    
+    // ===== 步骤5：验证实例是否属于当前会话 =====
     if (sessionIndex >= 0 && sessionIndex < self->m_sessions.size()) {
         const SessionInfo& sessionInfo = self->m_sessions[sessionIndex];
         if (!sessionInfo.instanceIds.contains(instanceId)) {
@@ -396,17 +564,31 @@ void MultiStreamViewModel::VideoFrameCallback(void* user_data,
         }
     }
     
-    // 步骤5：检查是否有对应的渲染项，并验证对象仍然有效
-    if (!self->m_videoRenderItems.contains(uniqueKey)) {
-        // 没有注册的渲染项，直接释放帧资源
-        tcr_video_frame_release(frame_handle);
-        return;
+    // ===== 步骤6：加锁检查渲染项是否存在且有效 =====
+    bool hasValidRenderItem = false;
+    {
+        QMutexLocker locker(&self->m_videoRenderItemsMutex);
+        
+        // 再次检查析构状态（双重检查）
+        if (self->m_isDestroying.load(std::memory_order_acquire)) {
+            return;
+        }
+        
+        // 检查是否有对应的渲染项
+        if (self->m_videoRenderItems.contains(uniqueKey)) {
+            QPointer<VideoRenderItem> renderItem = self->m_videoRenderItems[uniqueKey];
+            if (renderItem) {
+                hasValidRenderItem = true;
+            } else {
+                // 对象已被销毁，从映射中移除
+                self->m_videoRenderItems.remove(uniqueKey);
+            }
+        }
     }
+    // 锁已释放
     
-    // 检查渲染项对象是否仍然有效（未被销毁）
-    if (!self->m_videoRenderItems[uniqueKey]) {
-        // 对象已被销毁，从映射中移除并释放帧资源
-        self->m_videoRenderItems.remove(uniqueKey);
+    // 如果没有有效的渲染项，直接返回
+    if (!hasValidRenderItem) {
         tcr_video_frame_release(frame_handle);
         return;
     }
@@ -456,7 +638,12 @@ void MultiStreamViewModel::VideoFrameCallback(void* user_data,
         return;
     }
 
-    // 步骤9：发送视频帧信号
-    // 通过信号槽机制将帧数据发送到对应的 VideoRenderItem
-    emit self->newVideoFrameForInstance(uniqueKey, frameDataPtr);
+    // 步骤9：将帧存入缓存
+    // 使用互斥锁保护缓存，只保留每个实例的最新帧
+    {
+        QMutexLocker locker(&self->m_frameCacheMutex);
+        
+        // 如果已有旧帧，会自动释放（智能指针）
+        self->m_frameCache[uniqueKey] = frameDataPtr;
+    }
 }

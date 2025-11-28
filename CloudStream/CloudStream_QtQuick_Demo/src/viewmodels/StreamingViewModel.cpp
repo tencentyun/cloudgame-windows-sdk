@@ -13,6 +13,7 @@
 StreamingViewModel::StreamingViewModel(QObject *parent)
     : QObject(parent)
     , m_sessionConnected(false)
+    , m_currentRotationAngle(0.0)
 {
     Logger::info("[StreamingViewModel] 构造函数");
 
@@ -36,25 +37,32 @@ StreamingViewModel::~StreamingViewModel()
 
 // ==================== 视频渲染相关 ====================
 
-void StreamingViewModel::setVideoRenderItem(VideoRenderItem* item)
+void StreamingViewModel::setVideoRenderItem(VideoRenderPaintedItem* item)
 {
     m_videoRenderItem = item;
     if (m_videoRenderItem) {
         // 使用 QueuedConnection 确保线程安全
         // 视频帧从解码线程 -> 主线程 -> 渲染线程
         connect(this, &StreamingViewModel::newVideoFrame,
-                m_videoRenderItem, &VideoRenderItem::setFrame,
+                m_videoRenderItem, &VideoRenderPaintedItem::setFrame,
                 Qt::QueuedConnection);
+        
+            m_videoRenderItem->setRotationAngle(m_currentRotationAngle, m_currentVideoWidth, m_currentVideoHeight);
+            Logger::info(QString("[setVideoRenderItem] 应用旋转角度 %1 到新实例: %2, 视频尺寸: %3x%4")
+                             .arg(m_currentRotationAngle)
+                             .arg(m_videoRenderItem->objectName())
+                             .arg(m_currentVideoWidth)
+                             .arg(m_currentVideoHeight));
     }
 }
 
 void StreamingViewModel::setVideoRenderItem(QObject* item)
 {
-    auto vrItem = qobject_cast<VideoRenderItem*>(item);
+    auto vrItem = qobject_cast<VideoRenderPaintedItem*>(item);
     if (vrItem) {
         setVideoRenderItem(vrItem);
     } else {
-        Logger::info("setVideoRenderItem: cast to VideoRenderItem* failed");
+        Logger::info("setVideoRenderItem: cast to VideoRenderPaintedItem* failed");
     }
 }
 
@@ -194,9 +202,9 @@ void StreamingViewModel::updateCheckedInstanceIds(const QVariantList& instanceId
     }
 }
 
-// ==================== 触摸输入 ====================
+// ==================== 发送触摸输入到云端 ====================
 
-void StreamingViewModel::handleMouseEvent(int x, int y, int width, int height,
+void StreamingViewModel::sendTouchEvent(int x, int y, int width, int height,
                                           int eventType, qint64 timestamp)
 {
     if (m_session && m_sessionConnected) {
@@ -490,7 +498,82 @@ void StreamingViewModel::SessionEventCallback(void* user_data,
         else if (event == TCR_SESSION_EVENT_STATE_CLOSED) {
             self->m_sessionConnected = false;
             Logger::error("[SessionEventCallback] 会话断开: " + eventDataCopy);
+        } 
+        // 【事件5：屏幕配置变化】
+        // 当云端手机画面旋转时触发此事件
+        // eventData 是 JSON 格式，包含：
+        //   - width: 云端手机屏幕宽度（像素）
+        //   - height: 云端手机屏幕高度（像素）
+        //   - degree: 云端手机旋转方向（"0_degree", "90_degree", "180_degree", "270_degree"）
+        // 
+        // 坐标转换逻辑说明：
+        //   云端手机的 degree 表示其屏幕旋转方向，但客户端需要反向旋转才能正确显示
+        //   例如：云端旋转90度（degree="90_degree"），客户端需要旋转270度来抵消
+        //   
+        //   映射关系：
+        //     云端 0度   -> 客户端 0度   (无旋转)
+        //     云端 90度  -> 客户端 270度 (逆时针90度)
+        //     云端 180度 -> 客户端 180度 (旋转180度)
+        //     云端 270度 -> 客户端 90度  (顺时针90度)
+        else if (event == TCR_SESSION_EVENT_SCREEN_CONFIG_CHANGE) {
+            Logger::info("[SessionEventCallback] 屏幕配置变化: " + eventDataCopy);
+            
+            QJsonDocument doc = QJsonDocument::fromJson(eventDataCopy.toUtf8());
+            if (doc.isObject()) {
+                QJsonObject obj = doc.object();
+                int width = obj.value("width").toInt();
+                int height = obj.value("height").toInt();
+                QString degree = obj.value("degree").toString();
+                
+                // 判断横竖屏：width > height 为横屏
+                bool isLandscape = (width > height);
+                
+                // 解析云端旋转角度并转换为客户端旋转角度
+                // 客户端旋转角度 = 360 - 云端旋转角度（取模360）
+                qreal rotationAngle = 0.0;
+                if (degree.contains("90")) {
+                    rotationAngle = 270.0;  // 云端90度 -> 客户端270度
+                } else if (degree.contains("180")) {
+                    rotationAngle = 180.0;  // 云端180度 -> 客户端180度
+                } else if (degree.contains("270")) {
+                    rotationAngle = 90.0;   // 云端270度 -> 客户端90度
+                } else if (degree.contains("0")) {
+                    rotationAngle = 0.0;    // 云端0度 -> 客户端0度
+                }
+                
+                Logger::info(QString("[SessionEventCallback] 屏幕方向变化: width=%1, height=%2, degree=%3, isLandscape=%4, rotationAngle=%5")
+                                 .arg(width)
+                                 .arg(height)
+                                 .arg(degree)
+                                 .arg(isLandscape ? "true" : "false")
+                                 .arg(rotationAngle));
+                
+                // 保存当前旋转角度和视频流尺寸
+                // 这些参数用于后续的坐标转换和渲染
+                self->m_currentRotationAngle = rotationAngle;
+                self->m_currentVideoWidth = width;
+                self->m_currentVideoHeight = height;
+                
+                // 设置视频渲染组件的旋转角度
+                // width/height 是云端屏幕的实际尺寸，用于触摸坐标转换
+                if (self->m_videoRenderItem) {
+                    self->m_videoRenderItem->setRotationAngle(rotationAngle, width, height);
+                    Logger::info(QString("[SessionEventCallback] 已设置视频旋转角度: %1 到实例: %2, 视频尺寸: %3x%4")
+                                     .arg(rotationAngle)
+                                     .arg(self->m_videoRenderItem->objectName())
+                                     .arg(width)
+                                     .arg(height));
+                } else {
+                    Logger::warning("[SessionEventCallback] m_videoRenderItem 为空，无法设置旋转角度");
+                }
+                
+                // 发射信号通知 QML 层屏幕方向变化
+                emit self->screenOrientationChanged(isLandscape);
+            } else {
+                Logger::warning("[SessionEventCallback] 屏幕配置变化数据解析失败");
+            }
         }
+        
     }, Qt::QueuedConnection);
 }
 

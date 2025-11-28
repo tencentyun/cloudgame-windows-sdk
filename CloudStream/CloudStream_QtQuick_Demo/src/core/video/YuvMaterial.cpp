@@ -120,7 +120,7 @@ public:
                 
             default: // 未知绑定点
                 *texture = nullptr;
-                qDebug("Unknown texture binding: %d", binding);
+                Logger::warning(QString("Unknown texture binding: %1").arg(binding));
                 break;
         }
     }
@@ -224,6 +224,13 @@ void YuvMaterial::uploadTextures(const uint8_t* DataY,
                                 int height, 
                                 QQuickWindow* window)
 {
+    // // 检测尺寸变化，强制清理旧纹理
+    // if (m_hasTexture && (width != m_size.width() || height != m_size.height())) {
+    //     Logger::info(QString("Frame size changed from %1x%2 to %3x%4, clearing old textures")
+    //                  .arg(m_size.width()).arg(m_size.height()).arg(width).arg(height));
+    //     clear();
+    // }
+
     /**
      * @brief Lambda辅助函数：创建并配置单个纹理平面
      * 
@@ -260,7 +267,7 @@ void YuvMaterial::uploadTextures(const uint8_t* DataY,
         texture = window->createTextureFromImage(image);
         if (!texture) 
         {
-            qWarning("Failed to create %s texture", planeName);
+            Logger::warning(QString("Failed to create %1 texture").arg(planeName));
             return;
         }
         

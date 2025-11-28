@@ -7,7 +7,7 @@
 #include <QJsonObject>
 #include <QJsonDocument>
 #include "core/video/Frame.h"
-#include "core/video/VideoRenderItem.h"
+#include "core/video/VideoRenderPaintedItem.h"
 #include "tcr_c_api.h"
 
 // 前置声明
@@ -70,15 +70,15 @@ public:
     
     /**
      * @brief 设置视频渲染组件（C++ 版本）
-     * @param item VideoRenderItem 指针
+     * @param item VideoRenderPaintedItem 指针
      * 
-     * 内部会连接 newVideoFrame 信号到 VideoRenderItem::setFrame 槽
+     * 内部会连接 newVideoFrame 信号到 VideoRenderPaintedItem::setFrame 槽
      */
-    void setVideoRenderItem(VideoRenderItem* item);
+    void setVideoRenderItem(VideoRenderPaintedItem* item);
 
     /**
      * @brief 设置视频渲染组件（QML 版本）
-     * @param item QObject 指针，会自动转换为 VideoRenderItem*
+     * @param item QObject 指针，会自动转换为 VideoRenderPaintedItem*
      */
     Q_INVOKABLE void setVideoRenderItem(QObject* item);
 
@@ -144,6 +144,14 @@ signals:
      */
     void clientStatsChanged();
 
+    /**
+     * @brief 屏幕方向变化信号
+     * @param isLandscape true=横屏, false=竖屏
+     * 
+     * 当收到 TCR_SESSION_EVENT_SCREEN_CONFIG_CHANGE 事件时触发
+     */
+    void screenOrientationChanged(bool isLandscape);
+
 public slots:
     // ==================== 触摸输入 ====================
     
@@ -156,7 +164,7 @@ public slots:
      * 
      * 对应 SDK API：tcr_session_touchscreen_touch()
      */
-    void handleMouseEvent(int x, int y, int width, int height,
+    void sendTouchEvent(int x, int y, int width, int height,
                           int eventType, qint64 timestamp);
 
     // ==================== 系统按键 ====================
@@ -271,7 +279,7 @@ private:
     // ==================== 成员变量 ====================
     
     // 渲染相关
-    VideoRenderItem* m_videoRenderItem = nullptr;  ///< 视频渲染组件
+    VideoRenderPaintedItem* m_videoRenderItem = nullptr;  ///< 视频渲染组件
     
     // SDK 句柄
     TcrClientHandle      m_tcrClient   = nullptr;  ///< TcrSdk 客户端句柄（单例）
@@ -352,5 +360,8 @@ private:
      */
     static void VideoFrameCallback(void* user_data,
                                    TcrVideoFrameHandle frame);
-};
 
+    qreal m_currentRotationAngle = 0.0;  // 保存当前旋转角度，用于新实例创建时应用
+    int m_currentVideoWidth = 0;    // 保存当前视频流宽度，用于新实例创建时应用
+    int m_currentVideoHeight = 0;   // 保存当前视频流高度，用于新实例创建时应用
+};

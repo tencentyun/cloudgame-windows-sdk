@@ -1,4 +1,5 @@
 #include "D3D11Material.h"
+#include "utils/Logger.h"
 #include <QSGMaterialShader>
 #include <QSGTexture>
 #include <QOpenGLFunctions>
@@ -107,7 +108,7 @@ void D3D11Material::setD3D11Texture(const D3D11TextureData& d3d11Data,
 {
     // 检查参数有效性
     if (!d3d11Data.texture || !d3d11Data.device || !window) {
-        qWarning() << "D3D11Material: Invalid parameters";
+        Logger::warning("D3D11Material: Invalid parameters");
         clear();
         return;
     }
@@ -148,20 +149,16 @@ bool D3D11Material::createTextureFromD3D11(const D3D11TextureData& d3d11Data,
     ID3D11Device* d3d11Device = static_cast<ID3D11Device*>(d3d11Data.device);
 
     if (!d3d11Texture || !d3d11Device) {
-        qWarning() << "D3D11Material: Invalid D3D11 objects";
+        Logger::warning("D3D11Material: Invalid D3D11 objects");
         return false;
     }
 
     // 获取并打印D3D11纹理描述信息（用于诊断）
     D3D11_TEXTURE2D_DESC desc;
     d3d11Texture->GetDesc(&desc);
-    qDebug() << "D3D11 Texture Info:" 
-             << "Width:" << desc.Width 
-             << "Height:" << desc.Height
-             << "Format:" << desc.Format
-             << "BindFlags:" << desc.BindFlags
-             << "Usage:" << desc.Usage
-             << "CPUAccessFlags:" << desc.CPUAccessFlags;
+    Logger::info(QString("D3D11 Texture Info: Width:%1 Height:%2 Format:%3 BindFlags:%4 Usage:%5 CPUAccessFlags:%6")
+                 .arg(desc.Width).arg(desc.Height).arg(desc.Format)
+                 .arg(desc.BindFlags).arg(desc.Usage).arg(desc.CPUAccessFlags));
 
     // 检查是否为解码器纹理（BindFlags包含D3D11_BIND_DECODER）
     const UINT D3D11_BIND_DECODER = 0x200; // 512
@@ -172,7 +169,7 @@ bool D3D11Material::createTextureFromD3D11(const D3D11TextureData& d3d11Data,
     
     // 如果是解码器纹理或需要复制的纹理，创建可渲染副本
     if (isDecoderTexture || (desc.BindFlags & D3D11_BIND_SHADER_RESOURCE) == 0) {
-        qDebug() << "D3D11Material: Creating renderable texture copy";
+        Logger::info("D3D11Material: Creating renderable texture copy");
         
         // 创建可渲染的纹理描述
         D3D11_TEXTURE2D_DESC renderableDesc = {};
@@ -191,7 +188,8 @@ bool D3D11Material::createTextureFromD3D11(const D3D11TextureData& d3d11Data,
         // 创建可渲染纹理
         HRESULT hr = d3d11Device->CreateTexture2D(&renderableDesc, nullptr, &copiedTexture);
         if (FAILED(hr)) {
-            qWarning() << "D3D11Material: Failed to create renderable texture, HRESULT:" << Qt::hex << hr;
+            Logger::warning(QString("D3D11Material: Failed to create renderable texture, HRESULT: 0x%1")
+                           .arg(QString::number(hr, 16)));
             return false;
         }
         
@@ -213,19 +211,20 @@ bool D3D11Material::createTextureFromD3D11(const D3D11TextureData& d3d11Data,
         );
         
         renderableTexture = copiedTexture.Get();
-        qDebug() << "D3D11Material: Texture copied successfully";
+        Logger::info("D3D11Material: Texture copied successfully");
     }
 
     // 获取窗口的渲染接口
     QSGRendererInterface* rif = window->rendererInterface();
     if (!rif) {
-        qWarning() << "D3D11Material: Failed to get renderer interface";
+        Logger::warning("D3D11Material: Failed to get renderer interface");
         return false;
     }
 
     // 确保使用的是D3D11渲染后端
     if (rif->graphicsApi() != QSGRendererInterface::Direct3D11) {
-        qWarning() << "D3D11Material: Not using D3D11 backend, current API:" << rif->graphicsApi();
+        Logger::warning(QString("D3D11Material: Not using D3D11 backend, current API: %1")
+                       .arg(rif->graphicsApi()));
         return false;
     }
 
@@ -238,7 +237,7 @@ bool D3D11Material::createTextureFromD3D11(const D3D11TextureData& d3d11Data,
     );
 
     if (!m_texture) {
-        qWarning() << "D3D11Material: Failed to create QSGTexture from D3D11 texture";
+        Logger::warning("D3D11Material: Failed to create QSGTexture from D3D11 texture");
         return false;
     }
 
@@ -254,15 +253,15 @@ bool D3D11Material::createTextureFromD3D11(const D3D11TextureData& d3d11Data,
         // 实际使用中需要妥善管理纹理生命周期
     }
 
-    qDebug() << "D3D11Material: Successfully created RGBA texture" << width << "x" << height 
-             << "format:" << d3d11Data.format;
+    Logger::info(QString("D3D11Material: Successfully created RGBA texture %1x%2 format:%3")
+                 .arg(width).arg(height).arg(d3d11Data.format));
     return true;
 }
 
 bool D3D11Material::createComputeShader(ID3D11Device* device)
 {
     if (!device) {
-        qWarning() << "D3D11Material::createComputeShader: Invalid device";
+        Logger::warning("D3D11Material::createComputeShader: Invalid device");
         return false;
     }
     
@@ -274,7 +273,7 @@ bool D3D11Material::createComputeShader(ID3D11Device* device)
     // 从资源文件加载编译好的Compute Shader
     QFile shaderFile(":/shaders/shaders/nv12_to_rgba.comp.qsb");
     if (!shaderFile.open(QIODevice::ReadOnly)) {
-        qWarning() << "D3D11Material::createComputeShader: Failed to open shader file";
+        Logger::warning("D3D11Material::createComputeShader: Failed to open shader file");
         return false;
     }
     
@@ -282,7 +281,7 @@ bool D3D11Material::createComputeShader(ID3D11Device* device)
     shaderFile.close();
     
     if (shaderData.isEmpty()) {
-        qWarning() << "D3D11Material::createComputeShader: Shader file is empty";
+        Logger::warning("D3D11Material::createComputeShader: Shader file is empty");
         return false;
     }
     
@@ -296,8 +295,8 @@ bool D3D11Material::createComputeShader(ID3D11Device* device)
     );
     
     if (FAILED(hr)) {
-        qWarning() << "D3D11Material::createComputeShader: Failed to create compute shader, HRESULT:" 
-                   << Qt::hex << hr;
+        Logger::warning(QString("D3D11Material::createComputeShader: Failed to create compute shader, HRESULT: 0x%1")
+                       .arg(QString::number(hr, 16)));
         return false;
     }
     
@@ -316,8 +315,8 @@ bool D3D11Material::createComputeShader(ID3D11Device* device)
     ID3D11SamplerState* samplerState = nullptr;
     hr = device->CreateSamplerState(&samplerDesc, &samplerState);
     if (FAILED(hr)) {
-        qWarning() << "D3D11Material::createComputeShader: Failed to create sampler state, HRESULT:" 
-                   << Qt::hex << hr;
+        Logger::warning(QString("D3D11Material::createComputeShader: Failed to create sampler state, HRESULT: 0x%1")
+                       .arg(QString::number(hr, 16)));
         return false;
     }
     
@@ -333,21 +332,21 @@ bool D3D11Material::createComputeShader(ID3D11Device* device)
     ID3D11Buffer* constantBuffer = nullptr;
     hr = device->CreateBuffer(&cbDesc, nullptr, &constantBuffer);
     if (FAILED(hr)) {
-        qWarning() << "D3D11Material::createComputeShader: Failed to create constant buffer, HRESULT:" 
-                   << Qt::hex << hr;
+        Logger::warning(QString("D3D11Material::createComputeShader: Failed to create constant buffer, HRESULT: 0x%1")
+                       .arg(QString::number(hr, 16)));
         return false;
     }
     
     m_constantBuffer = constantBuffer;
     
-    qDebug() << "D3D11Material::createComputeShader: Compute shader created successfully";
+    Logger::info("D3D11Material::createComputeShader: Compute shader created successfully");
     return true;
 }
 
 bool D3D11Material::createRGBATexture(ID3D11Device* device, int width, int height)
 {
     if (!device) {
-        qWarning() << "D3D11Material::createRGBATexture: Invalid device";
+        Logger::warning("D3D11Material::createRGBATexture: Invalid device");
         return false;
     }
     
@@ -383,8 +382,8 @@ bool D3D11Material::createRGBATexture(ID3D11Device* device, int width, int heigh
     ID3D11Texture2D* rgbaTexture = nullptr;
     HRESULT hr = device->CreateTexture2D(&texDesc, nullptr, &rgbaTexture);
     if (FAILED(hr)) {
-        qWarning() << "D3D11Material::createRGBATexture: Failed to create RGBA texture, HRESULT:" 
-                   << Qt::hex << hr;
+        Logger::warning(QString("D3D11Material::createRGBATexture: Failed to create RGBA texture, HRESULT: 0x%1")
+                       .arg(QString::number(hr, 16)));
         return false;
     }
     
@@ -399,8 +398,8 @@ bool D3D11Material::createRGBATexture(ID3D11Device* device, int width, int heigh
     ID3D11UnorderedAccessView* uav = nullptr;
     hr = device->CreateUnorderedAccessView(rgbaTexture, &uavDesc, &uav);
     if (FAILED(hr)) {
-        qWarning() << "D3D11Material::createRGBATexture: Failed to create UAV, HRESULT:" 
-                   << Qt::hex << hr;
+        Logger::warning(QString("D3D11Material::createRGBATexture: Failed to create UAV, HRESULT: 0x%1")
+                       .arg(QString::number(hr, 16)));
         rgbaTexture->Release();
         m_rgbaTexture = nullptr;
         return false;
@@ -408,8 +407,8 @@ bool D3D11Material::createRGBATexture(ID3D11Device* device, int width, int heigh
     
     m_rgbaUAV = uav;
     
-    qDebug() << "D3D11Material::createRGBATexture: RGBA texture created successfully" 
-             << width << "x" << height;
+    Logger::info(QString("D3D11Material::createRGBATexture: RGBA texture created successfully %1x%2")
+                 .arg(width).arg(height));
     return true;
 }
 
@@ -420,7 +419,7 @@ bool D3D11Material::convertNV12ToRGBA(ID3D11Device* device,
                                      int height)
 {
     if (!device || !nv12Texture) {
-        qWarning() << "D3D11Material::convertNV12ToRGBA: Invalid parameters";
+        Logger::warning("D3D11Material::convertNV12ToRGBA: Invalid parameters");
         return false;
     }
     
@@ -447,8 +446,8 @@ bool D3D11Material::convertNV12ToRGBA(ID3D11Device* device,
     ID3D11ShaderResourceView* srv_Y = nullptr;
     HRESULT hr = device->CreateShaderResourceView(nv12Texture, &srvDesc_Y, &srv_Y);
     if (FAILED(hr)) {
-        qWarning() << "D3D11Material::convertNV12ToRGBA: Failed to create Y plane SRV, HRESULT:" 
-                   << Qt::hex << hr;
+        Logger::warning(QString("D3D11Material::convertNV12ToRGBA: Failed to create Y plane SRV, HRESULT: 0x%1")
+                       .arg(QString::number(hr, 16)));
         return false;
     }
     
@@ -464,8 +463,8 @@ bool D3D11Material::convertNV12ToRGBA(ID3D11Device* device,
     ID3D11ShaderResourceView* srv_UV = nullptr;
     hr = device->CreateShaderResourceView(nv12Texture, &srvDesc_UV, &srv_UV);
     if (FAILED(hr)) {
-        qWarning() << "D3D11Material::convertNV12ToRGBA: Failed to create UV plane SRV, HRESULT:" 
-                   << Qt::hex << hr;
+        Logger::warning(QString("D3D11Material::convertNV12ToRGBA: Failed to create UV plane SRV, HRESULT: 0x%1")
+                       .arg(QString::number(hr, 16)));
         srv_Y->Release();
         return false;
     }
@@ -533,8 +532,8 @@ bool D3D11Material::convertNV12ToRGBA(ID3D11Device* device,
     
     context->CSSetShader(nullptr, nullptr, 0);
     
-    qDebug() << "D3D11Material::convertNV12ToRGBA: Conversion dispatched successfully" 
-             << "Groups:" << numGroupsX << "x" << numGroupsY;
+    Logger::info(QString("D3D11Material::convertNV12ToRGBA: Conversion dispatched successfully Groups: %1x%2")
+                 .arg(numGroupsX).arg(numGroupsY));
     return true;
 }
 
@@ -580,5 +579,5 @@ void D3D11Material::clearComputeResources()
         m_constantBuffer = nullptr;
     }
     
-    qDebug() << "D3D11Material::clearComputeResources: Compute resources cleared";
+    Logger::info("D3D11Material::clearComputeResources: Compute resources cleared");
 }

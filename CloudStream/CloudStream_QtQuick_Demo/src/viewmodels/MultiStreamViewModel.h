@@ -8,6 +8,10 @@
 #include <QJsonObject>
 #include <QJsonDocument>
 #include <QPointer>
+#include <QTimer>
+#include <QMutex>
+#include <QMutexLocker>
+#include <atomic>
 #include "core/video/Frame.h"
 #include "core/video/VideoRenderItem.h"
 #include "tcr_c_api.h"
@@ -94,6 +98,24 @@ public:
      */
     Q_INVOKABLE void closeAllSessions();
 
+    /**
+     * @brief 暂停指定实例的流媒体
+     * @param instanceIds 实例ID列表
+     * 
+     * TcrSdk API 调用：
+     * - tcr_session_pause_streaming()：暂停流媒体
+     */
+    Q_INVOKABLE void pauseStreaming(const QStringList& instanceIds);
+
+    /**
+     * @brief 恢复指定实例的流媒体
+     * @param instanceIds 实例ID列表
+     * 
+     * TcrSdk API 调用：
+     * - tcr_session_resume_streaming()：恢复流媒体
+     */
+    Q_INVOKABLE void resumeStreaming(const QStringList& instanceIds);
+
     // ==================== 信号 ====================
 
 signals:
@@ -110,6 +132,14 @@ signals:
      * @param connected 是否已连接
      */
     void instanceConnectionChanged(const QString& instanceId, bool connected);
+
+    /**
+     * @brief 会话关闭信号
+     * @param sessionIndex 会话索引
+     * @param instanceIds 该会话包含的实例ID列表
+     * @param reason 关闭原因
+     */
+    void sessionClosed(int sessionIndex, const QStringList& instanceIds, const QString& reason);
 
     void connectedInstanceIdsChanged();
 
@@ -151,6 +181,15 @@ private:
     /// 使用 QPointer 防止访问已销毁的对象
     QHash<QString, QPointer<VideoRenderItem>> m_videoRenderItems;
 
+    // 帧缓存优化相关
+    QMap<QString, VideoFrameDataPtr> m_frameCache;  // uniqueKey -> 最新帧
+    QMutex m_frameCacheMutex;                       // 保护帧缓存的互斥锁
+    QTimer* m_renderTimer = nullptr;                // 定时刷新定时器
+
+    // 线程安全保护
+    std::atomic<bool> m_isDestroying{false};        // 析构标志，用于快速检测
+    QMutex m_videoRenderItemsMutex;                 // 保护 m_videoRenderItems 的互斥锁
+
     // ==================== 内部方法 ====================
 
     /**
@@ -174,6 +213,9 @@ private:
      * - tcr_session_set_video_frame_observer()：设置视频帧观察者
      */
     void setSessionObservers(int sessionIndex);
+
+    // 批量渲染缓存的帧
+    void batchRenderFrames();  
 
     // ==================== TcrSdk 回调函数（C 静态函数）====================
 
