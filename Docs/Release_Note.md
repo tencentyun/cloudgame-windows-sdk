@@ -1,5 +1,14 @@
 # Release Notes
 
+## Version 1.17.2
+### Features
+- 接口`tcr_session_set_remote_video_profile`支持指定实例ID
+- 减少日志打印
+
+### Download
+- [TcrSdk-Debug-1.17.2-20251128-84106dcfd.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Debug-1.17.2-20251128-84106dcfd.zip)
+- [TcrSdk-Release-1.17.2-20251128-84106dcfd.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Release-1.17.2-20251128-84106dcfd.zip)
+
 ## Version 1.16.1
 ### Bugfix
 - 群控和单连没有触发`TCR_SESSION_EVENT_SCREEN_CONFIG_CHANGE`消息的问题

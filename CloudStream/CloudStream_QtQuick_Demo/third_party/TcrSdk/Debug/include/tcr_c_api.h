@@ -993,9 +993,15 @@ TCRSDK_API void tcr_session_request_multi_streaming(TcrSessionHandle session, co
  * @param maxBitrate 最大码率（可选参数，单位 kbps，设置为 0 或负数表示不设置码率参数，需与 minBitrate 同时设置）
  * @param video_width 视频宽度（可选参数，单位 px，设置为 0 或负数表示不设置分辨率参数，需与 video_height 同时设置）
  * @param video_height 视频高度（可选参数，单位 px，设置为 0 或负数表示不设置分辨率参数，需与 video_width 同时设置）
+ * @param instanceIds 实例ID数组，可选，为NULL时对所有实例生效
+ * @param instance_count 实例ID数组长度，当instanceIds为NULL时此参数无效
  * 
+ * @note 参数instanceIds和instance_count只在调用tcr_session_access_multi_stream连接多个实例的情况下才有意义：
+ *   - 如果instanceIds为NULL或instance_count为0，则对所有已连接的实例生效
+ *   - 如果传入了具体的实例ID列表，则只对指定的实例ID生效
+ *   - 如果会话是通过tcr_session_access创建的（单实例或群控模式），这两个参数将被忽略
  */
-TCRSDK_API void tcr_session_set_remote_video_profile(TcrSessionHandle session, int32_t fps, int32_t minBitrate, int32_t maxBitrate, int32_t video_width, int32_t video_height);
+TCRSDK_API void tcr_session_set_remote_video_profile(TcrSessionHandle session, int32_t fps, int32_t minBitrate, int32_t maxBitrate, int32_t video_width, int32_t video_height, const char** instanceIds = nullptr, int32_t instance_count = 0);
 
 /**
  * @brief 启用本地摄像头
