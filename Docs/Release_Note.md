@@ -1,5 +1,13 @@
 # Release Notes
 
+## Version 1.17.3
+### Bugfix
+- 修复底层库关闭会话时的崩溃问题
+
+### Download
+- [TcrSdk-Debug-1.17.3-20251202-fa7421f20.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Debug-1.17.3-20251202-fa7421f20.zip)
+- [TcrSdk-Release-1.17.3-20251202-fa7421f20.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Release-1.17.3-20251202-fa7421f20.zip)
+
 ## Version 1.17.2
 ### Features
 - 接口`tcr_session_set_remote_video_profile`支持指定实例ID
