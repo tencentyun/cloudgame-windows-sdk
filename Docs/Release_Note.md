@@ -1,5 +1,12 @@
 # Release Notes
 
+## Version 1.16.6
+### Bugfix
+- 修复个别机型进程退出时的崩溃问题
+### Download
+- [TcrSdk-Debug-1.16.6-20251204-401820033.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Debug-1.16.6-20251204-401820033.zip)
+- [TcrSdk-Release-1.16.6-20251204-401820033.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Release-1.16.6-20251204-401820033.zip)
+
 ## Version 1.17.3
 ### Bugfix
 - 修复底层库关闭会话时的崩溃问题
