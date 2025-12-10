@@ -5,6 +5,7 @@
 #include "services/ApiService.h"
 #include "services/NetworkService.h"
 #include "utils/Logger.h" 
+#include "utils/CrashDumpHandler.h"
 #include "core/video/VideoRenderItem.h"
 #include "core/video/VideoRenderPaintedItem.h"
 #include "viewmodels/StreamingViewModel.h"
@@ -25,6 +26,10 @@
 int main(int argc, char *argv[]) {
     // 创建Qt GUI应用程序对象
     QGuiApplication app(argc, argv);
+
+    // -------------------- 崩溃处理器初始化 --------------------
+    /// 初始化崩溃转储处理器，程序崩溃时自动生成dump文件
+    CrashDumpHandler::initialize();
 
     // -------------------- 日志系统初始化 --------------------
     /// 初始化全局日志系统，确保日志功能在应用生命周期内可用

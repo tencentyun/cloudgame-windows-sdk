@@ -58,6 +58,7 @@ target_link_libraries(CloudStream_QtQuick_Demo
     PRIVATE Qt6::Quick
             Qt6::Network
             Qt6::Concurrent
+            dbghelp  # Windows调试帮助库，用于生成dump文件
 )
 
     # 处理 TcrSdk 库和 DLL

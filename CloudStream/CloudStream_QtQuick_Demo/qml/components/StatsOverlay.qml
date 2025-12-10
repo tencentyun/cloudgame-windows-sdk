@@ -28,6 +28,7 @@ Rectangle {
                 return "FPS: " + (stats.fps || 0) + 
                        " | 码率: " + bitrateKbps + " kbps" +
                        " | RTT: " + (stats.rtt || 0) + "ms" +
+                       " | RAW RTT: " + (stats.raw_rtt || 0) + "ms" +
                        "\n分辨率: " + (stats.frame_recv_res || "N/A") +
                        " | NACK: " + (stats.nack_count || 0) +
                        "\n视频包 - 接收: " + (stats.video_packet_recv || 0) + 

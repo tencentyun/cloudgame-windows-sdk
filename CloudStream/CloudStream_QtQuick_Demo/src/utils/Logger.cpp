@@ -29,7 +29,7 @@ Logger* Logger::instance()
  * 初始化日志系统并启动日志写入线程
  */
 Logger::Logger()
-    : m_logLevel(DEBUG)
+    : m_logLevel(kDEBUG)
     , m_logToFile(false)
     , m_stopThread(false)
     , m_logThread(nullptr)
@@ -319,10 +319,10 @@ void Logger::logWriterLoop()
                 // 格式化日志级别字符串
                 QString levelStr;
                 switch(msg.level) {
-                    case DEBUG:   levelStr = "DEBUG"; break;
-                    case INFO:    levelStr = "INFO "; break;
-                    case WARNING: levelStr = "WARN "; break;
-                    case ERROR:   levelStr = "ERROR"; break;
+                    case kDEBUG:   levelStr = "DEBUG"; break;
+                    case kINFO:    levelStr = "INFO "; break;
+                    case kWARNING: levelStr = "WARN "; break;
+                    case kERROR:   levelStr = "ERROR"; break;
                 }
                 
                 // 构造完整的日志消息
@@ -403,20 +403,20 @@ void Logger::stopLogThread()
 // 便捷的静态日志记录方法实现
 void Logger::debug(const QString& message)
 {
-    instance()->log(DEBUG, message);
+    instance()->log(kDEBUG, message);
 }
 
 void Logger::info(const QString& message)
 {
-    instance()->log(INFO, message);
+    instance()->log(kINFO, message);
 }
 
 void Logger::warning(const QString& message)
 {
-    instance()->log(WARNING, message);
+    instance()->log(kWARNING, message);
 }
 
 void Logger::error(const QString& message)
 {
-    instance()->log(ERROR, message);
+    instance()->log(kERROR, message);
 }

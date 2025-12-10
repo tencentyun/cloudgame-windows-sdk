@@ -578,7 +578,8 @@ typedef enum {
      *      "frame_recv_res":string,       // 视频接收分辨率(如"1080x2408")
      *      "frame_sent":number,           // 视频发送帧数
      *      "nack_count":number,           // NACK重传请求数量
-     *      "rtt":number,                  // 往返时延RTT(毫秒)
+     *      "rtt":number,                  // 客户端到云机实例的往返时延RTT(毫秒)
+     *      "raw_rtt":number,              // 客户端到边缘服务器的往返时延RTT(毫秒)
      *      "video_packet_lost":number,    // 视频丢包数
      *      "video_packet_recv":number,    // 接收到的视频包数量
      *      "video_packet_sent":number     // 发送的视频包数量

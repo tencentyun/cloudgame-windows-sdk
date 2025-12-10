@@ -19,7 +19,7 @@ Window {
     property var instanceIds: []                    // 传入的实例ID列表
     property var accessInfo: null                   // 访问信息
     property string token: ""                       // 认证令牌
-    readonly property int instancesPerSession: 30   // 硬编码的每个session的实例数量
+    readonly property int instancesPerSession: 100   // 硬编码的每个session的实例数量
     
     // 实例管理属性
     property var checkedInstanceIds: []             // 选中的实例ID列表

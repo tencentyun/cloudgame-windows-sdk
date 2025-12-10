@@ -1,5 +1,14 @@
 # Release Notes
 
+## Version 1.17.4
+### Features
+- 新增释放全局资源的`tcr_client_release()`接口
+- 回调的`TCR_SESSION_EVENT_CLIENT_STATS`数据中支持`rtt`和`raw_rtt`
+
+### Download
+- [TcrSdk-Debug-1.17.4-20251210-5ca177064.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Debug-1.17.4-20251210-5ca177064.zip)
+- [TcrSdk-Release-1.17.4-20251210-5ca177064.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Release-1.17.4-20251210-5ca177064.zip)
+
 ## Version 1.16.7
 ### Bugfix
 - 修复个别机型进程退出时的崩溃问题

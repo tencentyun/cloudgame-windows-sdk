@@ -65,6 +65,8 @@ MultiStreamViewModel::~MultiStreamViewModel()
     // 关闭所有会话
     closeAllSessions();
     
+    tcr_client_release(tcr_client_get_instance());
+    
     Logger::info("[MultiStreamViewModel] 析构完成");
 }
 
@@ -240,8 +242,8 @@ void MultiStreamViewModel::createSessionsWithConfigs(const QVariantList& session
         TcrSessionConfig config = tcr_session_config_default();
         
         // 自定义视频流参数
-        config.stream_profile.video_width = 144;   // 视频宽度
-        config.stream_profile.video_height = 256;  // 视频高度
+        config.stream_profile.video_width = 288;   // 视频宽度
+        config.stream_profile.video_height = 512;  // 视频高度
         config.stream_profile.fps = 1;             // 帧率
         config.stream_profile.max_bitrate = 400;  // 最大码率
         config.stream_profile.min_bitrate = 100;  // 最小码率
@@ -477,8 +479,8 @@ void MultiStreamViewModel::SessionEventCallback(void* user_data,
                     1,     // fps: 1帧/秒
                     100,   // minBitrate: 100 kbps
                     200,   // maxBitrate: 200 kbps
-                    144,   // height: 144
-                    256);  // width: 256
+                    288,   // height: 288
+                    512);  // width: 512
 
                 break;
             }

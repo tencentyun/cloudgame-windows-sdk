@@ -237,6 +237,14 @@ TCRSDK_API TcrClientHandle tcr_client_get_instance();
 TCRSDK_API TcrErrorCode tcr_client_init(TcrClientHandle client, const TcrConfig* config);
 
 /**
+ * @brief 释放TcrClient所有资源
+ * @param client TcrClientHandle
+ * @note 应在进程退出前调用此函数，释放所有会话和资源
+ * @warning 调用此函数后，client句柄将不可再使用，需要重新调用tcr_client_get_instance获取新实例
+ */
+TCRSDK_API void tcr_client_release(TcrClientHandle client);
+
+/**
  * @brief 创建会话对象, 以便进行串流和控制云手机实例
  * @param client TcrClientHandle
  * @param session_config 会话配置参数，通过tcr_session_config_default()获取默认配置

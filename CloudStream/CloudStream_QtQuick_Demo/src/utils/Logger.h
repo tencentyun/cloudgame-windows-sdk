@@ -34,10 +34,10 @@ public:
      * @brief 日志级别枚举
      */
     enum LogLevel {
-        DEBUG,      // 调试信息
-        INFO,       // 一般信息
-        WARNING,    // 警告信息
-        ERROR       // 错误信息
+        kDEBUG,      // 调试信息
+        kINFO,       // 一般信息
+        kWARNING,    // 警告信息
+        kERROR       // 错误信息
     };
 
     /**
