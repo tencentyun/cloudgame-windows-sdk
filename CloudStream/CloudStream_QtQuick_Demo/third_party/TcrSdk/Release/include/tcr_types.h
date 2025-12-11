@@ -329,6 +329,7 @@ typedef struct {
  */
 typedef struct {
     TcrStreamProfile stream_profile;  ///< 拉流参数配置
+    int32_t statsInterval;            ///< TCR_SESSION_EVENT_CLIENT_STATS 触发间隔（秒），范围1-60，默认1秒
     const char* user_id;              ///< 用户ID，用于标识当前会话的用户
     bool enable_audio;                ///< 是否启用音频功能，默认启用, 若不需要音频功能建议关闭以降低cpu使用率
     bool enable_hardware_decode;      ///< 是否启用硬件解码，默认启用
@@ -385,6 +386,8 @@ static inline TcrSessionConfig tcr_session_config_default(void) {
     // 默认启用硬件解码（性能更好，但会根据设备能力自动回退）
     // 注意：即使启用，SDK也会在检测到设备不支持时自动回退到软件解码
     config.enable_hardware_decode = false;
+
+    config.statsInterval = 1;
     
     return config;
 }
@@ -579,7 +582,8 @@ typedef enum {
      *      "frame_sent":number,           // 视频发送帧数
      *      "nack_count":number,           // NACK重传请求数量
      *      "rtt":number,                  // 客户端到云机实例的往返时延RTT(毫秒)
-     *      "raw_rtt":number,              // 客户端到边缘服务器的往返时延RTT(毫秒)
+     *      "raw_rtt":number,              // 客户端到实例上车点服务器的往返时延RTT(毫秒)
+     *      "edge_rtt":number,             // 客户端到边缘服务器的往返时延RTT(毫秒)
      *      "video_packet_lost":number,    // 视频丢包数
      *      "video_packet_recv":number,    // 接收到的视频包数量
      *      "video_packet_sent":number     // 发送的视频包数量

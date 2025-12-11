@@ -1,5 +1,14 @@
 # Release Notes
 
+## Version 1.17.5
+### Features
+- 回调的`TCR_SESSION_EVENT_CLIENT_STATS`数据中支持`edge_rtt`
+- `TcrSessionConfig`中新增`statsInterval`参数控制TCR_SESSION_EVENT_CLIENT_STATS 触发间隔（单位秒, 范围1-60，默认1秒）
+
+### Download
+- [TcrSdk-Debug-1.17.5-20251211-afa0cbab5.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Debug-1.17.5-20251211-afa0cbab5.zip)
+- [TcrSdk-Release-1.17.5-20251211-afa0cbab5.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Release-1.17.5-20251211-afa0cbab5.zip)
+
 ## Version 1.17.4
 ### Features
 - 新增释放全局资源的`tcr_client_release()`接口

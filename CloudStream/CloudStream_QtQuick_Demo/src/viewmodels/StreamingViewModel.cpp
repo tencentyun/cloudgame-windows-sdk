@@ -142,6 +142,7 @@ void StreamingViewModel::createAndInitSession()
     // 【步骤3】创建会话
     // SDK API: tcr_client_create_session(client, config)
     TcrSessionConfig config = tcr_session_config_default();
+    config.statsInterval = 3;
     m_session = tcr_client_create_session(m_tcrClient, &config);
 
     // 【步骤4】设置观察者
