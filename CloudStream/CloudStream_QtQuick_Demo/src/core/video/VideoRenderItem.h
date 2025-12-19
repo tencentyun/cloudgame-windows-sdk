@@ -21,6 +21,12 @@ class VideoRenderItem : public QQuickItem
     // QML属性：当前是否有有效的帧数据
     Q_PROPERTY(bool hasFrame READ hasFrame NOTIFY firstFrameArrived)
     
+    // QML属性：视频宽度
+    Q_PROPERTY(int videoWidth READ videoWidth NOTIFY videoSizeChanged)
+    
+    // QML属性：视频高度
+    Q_PROPERTY(int videoHeight READ videoHeight NOTIFY videoSizeChanged)
+    
 public:
     /**
      * @brief 构造函数
@@ -38,6 +44,18 @@ public:
      * @return true表示有有效帧数据，false表示无数据或数据无效
      */
     bool hasFrame() const;
+    
+    /**
+     * @brief 获取视频宽度
+     * @return 视频宽度（像素）
+     */
+    int videoWidth() const { return m_videoWidth; }
+    
+    /**
+     * @brief 获取视频高度
+     * @return 视频高度（像素）
+     */
+    int videoHeight() const { return m_videoHeight; }
 
 signals:
     /**
@@ -46,6 +64,13 @@ signals:
      * 当从无帧状态接收到第一个有效帧时发射此信号。
      */
     void firstFrameArrived();
+    
+    /**
+     * @brief 视频尺寸变化信号
+     * 
+     * 当视频宽度或高度发生变化时发射此信号。
+     */
+    void videoSizeChanged();
 
 protected:
     /**
@@ -62,7 +87,9 @@ protected:
 private:
     VideoFrameDataPtr m_frame;        ///< 当前帧数据
     bool m_frameDirty = false;        ///< 帧数据脏标记，表示帧数据已更新需要重新渲染
-
+    int m_videoWidth;
+    int m_videoHeight; 
+    
 public slots:
     /**
      * @brief 设置新的视频帧数据

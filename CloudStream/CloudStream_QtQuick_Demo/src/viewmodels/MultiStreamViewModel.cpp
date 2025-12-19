@@ -242,11 +242,10 @@ void MultiStreamViewModel::createSessionsWithConfigs(const QVariantList& session
         TcrSessionConfig config = tcr_session_config_default();
         
         // 自定义视频流参数
-        config.stream_profile.video_width = 288;   // 视频宽度
-        config.stream_profile.video_height = 512;  // 视频高度
+        config.stream_profile.video_width = 288;   // 指定短边的宽度
         config.stream_profile.fps = 1;             // 帧率
-        config.stream_profile.max_bitrate = 400;  // 最大码率
-        config.stream_profile.min_bitrate = 100;  // 最小码率
+        config.stream_profile.max_bitrate = 200;   // 最大码率
+        config.stream_profile.min_bitrate = 100;   // 最小码率
         config.enable_audio = false;               // 禁用音频
         
         // 步骤2：创建会话
@@ -290,8 +289,15 @@ void MultiStreamViewModel::createSessionsWithConfigs(const QVariantList& session
             //     false
             // );
 
+            // tcr_session_access_multi_stream(
+            //     m_sessions[i].session,
+            //     result.pointers.data(),
+            //     static_cast<int32_t>(result.pointers.size())
+            // );
             tcr_session_access_multi_stream(
                 m_sessions[i].session,
+                result.pointers.data(),
+                static_cast<int32_t>(result.pointers.size()),
                 result.pointers.data(),
                 static_cast<int32_t>(result.pointers.size())
             );
@@ -473,14 +479,6 @@ void MultiStreamViewModel::SessionEventCallback(void* user_data,
                 for (const QString& instanceId : sessionInfo.instanceIds) {
                     emit self->instanceConnectionChanged(instanceId, true);
                 }
-
-                // 设置码流参数
-                tcr_session_set_remote_video_profile(sessionInfo.session, 
-                    1,     // fps: 1帧/秒
-                    100,   // minBitrate: 100 kbps
-                    200,   // maxBitrate: 200 kbps
-                    288,   // height: 288
-                    512);  // width: 512
 
                 break;
             }

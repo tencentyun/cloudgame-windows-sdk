@@ -314,10 +314,15 @@ typedef struct {
  * @brief 拉流参数配置结构体
  * 用于设置视频流的参数配置。可以单独指定视频宽高，或者帧率，或者码率。
  * 设定码率时必须同时指定min_bitrate、max_bitrate，否则不生效。
+ * 
+ * @note 视频分辨率配置规则：
+ * - 当 video_width > 0 && video_height > 0 时：配置视频流的分辨率为宽video_width、高video_height
+ * - 当 video_width > 0 && video_height = 0 时：短边固定为video_width，长边自适应
+ * - 当 video_width = 0 && video_height > 0 时：长边固定为video_height，短边自适应
  */
 typedef struct {
-    int32_t video_width;    ///< 视频宽度（像素）, 0表示不指定视频宽度
-    int32_t video_height;   ///< 视频高度（像素）, 0表示不指定视频高度
+    int32_t video_width;    ///< 视频宽度（可选参数，单位 px）。配合video_height使用，具体规则见结构体说明
+    int32_t video_height;   ///< 视频高度（可选参数，单位 px）。配合video_width使用，具体规则见结构体说明
     int32_t fps;            ///< 帧率, 0表示不指定帧率
     int32_t max_bitrate;    ///< 最大码率Kbps, 0表示不指定最大码率
     int32_t min_bitrate;    ///< 最小码率Kbps, 0表示不指定最小码率
@@ -371,8 +376,8 @@ static inline TcrSessionConfig tcr_session_config_default(void) {
     
     // 初始化流配置参数
     // 所有参数设为0表示不指定，由服务端根据实际情况决定
-    config.stream_profile.video_width = 0;
-    config.stream_profile.video_height = 0;
+    config.stream_profile.video_width = -1;
+    config.stream_profile.video_height = -1;
     config.stream_profile.fps = 0;
     config.stream_profile.max_bitrate = 0;
     config.stream_profile.min_bitrate = 0;
@@ -529,15 +534,6 @@ static inline TcrDataChannelObserver tcr_data_channel_observer_default(void) {
     observer.on_message = NULL;
     return observer;
 }
-
-/**
- * @brief 流媒体请求项结构体
- * 用于多用户流媒体请求
- */
-typedef struct {
-    const char* instanceId; ///< 实例ID
-    const char* status;     ///< 状态："open" 或 "close"
-} TcrStreamingRequestItem;
 
 /**
  * @brief 会话事件类型枚举，定义了客户端与云端会话过程中可能产生的所有事件类型。

@@ -19,7 +19,11 @@ Window {
     property var instanceIds: []                    // 传入的实例ID列表
     property var accessInfo: null                   // 访问信息
     property string token: ""                       // 认证令牌
-    readonly property int instancesPerSession: 100   // 硬编码的每个session的实例数量
+    readonly property int instancesPerSession: 30   // 硬编码的每个session的实例数量
+    
+    // 视图大小配置
+    property int viewSize: 1                        // 视图大小: 0=小(30列), 1=中(10列), 2=大(5列)
+    property var viewSizeColumns: [30, 10, 5]       // 对应每种视图的列数
     
     // 实例管理属性
     property var checkedInstanceIds: []             // 选中的实例ID列表
@@ -32,6 +36,7 @@ Window {
     
     // 全选状态
     property bool isAllSelected: false              // 是否全选状态
+    property bool isUpdatingCheckboxes: false       // 正在批量更新复选框状态
     
     // 视图模型
     property MultiStreamViewModel multiInstanceViewModel: MultiStreamViewModel {}
@@ -283,6 +288,9 @@ Window {
     function toggleSelectAll() {
         var previousCheckedIds = checkedInstanceIds.slice();
         
+        // 设置更新标志，防止 CheckBox 的 onCheckedChanged 触发
+        isUpdatingCheckboxes = true;
+        
         if (isAllSelected) {
             // 取消全选
             checkedInstanceIds = [];
@@ -292,6 +300,11 @@ Window {
             checkedInstanceIds = instanceIds.slice();
             isAllSelected = true;
         }
+        
+        // 延迟重置更新标志，让所有 CheckBox 完成状态更新
+        Qt.callLater(function() {
+            isUpdatingCheckboxes = false;
+        });
         
         // 同步到同步窗口
         syncToSyncWindow(previousCheckedIds);
@@ -343,6 +356,23 @@ Window {
             text: "多实例视频渲染 - 总计: " + instanceIds.length + " 个实例 (每会话" + instancesPerSession + "个)"
             font.pixelSize: 16
             font.bold: true
+        }
+        
+        // 视图大小选择
+        Text {
+            text: "视图:"
+            font.pixelSize: 14
+            verticalAlignment: Text.AlignVCenter
+        }
+        
+        ComboBox {
+            id: viewSizeComboBox
+            model: ["小", "中", "大"]
+            currentIndex: viewSize
+            implicitWidth: 80
+            onCurrentIndexChanged: {
+                viewSize = currentIndex;
+            }
         }
         
         Button {
@@ -425,7 +455,7 @@ Window {
         anchors.margins: 10
         clip: true
         
-        cellWidth: (parent.width - 20) / 30
+        cellWidth: (parent.width - 20) / viewSizeColumns[viewSize]
         cellHeight: cellWidth * 240 / 135
         
         model: instanceConfigs
@@ -436,6 +466,7 @@ Window {
             height: videoGridView.cellHeight - 10
             border.color: "gray"
             border.width: 1
+            color: "transparent"
             
             // 实例信息属性
             property string instanceId: modelData.instanceId
@@ -456,8 +487,43 @@ Window {
             // 视频渲染项
             VideoRenderItem {
                 id: videoRenderItem
-                anchors.fill: parent
                 objectName: "videoRenderItem_" + videoCell.uniqueKey
+                
+                // 居中显示
+                anchors.centerIn: parent
+                
+                // 根据视频宽高比动态调整尺寸，保持宽高比
+                width: {
+                    if (videoWidth <= 0 || videoHeight <= 0) {
+                        return parent.width;
+                    }
+                    var aspectRatio = videoWidth / videoHeight;
+                    var parentAspectRatio = parent.width / parent.height;
+                    
+                    if (aspectRatio > parentAspectRatio) {
+                        // 视频更宽，以宽度为准
+                        return parent.width;
+                    } else {
+                        // 视频更高，以高度为准
+                        return parent.height * aspectRatio;
+                    }
+                }
+                
+                height: {
+                    if (videoWidth <= 0 || videoHeight <= 0) {
+                        return parent.height;
+                    }
+                    var aspectRatio = videoWidth / videoHeight;
+                    var parentAspectRatio = parent.width / parent.height;
+                    
+                    if (aspectRatio > parentAspectRatio) {
+                        // 视频更宽，以宽度为准
+                        return parent.width / aspectRatio;
+                    } else {
+                        // 视频更高，以高度为准
+                        return parent.height;
+                    }
+                }
                 
                 Component.onCompleted: {
                     console.log("Registering VideoRenderItem for instance:", 
@@ -479,6 +545,11 @@ Window {
                 checked: checkedInstanceIds.indexOf(videoCell.instanceId) !== -1
                 
                 onCheckedChanged: {
+                    // 如果正在批量更新，忽略此事件
+                    if (isUpdatingCheckboxes) {
+                        return;
+                    }
+                    
                     // 保存旧的选中列表
                     var previousCheckedIds = checkedInstanceIds.slice();
                     

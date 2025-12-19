@@ -911,21 +911,40 @@ TCRSDK_API void tcr_session_access(TcrSessionHandle session, const char** instan
  * @param session 会话句柄
  * @param instanceIds 云端实例ID数组
  * @param length 实例ID数组长度
- * @param stream_configs 可选参数，每个实例的流配置数组（可为NULL使用默认配置）
+ * @param defaultStreamingInstanceIds 默认出流的实例ID数组（可选，必须是instanceIds的子集）
+ * @param defaultStreamingLength 默认出流实例ID数组长度（当defaultStreamingInstanceIds为NULL时此参数无效）
+ * 
+ * @note 出流控制说明：
+ *   - **默认情况下，连接的实例不会自动出流**
+ *   - 需要调用 tcr_session_resume_streaming 并传入需要出流的实例列表才会开始出流
+ *   - 如果提供了 defaultStreamingInstanceIds 参数，这些实例将在连接后自动开始出流，无需再调用 tcr_session_resume_streaming
+ *   - defaultStreamingInstanceIds 中的实例ID必须是 instanceIds 的子集，否则将被忽略
  * 
  * @note 使用限制：
  *   - 每个实例的视频流通过tcr_session_set_video_frame_observer回调
  *   - 回调中的TcrVideoFrameHandle需包含实例ID信息以区分不同流
- *   - 同时连接的实例数最多不超过20个.
  * 
  * @warning 
  *   - 此接口与tcr_session_access互斥，同一session只能调用其中一个
  *   - 调用此接口后，群控相关接口（如tcr_instance_set_sync_list）针对该会话将不可用
  * 
- * @example 典型用法
+ * @example 典型用法1：手动控制出流
  * @code
  * const char* instances[] = {"cai-xxx-001", "cai-xxx-002", "cai-xxx-003"};
- * tcr_session_access_multi_stream(session, instances, 3, NULL);
+ * // 连接3个实例，默认都不出流
+ * tcr_session_access_multi_stream(session, instances, 3, NULL, 0);
+ * 
+ * // 连接成功后根据需要让指定实例开始出流
+ * const char* streaming_instances[] = {"cai-xxx-001", "cai-xxx-002"};
+ * tcr_session_resume_streaming(session, "video", streaming_instances, 2);
+ * @endcode
+ * 
+ * @example 典型用法2：指定默认出流实例
+ * @code
+ * const char* instances[] = {"cai-xxx-001", "cai-xxx-002", "cai-xxx-003"};
+ * const char* default_streaming[] = {"cai-xxx-001"};  // 只让第一个实例默认出流
+ * // 连接3个实例，其中cai-xxx-001会自动开始出流
+ * tcr_session_access_multi_stream(session, instances, 3, default_streaming, 1);
  * 
  * // 在视频帧回调中区分不同实例的流
  * void VideoFrameCallback(void* user_data, TcrVideoFrameHandle frame_handle) {
@@ -937,7 +956,9 @@ TCRSDK_API void tcr_session_access(TcrSessionHandle session, const char** instan
 TCRSDK_API void tcr_session_access_multi_stream(
     TcrSessionHandle session, 
     const char** instanceIds, 
-    int32_t length
+    int32_t length,
+    const char** defaultStreamingInstanceIds = NULL,
+    int32_t defaultStreamingLength = 0
 );
 
 /**
@@ -969,38 +990,16 @@ TCRSDK_API void tcr_session_pause_streaming(TcrSessionHandle session, const char
 TCRSDK_API void tcr_session_resume_streaming(TcrSessionHandle session, const char* media_type = nullptr, const char** instanceIds = nullptr, int32_t instance_count = 0);
 
 /**
- * @brief 请求多个实例的流媒体推流
- * 
- * 该函数用于批量请求多个用户的流媒体推流状态。
- * 
- * @param session 会话句柄
- * @param items 流媒体请求项数组
- * @param item_count 数组中的项数
- * 
- * @note 使用示例：
- * @code
- * TcrStreamingRequestItem items[2];
- * items[0].instanceId = "cai-123456-cgxxxxxx";
- * items[0].status = "open";
- * items[0].ssrc = "video_track_ssrc_1";
- * 
- * items[1].instanceId = "cai-123456-cgyyyyyy";
- * items[1].status = "close";
- * items[1].ssrc = "video_track_ssrc_2";
- * 
- * tcr_session_request_multi_streaming(session, items, 2);
- * @endcode
- */
-TCRSDK_API void tcr_session_request_multi_streaming(TcrSessionHandle session, const TcrStreamingRequestItem* items, int32_t item_count);
-
-/**
  * @brief 设置远端视频流参数（帧率、码率等）
  * @param session 会话句柄
  * @param fps 视频帧率（可选参数，设置为 0 或负数表示不设置此参数，有效范围：1-60）
  * @param minBitrate 最小码率（可选参数，单位 kbps，设置为 0 或负数表示不设置码率参数，需与 maxBitrate 同时设置）
  * @param maxBitrate 最大码率（可选参数，单位 kbps，设置为 0 或负数表示不设置码率参数，需与 minBitrate 同时设置）
- * @param video_width 视频宽度（可选参数，单位 px，设置为 0 或负数表示不设置分辨率参数，需与 video_height 同时设置）
- * @param video_height 视频高度（可选参数，单位 px，设置为 0 或负数表示不设置分辨率参数，需与 video_width 同时设置）
+ * @param video_width 视频宽度（可选参数，单位 px）。配合video_height使用：
+ *                    - 当 video_width > 0 && video_height > 0 时：配置视频流的分辨率为宽video_width、高video_height
+ *                    - 当 video_width > 0 && video_height = 0 时：短边固定为video_width，长边自适应
+ *                    - 当 video_width = 0 && video_height > 0 时：长边固定为video_height，短边自适应
+ * @param video_height 视频高度（可选参数，单位 px）。配合video_width使用，具体规则见video_width参数说明
  * @param instanceIds 实例ID数组，可选，为NULL时对所有实例生效
  * @param instance_count 实例ID数组长度，当instanceIds为NULL时此参数无效
  * 

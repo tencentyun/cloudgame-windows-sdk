@@ -17,6 +17,8 @@
  */
 VideoRenderItem::VideoRenderItem(QQuickItem* parent)
     : QQuickItem(parent)
+    , m_videoWidth(0)
+    , m_videoHeight(0)
 {
     // 设置标志，表示此Item有自定义渲染内容
     setFlag(ItemHasContents, true);
@@ -44,6 +46,13 @@ void VideoRenderItem::setFrame(VideoFrameDataPtr frame)
     // 更新帧数据
     m_frame = frame;
     m_frameDirty = true;
+    
+    // 更新视频宽高
+    if (m_frame && (m_frame->width != m_videoWidth || m_frame->height != m_videoHeight)) {
+        m_videoWidth = m_frame->width;
+        m_videoHeight = m_frame->height;
+        emit videoSizeChanged();
+    }
     
     // 如果之前没有帧，现在有了，发射首帧到达信号
     if (wasEmpty && hasFrame()) {

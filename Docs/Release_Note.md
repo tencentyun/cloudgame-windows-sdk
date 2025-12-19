@@ -1,5 +1,14 @@
 # Release Notes
 
+## Version 1.18.1
+### Features
+- 支持`tcr_session_access_multi_stream`调用后默认不拉流在`tcr_session_resume_streaming`调用后开始拉流
+- `tcr_session_config_default`返回的`TcrStreamProfile`支持单独设置长短边大小另一边等比缩放
+
+### Download
+- [TcrSdk-Debug-1.18.1-20251219-790d9f7fa.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Debug-1.18.1-20251219-790d9f7fa.zip)
+- [TcrSdk-Release-1.18.1-20251219-790d9f7fa.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Release-1.18.1-20251219-790d9f7fa.zip)
+
 ## Version 1.17.5
 ### Features
 - 回调的`TCR_SESSION_EVENT_CLIENT_STATS`数据中支持`edge_rtt`

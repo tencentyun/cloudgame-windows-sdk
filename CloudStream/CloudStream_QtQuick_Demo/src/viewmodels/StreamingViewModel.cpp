@@ -142,7 +142,9 @@ void StreamingViewModel::createAndInitSession()
     // 【步骤3】创建会话
     // SDK API: tcr_client_create_session(client, config)
     TcrSessionConfig config = tcr_session_config_default();
-    config.statsInterval = 3;
+    // 自定义视频流参数
+    config.stream_profile.video_width = 720;   // 指定短边的宽度
+    config.stream_profile.fps = 30;            // 帧率
     m_session = tcr_client_create_session(m_tcrClient, &config);
 
     // 【步骤4】设置观察者
