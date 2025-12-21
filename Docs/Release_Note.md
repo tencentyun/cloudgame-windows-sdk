@@ -1,5 +1,13 @@
 # Release Notes
 
+## Version 1.18.4
+### Features
+- 优化缓冲策略减少内存占用
+
+### Download
+- [TcrSdk-Debug-1.18.4-20251221-a0858abe6.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Debug-1.18.4-20251221-a0858abe6.zip)
+- [TcrSdk-Release-1.18.4-20251221-a0858abe6.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Release-1.18.4-20251221-a0858abe6.zip)
+
 ## Version 1.18.1
 ### Features
 - 支持`tcr_session_access_multi_stream`调用后默认不拉流在`tcr_session_resume_streaming`调用后开始拉流

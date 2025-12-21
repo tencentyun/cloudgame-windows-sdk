@@ -1,10 +1,11 @@
 #include "YuvMaterial.h"
+#include "YuvDynamicTexture.h"
 #include "utils/Logger.h"
 #include <QSGMaterialShader>
-#include <QOpenGLExtraFunctions>
 #include <QSGTexture>
 #include <QQuickWindow>
 #include <QSize>
+#include <QImage>
 #include <cstring>
 
 // ========================================
@@ -65,22 +66,11 @@ public:
         return changed;
     }
 
-    /**
-     * @brief 更新采样纹理绑定
-     * 
-     * Qt 6.9推荐的纹理绑定方式，将YUV三个平面纹理绑定到对应的采样器
-     * 
-     * @param state 渲染状态对象
-     * @param binding 绑定点索引（1=Y, 2=U, 3=V）
-     * @param texture 输出纹理指针
-     * @param newMaterial 新材质对象
-     * @param oldMaterial 旧材质对象（未使用）
-     */
     void updateSampledImage(RenderState& state, 
                            int binding, 
                            QSGTexture** texture, 
                            QSGMaterial* newMaterial, 
-                           QSGMaterial*) override
+                           QSGMaterial* oldMaterial) override
     {
         YuvMaterial* mat = static_cast<YuvMaterial*>(newMaterial);
         
@@ -90,7 +80,7 @@ public:
             case 1: // Y平面（亮度）
                 if (mat->textureYObject()) 
                 {
-                    // 提交纹理操作到RHI（渲染硬件接口）
+                    // YuvDynamicTexture会自动处理纹理更新
                     mat->textureYObject()->commitTextureOperations(
                         state.rhi(), 
                         state.resourceUpdateBatch());
@@ -209,6 +199,11 @@ void YuvMaterial::clear()
         m_textureV = nullptr; 
     }
     
+    // 清空QImage缓冲
+    m_imageY = QImage();
+    m_imageU = QImage();
+    m_imageV = QImage();
+    
     // 重置状态
     m_size = QSize();
     m_hasTexture = false;
@@ -224,87 +219,51 @@ void YuvMaterial::uploadTextures(const uint8_t* DataY,
                                 int height, 
                                 QQuickWindow* window)
 {
-    // // 检测尺寸变化，强制清理旧纹理
-    // if (m_hasTexture && (width != m_size.width() || height != m_size.height())) {
-    //     Logger::info(QString("Frame size changed from %1x%2 to %3x%4, clearing old textures")
-    //                  .arg(m_size.width()).arg(m_size.height()).arg(width).arg(height));
-    //     clear();
-    // }
+    // 获取RHI接口
+    QRhi* rhi = window->rhi();
+    if (!rhi) {
+        Logger::warning("RHI is not available");
+        return;
+    }
+    
+    // 检测尺寸变化，只有尺寸改变时才重建纹理
+    bool needRecreate = !m_hasTexture || 
+                        width != m_size.width() || 
+                        height != m_size.height();
 
-    /**
-     * @brief Lambda辅助函数：创建并配置单个纹理平面
-     * 
-     * @param texture 纹理对象引用
-     * @param data 平面数据指针
-     * @param w 平面宽度
-     * @param h 平面高度
-     * @param stride 行步长（字节数）
-     * @param planeName 平面名称（用于日志）
-     */
-    auto createTexture = [&](QSGTexture*& texture, 
-                            const uint8_t* data, 
-                            int w, int h, 
-                            int stride, 
-                            const char* planeName) 
-    {
-        // 释放旧纹理
-        if (texture) 
-        {
-            texture->deleteLater();
-            texture = nullptr;
-        }
+    if (needRecreate) {
+        Logger::info(QString("Frame size changed or first frame, recreating dynamic textures: %1x%2")
+                     .arg(width).arg(height));
+        clear();  // 清理旧纹理
         
-        // 创建灰度图像（8位单通道）
-        QImage image(w, h, QImage::Format_Grayscale8);
+        // 创建动态纹理对象（只在尺寸变化时创建一次）
+        const int uvWidth = width / 2;
+        const int uvHeight = height / 2;
         
-        // 逐行复制数据（处理stride不等于width的情况）
-        for (int row = 0; row < h; ++row) 
-        {
-            memcpy(image.scanLine(row), data + row * stride, w);
-        }
+        m_textureY = new YuvDynamicTexture(QSize(width, height), rhi);
+        m_textureU = new YuvDynamicTexture(QSize(uvWidth, uvHeight), rhi);
+        m_textureV = new YuvDynamicTexture(QSize(uvWidth, uvHeight), rhi);
         
-        // 从图像创建GPU纹理
-        texture = window->createTextureFromImage(image);
-        if (!texture) 
-        {
-            Logger::warning(QString("Failed to create %1 texture").arg(planeName));
+        if (!m_textureY->isValid() || !m_textureU->isValid() || !m_textureV->isValid()) {
+            Logger::warning("Failed to create one or more dynamic textures");
+            clear();
             return;
         }
+    }
+
+    // 更新纹理数据（不重建纹理对象，只更新数据）
+    if (m_textureY && m_textureU && m_textureV) {
+        // 更新Y平面数据（全分辨率）
+        m_textureY->setTextureData(DataY, width, height, StrideY);
         
-        // 配置纹理采样参数
-        texture->setFiltering(QSGTexture::Linear);              // 线性插值
-        texture->setHorizontalWrapMode(QSGTexture::ClampToEdge); // 水平边缘夹紧
-        texture->setVerticalWrapMode(QSGTexture::ClampToEdge);   // 垂直边缘夹紧
-    };
-
-    // 创建Y平面纹理（全分辨率）
-    createTexture(m_textureY, DataY, width, height, StrideY, "Y");
-    
-    // 创建U平面纹理（宽高减半，YUV420格式）
-    const int uvWidth = width / 2;
-    const int uvHeight = height / 2;
-    createTexture(m_textureU, DataU, uvWidth, uvHeight, StrideU, "U");
-    
-    // 创建V平面纹理（宽高减半，YUV420格式）
-    createTexture(m_textureV, DataV, uvWidth, uvHeight, StrideV, "V");
-
-    // 调试输出：检查纹理尺寸（debug时开启）
-    // if (m_textureY) 
-    // {
-    //     qDebug("m_textureY size: %dx%d", 
-    //            m_textureY->textureSize().width(), 
-    //            m_textureY->textureSize().height());
-    // }
-    // if (m_textureU) 
-    // {
-    //     qDebug("m_textureU size: %dx%d", 
-    //            m_textureU->textureSize().width(), 
-    //            m_textureU->textureSize().height());
-    // }
-    // if (m_textureV) 
-    // {
-    //     qDebug("m_textureV size: %dx%d", 
-    //            m_textureV->textureSize().width(), 
-    //            m_textureV->textureSize().height());
-    // }
+        // 更新U平面数据（宽高减半，YUV420格式）
+        const int uvWidth = width / 2;
+        const int uvHeight = height / 2;
+        m_textureU->setTextureData(DataU, uvWidth, uvHeight, StrideU);
+        
+        // 更新V平面数据（宽高减半，YUV420格式）
+        m_textureV->setTextureData(DataV, uvWidth, uvHeight, StrideV);
+    }
 }
+
+

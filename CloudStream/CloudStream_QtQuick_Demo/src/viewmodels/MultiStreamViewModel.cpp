@@ -107,9 +107,19 @@ void MultiStreamViewModel::initialize(const QStringList& instanceIds,
     Logger::info("[initialize] TcrSdk 初始化成功");
 }
 
+// ==================== 状态查询 ====================
+
+int MultiStreamViewModel::getInstanceConnectionState(const QString& instanceId) const
+{
+    if (m_instanceConnectionStates.contains(instanceId)) {
+        return static_cast<int>(m_instanceConnectionStates[instanceId]);
+    }
+    return static_cast<int>(InstanceConnectionState::Disconnected);
+}
+
 // ==================== 视频渲染项注册 ====================
 
-void MultiStreamViewModel::registerVideoRenderItem(const QString& instanceId, 
+void MultiStreamViewModel::registerVideoRenderItem(const QString& instanceId,
                                                    int instanceIndex, 
                                                    QObject* item)
 {
@@ -129,22 +139,6 @@ void MultiStreamViewModel::registerVideoRenderItem(const QString& instanceId,
         QMutexLocker locker(&m_videoRenderItemsMutex);
         m_videoRenderItems[uniqueKey] = vrItem;
     }
-    
-    // 连接信号槽，使用 QueuedConnection 确保线程安全
-    // 视频帧回调可能在非主线程执行，需要通过信号槽切换到主线程
-    // 使用 QPointer 捕获 vrItem，防止访问已销毁的对象
-    connect(this, &MultiStreamViewModel::newVideoFrameForInstance,
-            this, [this, uniqueKey, vrItemPtr = QPointer<VideoRenderItem>(vrItem)](
-                      const QString& targetUniqueKey, VideoFrameDataPtr frame) {
-                if (targetUniqueKey == uniqueKey) {
-                    // 检查对象是否仍然有效
-                    if (vrItemPtr) {
-                        vrItemPtr->setFrame(frame);
-                    } else {
-                        Logger::debug(QString("[VideoFrame] 渲染项已销毁: %1").arg(uniqueKey));
-                    }
-                }
-            }, Qt::QueuedConnection);
     
     Logger::debug(QString("[registerVideoRenderItem] 注册成功: %1").arg(uniqueKey));
 }
@@ -209,14 +203,20 @@ void MultiStreamViewModel::connectMultipleInstances(const QVariantList& sessionC
     // 创建会话并连接实例
     createSessionsWithConfigs(sessionConfigs);
     
-    // 收集所有实例ID并更新连接状态
+    // 收集所有实例ID并设置为连接中状态
     QStringList allInstanceIds;
     for (const QVariant& sessionConfig : sessionConfigs) {
         QStringList sessionInstances = sessionConfig.toStringList();
         allInstanceIds.append(sessionInstances);
+        
+        // 设置为连接中状态
+        for (const QString& instanceId : sessionInstances) {
+            m_instanceConnectionStates[instanceId] = InstanceConnectionState::Connecting;
+            emit instanceConnectionChanged(instanceId, false);
+        }
     }
     
-    m_connectedInstanceIds = allInstanceIds;
+    m_connectedInstanceIds.clear();
     emit connectedInstanceIdsChanged();
 }
 
@@ -352,6 +352,7 @@ void MultiStreamViewModel::closeAllSessions()
     
     m_sessions.clear();
     m_connectedInstanceIds.clear();
+    m_instanceConnectionStates.clear();
     emit connectedInstanceIdsChanged();
     
     Logger::info("[closeAllSessions] 所有会话已关闭");
@@ -476,10 +477,20 @@ void MultiStreamViewModel::SessionEventCallback(void* user_data,
                             .arg(sessionIndex).arg(sessionInfo.instanceIds.join(",")));
                 
                 sessionInfo.connected = true;
+                
+                // 更新为已连接状态
                 for (const QString& instanceId : sessionInfo.instanceIds) {
+                    self->m_instanceConnectionStates[instanceId] = InstanceConnectionState::Connected;
+                    
+                    // 添加到已连接列表
+                    if (!self->m_connectedInstanceIds.contains(instanceId)) {
+                        self->m_connectedInstanceIds.append(instanceId);
+                    }
+                    
                     emit self->instanceConnectionChanged(instanceId, true);
                 }
-
+                
+                emit self->connectedInstanceIdsChanged();
                 break;
             }
                 
@@ -489,9 +500,19 @@ void MultiStreamViewModel::SessionEventCallback(void* user_data,
                              .arg(sessionIndex).arg(eventDataCopy));
                 
                 sessionInfo.connected = false;
+                
+                // 更新为未连接状态并从已连接列表中移除
                 for (const QString& instanceId : sessionInfo.instanceIds) {
+                    self->m_instanceConnectionStates[instanceId] = InstanceConnectionState::Disconnected;
+                    self->m_connectedInstanceIds.removeAll(instanceId);
                     emit self->instanceConnectionChanged(instanceId, false);
                 }
+                
+                // 触发列表变化信号，更新QML界面
+                emit self->connectedInstanceIdsChanged();
+                
+                // 发送会话关闭信号（用于弹出对话框）
+                emit self->sessionClosed(sessionIndex, sessionInfo.instanceIds, eventDataCopy);
                 break;
             case TCR_SESSION_EVENT_CLIENT_STATS:
                 // 持续回调的性能统计数据(可机忽略)
@@ -505,11 +526,13 @@ void MultiStreamViewModel::VideoFrameCallback(void* user_data,
 {
     // ===== 步骤1：参数有效性检查 =====
     if (!user_data || !frame_handle) {
+        Logger::warning("[VideoFrameCallback] 无效参数");
         return;
     }
     
     SessionUserData* userData = static_cast<SessionUserData*>(user_data);
     if (!userData || !userData->viewModel) {
+        Logger::warning("[VideoFrameCallback] 无效的 user_data");
         return;
     }
     
@@ -519,6 +542,7 @@ void MultiStreamViewModel::VideoFrameCallback(void* user_data,
     // 使用 memory_order_acquire 确保看到 store 之前的所有写操作
     if (self->m_isDestroying.load(std::memory_order_acquire)) {
         // 对象正在析构，立即返回，不处理任何数据
+        Logger::warning("[VideoFrameCallback] 对象正在析构，不处理数据");
         return;
     }
     
@@ -528,6 +552,7 @@ void MultiStreamViewModel::VideoFrameCallback(void* user_data,
     // tcr_video_frame_get_buffer() 返回帧数据的只读指针
     const TcrVideoFrameBuffer* frame_buffer = tcr_video_frame_get_buffer(frame_handle);
     if (!frame_buffer) {
+        Logger::warning("[VideoFrameCallback] 无效的视频帧缓冲区");
         return;
     }
 
@@ -571,6 +596,7 @@ void MultiStreamViewModel::VideoFrameCallback(void* user_data,
         
         // 再次检查析构状态（双重检查）
         if (self->m_isDestroying.load(std::memory_order_acquire)) {
+            Logger::warning("[VideoFrameCallback] 对象正在析构，不处理数据");
             return;
         }
         
@@ -598,38 +624,43 @@ void MultiStreamViewModel::VideoFrameCallback(void* user_data,
     // 否则帧数据可能在使用前被释放
     tcr_video_frame_add_ref(frame_handle);
     
-    // 步骤7：创建视频帧数据智能指针
-    VideoFrameDataPtr frameDataPtr(new VideoFrameData); 
-
-    // 步骤8：根据缓冲区类型填充不同的数据
-    frameDataPtr->frame_handle = frame_handle;
-    frameDataPtr->timestamp_us = frame_buffer->timestamp_us;
+    // 步骤7：根据缓冲区类型创建视频帧数据智能指针
+    VideoFrameDataPtr frameDataPtr;
     
     if (frame_buffer->type == TCR_VIDEO_BUFFER_TYPE_I420) {
         // I420格式：CPU内存中的YUV数据
         const TcrI420Buffer& i420Buffer = frame_buffer->buffer.i420;
         
-        frameDataPtr->frame_type = VideoFrameType::I420_CPU;
-        frameDataPtr->width = i420Buffer.width;
-        frameDataPtr->height = i420Buffer.height;
-        frameDataPtr->strideY = i420Buffer.stride_y;
-        frameDataPtr->strideU = i420Buffer.stride_u;
-        frameDataPtr->strideV = i420Buffer.stride_v;
-        frameDataPtr->data_y = i420Buffer.data_y;
-        frameDataPtr->data_u = i420Buffer.data_u;
-        frameDataPtr->data_v = i420Buffer.data_v;
+        frameDataPtr.reset(new VideoFrameData(
+            frame_handle,
+            i420Buffer.data_y,
+            i420Buffer.data_u,
+            i420Buffer.data_v,
+            i420Buffer.stride_y,
+            i420Buffer.stride_u,
+            i420Buffer.stride_v,
+            i420Buffer.width,
+            i420Buffer.height,
+            frame_buffer->timestamp_us
+        ));
     }
     else if (frame_buffer->type == TCR_VIDEO_BUFFER_TYPE_D3D11) {
         // D3D11格式：GPU纹理数据
         const TcrD3D11Buffer& d3d11Buffer = frame_buffer->buffer.d3d11;
         
-        frameDataPtr->frame_type = VideoFrameType::D3D11_GPU;
-        frameDataPtr->width = d3d11Buffer.width;
-        frameDataPtr->height = d3d11Buffer.height;
-        frameDataPtr->d3d11_data.texture = d3d11Buffer.texture;
-        frameDataPtr->d3d11_data.device = d3d11Buffer.device;
-        frameDataPtr->d3d11_data.array_index = d3d11Buffer.array_index;
-        frameDataPtr->d3d11_data.format = d3d11Buffer.format;
+        D3D11TextureData textureData;
+        textureData.texture = d3d11Buffer.texture;
+        textureData.device = d3d11Buffer.device;
+        textureData.array_index = d3d11Buffer.array_index;
+        textureData.format = d3d11Buffer.format;
+        
+        frameDataPtr.reset(new VideoFrameData(
+            frame_handle,
+            textureData,
+            d3d11Buffer.width,
+            d3d11Buffer.height,
+            frame_buffer->timestamp_us
+        ));
     }
     else {
         // 未知类型，释放引用并返回
@@ -637,6 +668,7 @@ void MultiStreamViewModel::VideoFrameCallback(void* user_data,
         tcr_video_frame_release(frame_handle);
         return;
     }
+
 
     // 步骤9：将帧存入缓存
     // 使用互斥锁保护缓存，只保留每个实例的最新帧

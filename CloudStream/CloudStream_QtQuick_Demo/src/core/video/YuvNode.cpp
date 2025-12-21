@@ -1,11 +1,12 @@
 #include "YuvNode.h"
 #include "YuvMaterial.h"
 #include "Frame.h"
+#include "utils/Logger.h"
 #include <QSGGeometry>
 #include <QRectF>
 #include <cstring>
 
-// ========== 构造与析构 ==========
+// ========== YuvNode 构造与析构 ==========
 
 YuvNode::YuvNode()
     : m_geometry(QSGGeometry::defaultAttributes_TexturedPoint2D(), 4)
@@ -33,6 +34,11 @@ void YuvNode::setFrame(QQuickWindow* window,
                        const QSizeF& itemSize, 
                        bool frameDirty)
 {
+    // [PERF] 记录开始时间
+    qint64 startTime = QDateTime::currentMSecsSinceEpoch();
+    qint64 updateMaterialTime = 0;
+    qint64 updateGeometryTime = 0;
+    
     // 验证帧数据有效性和类型
     if (frame && 
         frame->frame_type == VideoFrameType::I420_CPU &&  // 仅处理YUV420格式
@@ -42,6 +48,9 @@ void YuvNode::setFrame(QQuickWindow* window,
         frame->data_u && 
         frame->data_v) 
     {
+        // [PERF] 记录updateMaterial前的时间
+        qint64 beforeUpdateMaterial = QDateTime::currentMSecsSinceEpoch();
+        
         // 更新材质（上传YUV数据到GPU）
         updateMaterial(window, 
                       frame->data_y, 
@@ -53,11 +62,16 @@ void YuvNode::setFrame(QQuickWindow* window,
                       frame->width, 
                       frame->height, 
                       frameDirty);
+        
+        // [PERF] 计算updateMaterial耗时
+        updateMaterialTime = QDateTime::currentMSecsSinceEpoch() - beforeUpdateMaterial;
     } 
     else 
     {
         // 清除材质（无效帧或不支持的类型）
         // TODO: 未来在此处添加D3D11_GPU类型的处理分支
+        qint64 beforeUpdateMaterial = QDateTime::currentMSecsSinceEpoch();
+        
         updateMaterial(window, 
                       nullptr, 
                       nullptr, 
@@ -65,10 +79,35 @@ void YuvNode::setFrame(QQuickWindow* window,
                       0, 0, 0, 
                       0, 0, 
                       frameDirty);
+        
+        updateMaterialTime = QDateTime::currentMSecsSinceEpoch() - beforeUpdateMaterial;
     }
+    
+    // [PERF] 记录updateGeometry前的时间
+    qint64 beforeUpdateGeometry = QDateTime::currentMSecsSinceEpoch();
     
     // 更新几何信息（顶点位置和纹理坐标）
     updateGeometry(itemSize);
+    
+    // [PERF] 计算updateGeometry耗时
+    updateGeometryTime = QDateTime::currentMSecsSinceEpoch() - beforeUpdateGeometry;
+    
+    // [PERF] 计算总耗时
+    qint64 totalTime = QDateTime::currentMSecsSinceEpoch() - startTime;
+    
+    // [PERF] 只打印超过20ms的异常情况
+    if (totalTime > 20) {
+        Logger::warning(QString("[YuvNode::setFrame] !!! SLOW OPERATION !!! "
+                              "Total=%1ms (updateMaterial=%2ms, updateGeometry=%3ms), "
+                              "frame_size=%4x%5, frameDirty=%6, this=%7")
+                      .arg(totalTime)
+                      .arg(updateMaterialTime)
+                      .arg(updateGeometryTime)
+                      .arg(frame ? frame->width : 0)
+                      .arg(frame ? frame->height : 0)
+                      .arg(frameDirty)
+                      .arg(reinterpret_cast<quintptr>(this)));
+    }
 }
 
 // ========== 私有方法 ==========
@@ -126,11 +165,31 @@ void YuvNode::updateMaterial(QQuickWindow* window,
         
         if (needUpdate) 
         {
+            // [PERF] 记录setYuvData前的时间
+            qint64 beforeSetYuvData = QDateTime::currentMSecsSinceEpoch();
+            
             // 上传YUV数据到GPU纹理
             m_material->setYuvData(DataY, DataU, DataV, 
                                   StrideY, StrideU, StrideV, 
                                   width, height, 
                                   window);
+            
+            // [PERF] 计算setYuvData耗时
+            qint64 setYuvDataTime = QDateTime::currentMSecsSinceEpoch() - beforeSetYuvData;
+            
+            // [PERF] 只打印超过20ms的异常情况
+            if (setYuvDataTime > 20) {
+                Logger::warning(QString("[YuvNode::updateMaterial] !!! SLOW TEXTURE UPLOAD !!! "
+                                      "setYuvData took %1ms, frame_size=%2x%3, "
+                                      "strides=(%4,%5,%6), this=%7")
+                              .arg(setYuvDataTime)
+                              .arg(width)
+                              .arg(height)
+                              .arg(StrideY)
+                              .arg(StrideU)
+                              .arg(StrideV)
+                              .arg(reinterpret_cast<quintptr>(this)));
+            }
             
             // 缓存当前帧参数
             m_frameWidth = width;

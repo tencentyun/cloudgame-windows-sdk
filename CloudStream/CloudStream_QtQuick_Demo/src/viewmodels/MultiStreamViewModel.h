@@ -17,6 +17,15 @@
 #include "tcr_c_api.h"
 
 /**
+ * @brief 实例连接状态枚举
+ */
+enum class InstanceConnectionState {
+    Disconnected = 0,  ///< 未连接
+    Connecting = 1,    ///< 连接中
+    Connected = 2      ///< 已连接
+};
+
+/**
  * @brief 多实例串流 ViewModel - TcrSdk 多会话管理示例
  * 
  * 本类演示如何使用 TcrSdk C API 实现多实例同时串流：
@@ -50,6 +59,13 @@ public:
      * @brief 获取已连接的实例ID列表
      */
     QStringList connectedInstanceIds() const { return m_connectedInstanceIds; }
+
+    /**
+     * @brief 获取指定实例的连接状态
+     * @param instanceId 实例ID
+     * @return 0=未连接, 1=连接中, 2=已连接
+     */
+    Q_INVOKABLE int getInstanceConnectionState(const QString& instanceId) const;
 
     // ==================== QML 调用接口 ====================
 
@@ -119,12 +135,6 @@ public:
     // ==================== 信号 ====================
 
 signals:
-    /**
-     * @brief 特定实例的新视频帧信号
-     * @param uniqueKey 唯一标识符 (instanceId_instanceIndex)
-     * @param frame 视频帧数据
-     */
-    void newVideoFrameForInstance(const QString& uniqueKey, VideoFrameDataPtr frame);
 
     /**
      * @brief 实例连接状态变化
@@ -176,6 +186,9 @@ private:
     QVector<SessionInfo> m_sessions;        ///< 会话信息列表
     
     QStringList m_connectedInstanceIds;     ///< 已连接的实例ID列表
+    
+    /// 实例连接状态映射：instanceId -> InstanceConnectionState
+    QHash<QString, InstanceConnectionState> m_instanceConnectionStates;
     
     /// 视频渲染项映射："instanceId_instanceIndex" -> VideoRenderItem
     /// 使用 QPointer 防止访问已销毁的对象

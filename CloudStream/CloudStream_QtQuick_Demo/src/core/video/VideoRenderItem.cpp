@@ -2,6 +2,7 @@
 #include "YuvNode.h"
 #include "D3D11Node.h"
 #include "YuvTestPattern.h"
+#include "utils/Logger.h"
 #include <QSGNode>
 #include <QSGGeometryNode>
 #include <QSGTexture>
@@ -43,12 +44,28 @@ void VideoRenderItem::setFrame(VideoFrameDataPtr frame)
     // 记录设置前是否有帧
     bool wasEmpty = !hasFrame();
     
+    // 重要：立即释放旧帧，避免窗口最小化时帧累积
+    // 因为窗口最小化时updatePaintNode不会被调用，旧帧会一直保留
+    if (m_frame) {
+        Logger::info(QString("[VideoRenderItem::setFrame] Releasing old frame before setting new one, "
+                           "this=%1, old_frame_ptr=%2, old_timestamp_us=%3")
+                   .arg(reinterpret_cast<quintptr>(this))
+                   .arg(reinterpret_cast<quintptr>(m_frame->frame_handle))
+                   .arg(m_frame->timestamp_us));
+        m_frame.reset();
+    }
+    
     // 更新帧数据
     m_frame = frame;
     m_frameDirty = true;
     
     // 更新视频宽高
     if (m_frame && (m_frame->width != m_videoWidth || m_frame->height != m_videoHeight)) {
+        Logger::info(QString("[VideoRenderItem::setFrame] Video size changed, "
+                           "this=%1, width=%2, height=%3")
+                   .arg(reinterpret_cast<quintptr>(this))
+                   .arg(m_frame->width)
+                   .arg(m_frame->height));
         m_videoWidth = m_frame->width;
         m_videoHeight = m_frame->height;
         emit videoSizeChanged();
@@ -56,6 +73,9 @@ void VideoRenderItem::setFrame(VideoFrameDataPtr frame)
     
     // 如果之前没有帧，现在有了，发射首帧到达信号
     if (wasEmpty && hasFrame()) {
+        Logger::info(QString("[VideoRenderItem::setFrame] First frame arrived, "
+                           "this=%1")
+                   .arg(reinterpret_cast<quintptr>(this)));
         emit firstFrameArrived();
     }
     
@@ -103,11 +123,20 @@ bool VideoRenderItem::hasFrame() const
  */
 QSGNode* VideoRenderItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData*)
 {
+    // [PERF] 记录开始时间
+    qint64 startTime = QDateTime::currentMSecsSinceEpoch();
+    
     // 如果没有有效帧数据，删除旧节点并返回空
     if (!hasFrame()) {
+        Logger::info(QString("[VideoRenderItem::updatePaintNode] No frame data, not rendering, "
+                           "this=%1, thread_id=%2")
+                   .arg(reinterpret_cast<quintptr>(this))
+                   .arg(reinterpret_cast<quintptr>(QThread::currentThreadId())));
         delete oldNode;
         return nullptr;
     }
+
+    QSGNode* resultNode = nullptr;
     
     // 根据帧类型选择对应的渲染节点
     if (m_frame->frame_type == VideoFrameType::I420_CPU) 
@@ -119,15 +148,15 @@ QSGNode* VideoRenderItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData*
         if (!yuvNode) {
             delete oldNode;
             yuvNode = new YuvNode();
+            Logger::info(QString("[VideoRenderItem::updatePaintNode] Created new YuvNode, "
+                               "this=%1, thread_id=%2")
+                       .arg(reinterpret_cast<quintptr>(this))
+                       .arg(reinterpret_cast<quintptr>(QThread::currentThreadId())));
         }
         
         // 更新节点的帧数据和渲染尺寸
         yuvNode->setFrame(window(), m_frame.data(), QSizeF(width(), height()), m_frameDirty);
-        
-        // 清除脏标记
-        m_frameDirty = false;
-        
-        return yuvNode;
+        resultNode = yuvNode;
     }
     else if (m_frame->frame_type == VideoFrameType::D3D11_GPU)
     {
@@ -138,20 +167,33 @@ QSGNode* VideoRenderItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData*
         if (!d3d11Node) {
             delete oldNode;
             d3d11Node = new D3D11Node();
+            Logger::info(QString("[VideoRenderItem::updatePaintNode] Created new D3D11Node, "
+                               "this=%1, thread_id=%2")
+                       .arg(reinterpret_cast<quintptr>(this))
+                       .arg(reinterpret_cast<quintptr>(QThread::currentThreadId())));
         }
         
         // 更新节点的帧数据和渲染尺寸
         d3d11Node->setFrame(window(), m_frame.data(), QSizeF(width(), height()), m_frameDirty);
-        
-        // 清除脏标记
-        m_frameDirty = false;
-        
-        return d3d11Node;
+        resultNode = d3d11Node;
     }
     else
     {
         // 未知类型，删除旧节点
+        Logger::info(QString("[VideoRenderItem::updatePaintNode] Unknown frame type, "
+                           "this=%1, frame_type=%2, thread_id=%3")
+                   .arg(reinterpret_cast<quintptr>(this))
+                   .arg(static_cast<int>(m_frame->frame_type))
+                   .arg(reinterpret_cast<quintptr>(QThread::currentThreadId())));
         delete oldNode;
-        return nullptr;
     }
+    
+    // 清除脏标记
+    m_frameDirty = false;
+    
+    // 重要：渲染完成后立即释放帧引用
+    // 此时纹理数据已经上传到GPU，不再需要持有CPU端的帧数据
+    m_frame.reset();
+    
+    return resultNode;
 }

@@ -63,15 +63,43 @@ struct VideoFrameData {
     int64_t timestamp_us = 0;         ///< 时间戳（微秒）
     
     /**
+     * @brief I420格式构造函数
+     * 
+     * @param handle 帧句柄
+     * @param y Y分量数据指针
+     * @param u U分量数据指针
+     * @param v V分量数据指针
+     * @param stride_y Y分量步长
+     * @param stride_u U分量步长
+     * @param stride_v V分量步长
+     * @param w 帧宽度
+     * @param h 帧高度
+     * @param timestamp 时间戳（微秒）
+     */
+    VideoFrameData(void* handle,
+                   const uint8_t* y, const uint8_t* u, const uint8_t* v,
+                   int stride_y, int stride_u, int stride_v,
+                   int w, int h, int64_t timestamp);
+    
+    /**
+     * @brief D3D11格式构造函数
+     * 
+     * @param handle 帧句柄
+     * @param texture_data D3D11纹理数据
+     * @param w 帧宽度
+     * @param h 帧高度
+     * @param timestamp 时间戳（微秒）
+     */
+    VideoFrameData(void* handle,
+                   const D3D11TextureData& texture_data,
+                   int w, int h, int64_t timestamp);
+    
+    /**
      * @brief 析构函数
      * 
      * 释放底层帧资源的引用计数，确保资源正确释放。
      */
-    ~VideoFrameData() {
-        if (frame_handle) {
-            tcr_video_frame_release(static_cast<TcrVideoFrameHandle>(frame_handle));
-        }
-    }
+    ~VideoFrameData();
 };
 
 /**

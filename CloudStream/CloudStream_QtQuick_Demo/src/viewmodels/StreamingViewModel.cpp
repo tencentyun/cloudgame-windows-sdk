@@ -608,40 +608,47 @@ void StreamingViewModel::VideoFrameCallback(void* user_data, TcrVideoFrameHandle
     // 防止 SDK 在我们使用期间释放帧数据
     tcr_video_frame_add_ref(frame_handle);
 
-    // 【步骤3】创建智能指针封装帧数据
+    // 【步骤3】根据缓冲区类型创建对应的VideoFrameData对象
     // VideoFrameDataPtr 析构时会自动调用 tcr_video_frame_release()
-    VideoFrameDataPtr frameDataPtr(new VideoFrameData);
+    VideoFrameDataPtr frameDataPtr;
     
-    // 【步骤4】填充通用帧数据
-    frameDataPtr->frame_handle = frame_handle;
-    frameDataPtr->timestamp_us = frame_buffer->timestamp_us;
-    
-    // 【步骤5】根据缓冲区类型填充不同的数据
     if (frame_buffer->type == TCR_VIDEO_BUFFER_TYPE_I420) {
         // I420格式：CPU内存中的YUV数据
         const TcrI420Buffer& i420Buffer = frame_buffer->buffer.i420;
         
-        frameDataPtr->frame_type = VideoFrameType::I420_CPU;
-        frameDataPtr->width = i420Buffer.width;
-        frameDataPtr->height = i420Buffer.height;
-        frameDataPtr->strideY = i420Buffer.stride_y;
-        frameDataPtr->strideU = i420Buffer.stride_u;
-        frameDataPtr->strideV = i420Buffer.stride_v;
-        frameDataPtr->data_y = i420Buffer.data_y;
-        frameDataPtr->data_u = i420Buffer.data_u;
-        frameDataPtr->data_v = i420Buffer.data_v;
+        // 使用I420构造函数创建对象
+        frameDataPtr.reset(new VideoFrameData(
+            frame_handle,
+            i420Buffer.data_y,
+            i420Buffer.data_u,
+            i420Buffer.data_v,
+            i420Buffer.stride_y,
+            i420Buffer.stride_u,
+            i420Buffer.stride_v,
+            i420Buffer.width,
+            i420Buffer.height,
+            frame_buffer->timestamp_us
+        ));
     }
     else if (frame_buffer->type == TCR_VIDEO_BUFFER_TYPE_D3D11) {
         // D3D11格式：GPU纹理数据
         const TcrD3D11Buffer& d3d11Buffer = frame_buffer->buffer.d3d11;
         
-        frameDataPtr->frame_type = VideoFrameType::D3D11_GPU;
-        frameDataPtr->width = d3d11Buffer.width;
-        frameDataPtr->height = d3d11Buffer.height;
-        frameDataPtr->d3d11_data.texture = d3d11Buffer.texture;
-        frameDataPtr->d3d11_data.device = d3d11Buffer.device;
-        frameDataPtr->d3d11_data.array_index = d3d11Buffer.array_index;
-        frameDataPtr->d3d11_data.format = d3d11Buffer.format;
+        // 构造D3D11TextureData结构
+        D3D11TextureData textureData;
+        textureData.texture = d3d11Buffer.texture;
+        textureData.device = d3d11Buffer.device;
+        textureData.array_index = d3d11Buffer.array_index;
+        textureData.format = d3d11Buffer.format;
+        
+        // 使用D3D11构造函数创建对象
+        frameDataPtr.reset(new VideoFrameData(
+            frame_handle,
+            textureData,
+            d3d11Buffer.width,
+            d3d11Buffer.height,
+            frame_buffer->timestamp_us
+        ));
     }
     else {
         // 未知类型，释放引用并返回

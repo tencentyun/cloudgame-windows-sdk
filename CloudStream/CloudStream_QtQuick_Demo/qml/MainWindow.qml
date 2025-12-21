@@ -473,8 +473,27 @@ Window {
             property int instanceIndex: modelData.instanceIndex
             property int sessionIndex: modelData.sessionIndex
             property string uniqueKey: instanceId + "_" + instanceIndex
-            // 直接绑定到 connectedInstanceIds 列表，避免信号丢失
-            property bool isConnected: multiInstanceViewModel.connectedInstanceIds.indexOf(instanceId) !== -1
+            // 连接状态: 0=未连接, 1=连接中, 2=已连接
+            property int connectionState: 0
+            property bool isConnected: connectionState === 2
+            
+            // 初始化时获取状态
+            Component.onCompleted: {
+                connectionState = multiInstanceViewModel.getInstanceConnectionState(instanceId)
+            }
+            
+            // 监听连接状态变化
+            Connections {
+                target: multiInstanceViewModel
+                function onInstanceConnectionChanged(changedInstanceId, connected) {
+                    if (changedInstanceId === videoCell.instanceId) {
+                        videoCell.connectionState = multiInstanceViewModel.getInstanceConnectionState(videoCell.instanceId)
+                    }
+                }
+                function onConnectedInstanceIdsChanged() {
+                    videoCell.connectionState = multiInstanceViewModel.getInstanceConnectionState(videoCell.instanceId)
+                }
+            }
             
             // 点击事件处理
             MouseArea {
@@ -587,8 +606,22 @@ Window {
                     }
                     
                     Text {
-                        text: videoCell.isConnected ? "已连接" : "未连接"
-                        color: videoCell.isConnected ? "lightgreen" : "red"
+                        text: {
+                            switch(videoCell.connectionState) {
+                                case 0: return "未连接";
+                                case 1: return "连接中...";
+                                case 2: return "已连接";
+                                default: return "未知";
+                            }
+                        }
+                        color: {
+                            switch(videoCell.connectionState) {
+                                case 0: return "red";
+                                case 1: return "yellow";
+                                case 2: return "lightgreen";
+                                default: return "gray";
+                            }
+                        }
                         font.pixelSize: 8
                     }
                 }
@@ -656,7 +689,7 @@ Window {
             
             Rectangle {
                 width: parent.width - 40
-                height: Math.min(instanceListText.contentHeight + 20, 150)
+                height: Math.min(instanceListText.contentHeight + 20, 200)
                 color: "#f5f5f5"
                 border.color: "#cccccc"
                 border.width: 1
@@ -672,37 +705,6 @@ Window {
                         text: sessionClosedDialog.instanceIds.join("\n")
                         font.pixelSize: 12
                         color: "#666666"
-                    }
-                }
-            }
-            
-            Text {
-                text: "关闭原因:"
-                font.pixelSize: 14
-                wrapMode: Text.WordWrap
-                width: parent.width - 40
-            }
-            
-            Rectangle {
-                width: parent.width - 40
-                height: Math.min(reasonText.contentHeight + 20, 100)
-                color: "#fff3e0"
-                border.color: "#ffb74d"
-                border.width: 1
-                radius: 4
-                
-                ScrollView {
-                    anchors.fill: parent
-                    anchors.margins: 10
-                    clip: true
-                    
-                    Text {
-                        id: reasonText
-                        text: sessionClosedDialog.reason || "未知原因"
-                        font.pixelSize: 12
-                        color: "#e65100"
-                        wrapMode: Text.WordWrap
-                        width: parent.width
                     }
                 }
             }

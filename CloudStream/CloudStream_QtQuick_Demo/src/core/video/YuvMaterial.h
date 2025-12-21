@@ -6,6 +6,7 @@
 #include <QQuickWindow>
 
 class YuvMaterialShader;
+class YuvDynamicTexture;
 
 /**
  * @brief YUV材质类
@@ -91,21 +92,21 @@ public:
      * 
      * @return Y纹理指针
      */
-    QSGTexture* textureYObject() const { return m_textureY; }
+    YuvDynamicTexture* textureYObject() const { return m_textureY; }
     
     /**
      * @brief 获取U分量纹理对象
      * 
      * @return U纹理指针
      */
-    QSGTexture* textureUObject() const { return m_textureU; }
+    YuvDynamicTexture* textureUObject() const { return m_textureU; }
     
     /**
      * @brief 获取V分量纹理对象
      * 
      * @return V纹理指针
      */
-    QSGTexture* textureVObject() const { return m_textureV; }
+    YuvDynamicTexture* textureVObject() const { return m_textureV; }
 
 private:
     /**
@@ -137,9 +138,15 @@ private:
     // 状态信息
     QSize m_size;              ///< 当前视频帧尺寸
     bool m_hasTexture = false; ///< 标识是否已创建纹理
+    bool m_texturesDirty = false; ///< 标识纹理是否需要提交更新操作
 
-    // GPU纹理对象
-    QSGTexture* m_textureY = nullptr; ///< Y分量纹理（亮度）
-    QSGTexture* m_textureU = nullptr; ///< U分量纹理（色度蓝）
-    QSGTexture* m_textureV = nullptr; ///< V分量纹理（色度红）
+    // GPU纹理对象（使用动态纹理实现复用）
+    YuvDynamicTexture* m_textureY = nullptr; ///< Y分量纹理（亮度）
+    YuvDynamicTexture* m_textureU = nullptr; ///< U分量纹理（色度蓝）
+    YuvDynamicTexture* m_textureV = nullptr; ///< V分量纹理（色度红）
+    
+    // 复用的QImage对象（避免每帧重新分配）
+    QImage m_imageY; ///< Y平面图像缓冲
+    QImage m_imageU; ///< U平面图像缓冲
+    QImage m_imageV; ///< V平面图像缓冲
 };
