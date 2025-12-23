@@ -84,9 +84,9 @@ add_custom_command(TARGET CloudPhone_QtQuick POST_BUILD
 ```cpp
 #include "tcr_c_api.h"
 
-TcrConfig config;
-config.Token = tokenResult.token.c_str();           // 业务后台获取的 Token
-config.AccessInfo = tokenResult.accessInfo.c_str(); // 业务后台获取的 AccessInfo
+TcrConfig config = tcr_config_default();
+config.token = tokenResult.token.c_str();           // 业务后台获取的 Token
+config.accessInfo = tokenResult.accessInfo.c_str(); // 业务后台获取的 AccessInfo
 
 TcrClientHandle tcrClient = tcr_client_get_instance();
 TcrErrorCode err = tcr_client_init(tcrClient, &config);
@@ -96,31 +96,67 @@ if (err != TCR_SUCCESS) {
 }
 ```
 
-### 4.2 获取实例截图（按需可选）
+### 4.2 创建串流会话并连接实例
+
+#### 多实例串流(小流)
 
 ```cpp
-char buffer[2048];
-TcrAndroidInstance instance = tcr_client_get_android_instance(tcrClient);
-bool ok = tcr_instance_get_image(instance, buffer, 2048, instanceId.c_str(), 0, 0, 0);
-if (ok) {
-    // buffer 返回图片 URL，可用于加载图片
+// 创建会话配置
+TcrSessionConfig config = tcr_session_config_default();
+
+// 自定义串流参数
+config.stream_profile.video_width = 288;   // 指定短边的宽度(长边根据云机分辨率等比拉伸)
+config.stream_profile.fps = 1;             // 帧率
+config.stream_profile.max_bitrate = 100;   // 最大码率
+config.stream_profile.min_bitrate = 50;    // 最小码率
+config.enable_audio = false;               // 禁用音频
+
+// 创建会话
+TcrSessionHandle tcrSession = tcr_client_create_session(tcrClient, &config);
+
+// 连接多个实例，每个实例产生独立的视频流
+const char* instances[] = {"cai-xxx-001", "cai-xxx-002", "cai-xxx-003"};
+const char* default_streaming[] = {"cai-xxx-001"};  // 指定默认出流实例
+tcr_session_access_multi_stream(tcrSession, instances, 3, default_streaming, 1);
+
+// 根据需要控制其他实例的出流
+const char* streaming_instances[] = {"cai-xxx-002"};
+tcr_session_resume_streaming(tcrSession, "video", streaming_instances, 1);
+```
+
+##### 在视频帧回调中区分不同实例的流
+```cpp
+void VideoFrameCallback(void* user_data, TcrVideoFrameHandle frame_handle) {
+    const TcrVideoFrameBuffer* buffer = tcr_video_frame_get_buffer(frame_handle);
+    const char* instance_id = buffer->instance_id;
+    // 根据instance_id处理不同实例的视频帧
 }
 ```
 
-### 4.3 创建串流会话并连接实例
-
-#### 单实例连接
+#### 单实例连接(大流)
 
 ```cpp
-TcrSessionHandle tcrSession = tcr_client_create_session(tcrClient);
+// 创建默认会话配置
+TcrSessionConfig session_config = tcr_session_config_default();
+
+// 创建会话
+TcrSessionHandle tcrSession = tcr_client_create_session(tcrClient, &session_config);
+
+// 连接单个实例
 const char* instanceIds[] = { instanceId.c_str() };
 tcr_session_access(tcrSession, instanceIds, 1, false); // false 表示单实例
 ```
 
-#### 多实例群控
+#### 单实例串流并群控(大流)
 
 ```cpp
-TcrSessionHandle tcrSession = tcr_client_create_session(tcrClient);
+// 创建会话配置
+TcrSessionConfig session_config = tcr_session_config_default();
+
+// 创建会话
+TcrSessionHandle tcrSession = tcr_client_create_session(tcrClient, &session_config);
+
+// 连接多个实例进行群控
 std::vector<const char*> idPtrs;
 for (const auto& id : instanceIds) idPtrs.push_back(id.c_str());
 tcr_session_access(tcrSession, idPtrs.data(), idPtrs.size(), true); // true 表示群控
@@ -128,16 +164,38 @@ tcr_session_access(tcrSession, idPtrs.data(), idPtrs.size(), true); // true 表�
 
 > **说明**：如需动态加入群控实例，可通过 `tcr_instance_join_group`。
 
-### 4.4 设置回调
+### 4.3 设置回调
 
 #### 视频帧回调
 
 ```cpp
-static void VideoFrameCallback(...) {
-    // 处理视频帧
+static void VideoFrameCallback(void* user_data, TcrVideoFrameHandle frame_handle) {
+    // 获取视频帧缓冲区数据
+    const TcrVideoFrameBuffer* buffer = tcr_video_frame_get_buffer(frame_handle);
+    if (!buffer) return;
+    
+    // 根据缓冲区类型处理视频帧
+    switch (buffer->type) {
+        case TCR_VIDEO_BUFFER_TYPE_D3D11:
+            // 硬件解码：使用RGBA格式的D3D11纹理渲染
+            // SDK已完成YUV到RGB转换，可直接作为颜色纹理使用
+            render_d3d11_rgba_texture(&buffer->buffer.d3d11);
+            break;
+        case TCR_VIDEO_BUFFER_TYPE_I420:
+            // 软件解码：使用I420数据渲染
+            // 需要在shader中进行YUV到RGB的颜色空间转换
+            render_i420_buffer(&buffer->buffer.i420);
+            break;
+    }
+    
+    // 如果需要在回调外使用frame_handle，需要增加引用计数
+    // tcr_video_frame_add_ref(frame_handle);
+    // 使用完毕后记得释放：tcr_video_frame_release(frame_handle);
 }
-static TcrVideoFrameObserver video_observer;
-video_observer.user_data = nullptr; // 可传 this 指针
+
+// 设置视频帧观察者
+static TcrVideoFrameObserver video_observer = tcr_video_frame_observer_default();
+video_observer.user_data = this; // 可传 this 指针
 video_observer.on_frame = VideoFrameCallback;
 tcr_session_set_video_frame_observer(tcrSession, &video_observer);
 ```
@@ -146,15 +204,32 @@ tcr_session_set_video_frame_observer(tcrSession, &video_observer);
 
 ```cpp
 static void SessionEventCallback(void* user_data, TcrSessionEvent event, const char* eventData) {
-    // 处理事件
+    // 处理会话事件
+    const char* event_name = tcr_session_event_to_string(event);
+    printf("Session event: %s, data: %s\n", event_name, eventData ? eventData : "");
+    
+    switch (event) {
+        case TCR_SESSION_EVENT_STATE_CONNECTED:
+            // 会话已连接
+            break;
+        case TCR_SESSION_EVENT_STATE_CLOSED:
+            // 会话已关闭
+            break;
+        case TCR_SESSION_EVENT_CLIENT_STATS:
+            // 性能数据更新（JSON格式）
+            break;
+        // 处理其他事件...
+    }
 }
-static TcrSessionObserver session_observer;
-session_observer.user_data = nullptr; // 可传 this 指针
+
+// 设置会话观察者
+static TcrSessionObserver session_observer = tcr_session_observer_default();
+session_observer.user_data = this; // 可传 this 指针
 session_observer.on_event = SessionEventCallback;
 tcr_session_set_observer(tcrSession, &session_observer);
 ```
 
-### 4.5 操作及交互
+### 4.4 操作及交互
 
 #### 实时控制
 
@@ -166,11 +241,16 @@ tcr_session_send_keyboard_event(tcrSession, 158, false); // 抬起
 // 触摸事件（按下）
 tcr_session_touchscreen_touch(tcrSession, 100, 200, 0, 720, 1280, 0); // eventType: 0=DOWN, 1=MOVE, 2=UP
 ```
-### 4.6 资源释放
+### 4.5 资源释放
 
 每一个创建的会话实例在使用完成后必须释放：
 
 ```cpp
+// 清理回调
+tcr_session_set_video_frame_observer(tcrSession, NULL);
+tcr_session_set_observer(tcrSession, NULL);
+
+// 销毁会话
 tcr_client_destroy_session(tcrClient, tcrSession);
 ```
 
@@ -178,7 +258,7 @@ tcr_client_destroy_session(tcrClient, tcrSession);
 
 ## 5. 注意事项
 
-- 会话管理: 每一个`TcrClientHandle`只能调用一次`tcr_session_access`, 如需多个会话请创建多个实例并释放使用过的实例。
+- 会话管理: 每一个`TcrClientHandle`只能调用一次`tcr_session_access`或`tcr_session_access_multi_stream`, 如需多个会话请创建多个实例并释放使用过的实例。
 - **日志调试**：您需要通过 `tcr_set_log_callback`、`tcr_set_log_level` 配置日志，以便在出现问题之后将日志反馈给开发团队定位问题。
 - Demo [CloudStream_QtQuick_Demo](CloudStream_QtQuick_Demo/README.md) 演示了串流场景下SDK能力(截图展示及串流交互等)，[SDK接口](https://cloud.tencent.com/document/product/1162/122588) 支持的其他功能为云手机Paas功能。
 
