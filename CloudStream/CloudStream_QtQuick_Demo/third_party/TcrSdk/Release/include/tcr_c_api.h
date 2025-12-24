@@ -35,40 +35,37 @@
  *
  * -------------------- 代码示例 --------------------
  * 
- *   TcrConfig config = tcr_session_config_default();;
- *   config.Token = tokenResult.token.c_str();
- *   config.AccessInfo = tokenResult.accessInfo.c_str();
+ *   TcrConfig config = tcr_config_default();
+ *   config.token = tokenResult.token.c_str();
+ *   config.accessInfo = tokenResult.accessInfo.c_str();
  * 
  *   // 1. 初始化
  *   TcrClientHandle tcrClient = tcr_client_get_instance();
  *   tcr_client_init(tcrClient, &config);
  * 
- *   // 2. 获取小流截图
- *   char buffer[2048];
- *   TcrAndroidInstance instance = tcr_client_get_android_instance(tcrClient);
- *   tcr_instance_get_image(instance, buffer, 2048, instanceIds[0].c_str(), 0, 0, 0);
+ *   // 2. 创建串流会话
+ *   TcrSessionConfig session_config = tcr_session_config_default();
+ *   TcrSessionHandle tcrSession = tcr_client_create_session(tcrClient, &session_config);
  * 
- *   // 3. 创建串流会话
- *   TcrSessionHandle tcrSession = tcr_client_create_session(tcrClient);
- * 
- *   // 4. 连接实例
- *   tcr_session_access(tcrSession, instanceIds, 1, false);
- * 
- *   // 5. 设置视频帧回调
- *   static TcrVideoFrameObserver video_observer;
+ *   // 3. 设置视频帧回调
+ *   static TcrVideoFrameObserver video_observer = tcr_video_frame_observer_default();
  *   video_observer.user_data = this;
  *   video_observer.on_frame = VideoFrameCallback;
  *   tcr_session_set_video_frame_observer(tcrSession, &video_observer);
  * 
- *   // 6. 设置事件回调
- *   static TcrSessionObserver session_observer;
+ *   // 4. 设置事件回调
+ *   static TcrSessionObserver session_observer = tcr_session_observer_default();
  *   session_observer.user_data = this;
  *   session_observer.on_event = SessionEventCallback;
  *   tcr_session_set_observer(tcrSession, &session_observer);
  * 
- *   // ... 业务操作 ...
+ *   // 5. 连接实例
+ *   const char* instanceIds[] = {"cai-xxx-001"};
+ *   tcr_session_access(tcrSession, instanceIds, 1, false);
  * 
- *   // 7. 销毁会话
+ *   // 6. 清理回调并销毁会话
+ *   tcr_session_set_video_frame_observer(tcrSession, NULL);
+ *   tcr_session_set_observer(tcrSession, NULL);
  *   tcr_client_destroy_session(tcrClient, tcrSession);
  *
  * --------------------------------------------------

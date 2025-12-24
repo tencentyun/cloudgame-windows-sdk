@@ -1,5 +1,14 @@
 # Release Notes
 
+## Version 1.18.5
+### Features
+- 优化ICE配置并使用更宽松的网络切换策略
+
+### Download
+- [TcrSdk-Debug-1.18.5-20251224-166f4103c.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Debug-1.18.5-20251224-166f4103c.zip)
+- [TcrSdk-Release-1.18.5-20251224-166f4103c.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Release-1.18.5-20251224-166f4103c.zip)
+
+
 ## Version 1.18.4
 ### Features
 - 优化缓冲策略减少内存占用
