@@ -19,7 +19,7 @@ class VideoRenderItem : public QQuickItem
     Q_OBJECT
     
     // QML属性：当前是否有有效的帧数据
-    Q_PROPERTY(bool hasFrame READ hasFrame NOTIFY firstFrameArrived)
+    Q_PROPERTY(bool hasFrame READ hasFrame NOTIFY hasFrameChanged)
     
     // QML属性：视频宽度
     Q_PROPERTY(int videoWidth READ videoWidth NOTIFY videoSizeChanged)
@@ -59,11 +59,11 @@ public:
 
 signals:
     /**
-     * @brief 首帧到达信号
+     * @brief 帧状态变化信号
      * 
-     * 当从无帧状态接收到第一个有效帧时发射此信号。
+     * 当 hasFrame 属性发生变化时发射此信号。
      */
-    void firstFrameArrived();
+    void hasFrameChanged();
     
     /**
      * @brief 视频尺寸变化信号

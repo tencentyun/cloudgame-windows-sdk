@@ -11,6 +11,7 @@
 #include "viewmodels/StreamingViewModel.h"
 #include "viewmodels/MultiStreamViewModel.h"
 #include "viewmodels/InstanceTokenViewModel.h"
+#include "core/StreamConfig.h"
 
 
 /**
@@ -57,6 +58,14 @@ int main(int argc, char *argv[]) {
 
     /// 注册多实例流媒体视图模型，供QML使用
     qmlRegisterType<MultiStreamViewModel>("CustomComponents", 1, 0, "MultiStreamViewModel");
+
+    /// 注册StreamConfig单例，供QML使用
+    qmlRegisterSingletonType<StreamConfig>("CustomComponents", 1, 0, "StreamConfig",
+        [](QQmlEngine *engine, QJSEngine *scriptEngine) -> QObject * {
+            Q_UNUSED(engine)
+            Q_UNUSED(scriptEngine)
+            return StreamConfig::instance();
+        });
 
     engine.rootContext()->setContextProperty("instanceAccessViewModel", instanceAccessViewModel);
     engine.rootContext()->setContextProperty("apiService", apiService);

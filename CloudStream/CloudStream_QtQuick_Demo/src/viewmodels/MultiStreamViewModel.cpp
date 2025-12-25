@@ -7,6 +7,9 @@
 #include <QDebug>
 #include <QMetaType>
 #include <QGuiApplication>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 #include <algorithm>
 
 // ==================== 构造与析构 ====================
@@ -115,6 +118,72 @@ int MultiStreamViewModel::getInstanceConnectionState(const QString& instanceId) 
         return static_cast<int>(m_instanceConnectionStates[instanceId]);
     }
     return static_cast<int>(InstanceConnectionState::Disconnected);
+}
+
+QString MultiStreamViewModel::getInstanceStats(const QString& instanceId) const
+{
+    if (m_clientStats.isEmpty()) {
+        return QString();
+    }
+    
+    QJsonDocument doc = QJsonDocument::fromJson(m_clientStats.toUtf8());
+    if (!doc.isObject()) {
+        return QString();
+    }
+    
+    QJsonObject root = doc.object();
+    
+    if (!root.contains("video_streams") || !root["video_streams"].isObject()) {
+        return QString();
+    }
+    
+    QJsonObject videoStreams = root["video_streams"].toObject();
+    
+    if (!videoStreams.contains(instanceId)) {
+        return QString();
+    }
+    
+    QJsonObject streamObj = videoStreams[instanceId].toObject();
+    
+    // 构建返回的 JSON 对象：包含全局统计 + 该实例的视频流统计
+    QJsonObject result;
+    
+    // 复制全局统计数据（排除 video_streams）
+    result["request_id"] = root["request_id"];
+    result["session_id"] = root["session_id"];
+    result["instance_id"] = instanceId;
+    result["rtt"] = root["rtt"];
+    result["raw_rtt"] = root["raw_rtt"];
+    result["edge_rtt"] = root["edge_rtt"];
+    
+    // 直接复制该实例的完整视频流统计对象
+    for (auto it = streamObj.begin(); it != streamObj.end(); ++it) {
+        result[it.key()] = it.value();
+    }
+    
+    QJsonDocument resultDoc(result);
+    return QString::fromUtf8(resultDoc.toJson(QJsonDocument::Indented));
+}
+
+void MultiStreamViewModel::onVisibilityChanged(const QStringList& visibleIds, const QStringList& invisibleIds)
+{
+    Logger::info("=== 滚动停止 500ms 检测 ===");
+    Logger::info(QString("可见实例 (%1): %2")
+                .arg(visibleIds.length())
+                .arg(visibleIds.join(", ")));
+    Logger::info(QString("不可见实例 (%1): %2")
+                .arg(invisibleIds.length())
+                .arg(invisibleIds.join(", ")));
+    
+    // 对可见实例恢复流媒体
+    if (!visibleIds.isEmpty()) {
+        resumeStreaming(visibleIds);
+    }
+    
+    // 对不可见实例暂停流媒体
+    if (!invisibleIds.isEmpty()) {
+        pauseStreaming(invisibleIds);
+    }
 }
 
 // ==================== 视频渲染项注册 ====================
@@ -241,12 +310,21 @@ void MultiStreamViewModel::createSessionsWithConfigs(const QVariantList& session
         // 使用 tcr_session_config_default() 获取默认配置，然后自定义需要的参数
         TcrSessionConfig config = tcr_session_config_default();
         
-        // 自定义视频流参数
-        config.stream_profile.video_width = 288;   // 指定短边的宽度
-        config.stream_profile.fps = 1;             // 帧率
-        config.stream_profile.max_bitrate = 200;   // 最大码率
-        config.stream_profile.min_bitrate = 100;   // 最小码率
-        config.enable_audio = false;               // 禁用音频
+        // 从StreamConfig单例获取配置的串流参数
+        StreamConfig* streamConfig = StreamConfig::instance();
+        
+        // 自定义视频流参数（使用大流参数）
+        config.stream_profile.video_width = streamConfig->subStreamWidth();   // 指定短边的宽度
+        config.stream_profile.fps = streamConfig->subStreamFps();             // 帧率
+        config.stream_profile.max_bitrate = streamConfig->subStreamMaxBitrate();   // 最大码率
+        config.stream_profile.min_bitrate = streamConfig->subStreamMinBitrate();    // 最小码率
+        config.enable_audio = false; 
+        
+        Logger::info(QString("[createSessionsWithConfigs] 使用串流参数 - 宽度:%1, 帧率:%2, 码率:%3-%4")
+                    .arg(config.stream_profile.video_width)
+                    .arg(config.stream_profile.fps)
+                    .arg(config.stream_profile.min_bitrate)
+                    .arg(config.stream_profile.max_bitrate));
         
         // 步骤2：创建会话
         // tcr_client_create_session() 返回会话句柄，用于后续所有会话操作
@@ -515,7 +593,11 @@ void MultiStreamViewModel::SessionEventCallback(void* user_data,
                 emit self->sessionClosed(sessionIndex, sessionInfo.instanceIds, eventDataCopy);
                 break;
             case TCR_SESSION_EVENT_CLIENT_STATS:
-                // 持续回调的性能统计数据(可机忽略)
+                Logger::info(QString("[SessionEventCallback] 会话 %1 统计数据: %2")
+                             .arg(sessionIndex).arg(eventDataCopy));
+                // 更新统计数据（包含帧率、码率、延迟等信息）
+                self->m_clientStats = eventDataCopy;
+                emit self->clientStatsChanged();
                 break;
         }
     }, Qt::QueuedConnection);

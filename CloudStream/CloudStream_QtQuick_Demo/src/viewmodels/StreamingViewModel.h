@@ -90,6 +90,14 @@ public:
      */
     QString clientStats() const { return m_clientStats; }
 
+    /**
+     * @brief 获取当前实例的统计数据（单实例模式）
+     * @return 格式化的 JSON 字符串，包含该实例的视频流统计信息
+     * 
+     * 从完整的统计数据中提取第一个实例的信息，用于单实例场景的显示
+     */
+    Q_INVOKABLE QString getInstanceStats() const;
+
     // ==================== 会话管理 ====================
     
     /**

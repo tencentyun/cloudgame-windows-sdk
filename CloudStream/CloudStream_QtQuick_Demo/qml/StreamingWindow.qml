@@ -16,6 +16,9 @@ ApplicationWindow {
     // 横竖屏状态属性，true为横屏，false为竖屏
     property bool isLandscape: false
     
+    // 新增：统计数据显示状态
+    property bool showStatsOverlay: false
+    
     // 使用 Connections 显式连接信号
     Connections {
         target: streamingViewModel
@@ -56,6 +59,7 @@ ApplicationWindow {
                 height: 1024
                 streamingViewModel: streamingWindow.streamingViewModel
                 isLandscape: false
+                showStats: streamingWindow.showStatsOverlay
             }
 
             // 按钮区 - 使用统一的ControlButtonArea组件
@@ -64,6 +68,8 @@ ApplicationWindow {
                 height: parent.height
                 streamingViewModel: streamingWindow.streamingViewModel
                 isLandscape: false
+                showStatsOverlay: streamingWindow.showStatsOverlay
+                onShowStatsChanged: streamingWindow.showStatsOverlay = showStats
             }
         }
     }
@@ -81,6 +87,7 @@ ApplicationWindow {
                 height: 576
                 streamingViewModel: streamingWindow.streamingViewModel
                 isLandscape: true
+                showStats: streamingWindow.showStatsOverlay
             }
 
             // 按钮区 - 使用统一的ControlButtonArea组件
@@ -89,6 +96,8 @@ ApplicationWindow {
                 height: parent.height - 576
                 streamingViewModel: streamingWindow.streamingViewModel
                 isLandscape: true
+                showStatsOverlay: streamingWindow.showStatsOverlay
+                onShowStatsChanged: streamingWindow.showStatsOverlay = showStats
             }
         }
     }

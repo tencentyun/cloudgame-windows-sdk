@@ -1,5 +1,8 @@
 import QtQuick 2.15
 
+import QtQuick 2.15
+import QtQuick.Controls 2.15
+
 // 统计数据显示蒙层组件
 Rectangle {
     id: root
@@ -7,47 +10,38 @@ Rectangle {
     // 对外暴露的属性
     property string clientStats: ""
     
-    // 自动调整高度
-    height: statsText.contentHeight + 20
     color: "#80000000"
-    visible: clientStats !== ""
+    
+    // 高度自适应内容
+    width: parent.width
+    height: statsText.contentHeight + 10
     
     Text {
         id: statsText
         anchors.fill: parent
-        anchors.margins: 10
+        anchors.margins: 5
         color: "white"
         font.pixelSize: 12
+        font.family: "Courier New"
         wrapMode: Text.WordWrap
         text: {
-            if (root.clientStats === "") return ""
+            // 检查输入是否为空
+            if (!root.clientStats || root.clientStats === "") {
+                return ""
+            }
             
             try {
+                // 验证是否为有效的 JSON
                 var stats = JSON.parse(root.clientStats)
-                var bitrateKbps = ((stats.bitrate || 0) / 1000).toFixed(2)
-                return "FPS: " + (stats.fps || 0) + 
-                       " | 码率: " + bitrateKbps + " kbps" +
-                       "\n | RTT: " + (stats.rtt || 0) + "ms" +
-                       " | RAW RTT: " + (stats.raw_rtt || 0) + "ms" +
-                       " | Edge RTT: " + (stats.edge_rtt || 0) + "ms" +
-                       "\n分辨率: " + (stats.frame_recv_res || "N/A") +
-                       " | NACK: " + (stats.nack_count || 0) +
-                       "\n视频包 - 接收: " + (stats.video_packet_recv || 0) + 
-                       " | 发送: " + (stats.video_packet_sent || 0) + 
-                       " | 丢包: " + (stats.video_packet_lost || 0) +
-                       "\n音频包 - 接收: " + (stats.audio_packet_recv || 0) + 
-                       " | 发送: " + (stats.audio_packet_sent || 0) +
-                       " | 丢包: " + (stats.audio_packet_lost || 0) +
-                       "\n视频帧 - 接收: " + (stats.frame_recv || 0) + 
-                       " | 解码: " + (stats.frame_decode || 0) +
-                       " | 编码: " + (stats.frame_encoded || 0) + 
-                       " | 发送: " + (stats.frame_sent || 0) + 
-                       " | 丢帧: " + (stats.frame_drop || 0) +
-                       "\nRequest ID: " + (stats.request_id || "N/A") +
-                       "\nInstance IDs: " + (stats.instance_ids || "N/A") +
-                       "\nCodec: " + (stats.codec || "N/A")
+
+                // 直接返回格式化的 JSON 字符串
+                // C++ 端已经返回了格式化的 JSON（带缩进）
+                return root.clientStats
+                
             } catch (e) {
-                return "统计数据解析错误"
+                console.error("[StatsOverlay] JSON 解析错误:", e.toString())
+                console.error("[StatsOverlay] 原始数据:", root.clientStats)
+                return "数据解析错误"
             }
         }
     }

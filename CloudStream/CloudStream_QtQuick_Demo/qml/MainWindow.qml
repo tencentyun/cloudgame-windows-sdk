@@ -3,6 +3,7 @@ import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import QtQuick.Window 2.15
 import CustomComponents 1.0
+import "components" as Components
 
 Window {
     id: multiInstanceWindow
@@ -19,11 +20,14 @@ Window {
     property var instanceIds: []                    // 传入的实例ID列表
     property var accessInfo: null                   // 访问信息
     property string token: ""                       // 认证令牌
-    readonly property int instancesPerSession: 30   // 硬编码的每个session的实例数量
+    readonly property int instancesPerSession: 100   // 硬编码的每个session的实例数量
     
     // 视图大小配置
     property int viewSize: 1                        // 视图大小: 0=小(30列), 1=中(10列), 2=大(5列)
     property var viewSizeColumns: [30, 10, 5]       // 对应每种视图的列数
+    
+    // 统计数据显示开关
+    property bool showStatsOverlay: false           // 是否显示统计数据蒙层
     
     // 实例管理属性
     property var checkedInstanceIds: []             // 选中的实例ID列表
@@ -50,6 +54,12 @@ Window {
             sessionClosedDialog.instanceIds = instanceIds;
             sessionClosedDialog.reason = reason;
             sessionClosedDialog.open();
+        }
+        
+        function onClientStatsChanged() {
+            // 统计数据更新
+            // 可以在这里解析 JSON 并更新 UI
+            // console.log("统计数据更新:", multiInstanceViewModel.clientStats);
         }
     }
 
@@ -372,7 +382,24 @@ Window {
             implicitWidth: 80
             onCurrentIndexChanged: {
                 viewSize = currentIndex;
+                // 当视图大小不是"大"时，自动取消勾选统计数据显示
+                if (viewSize !== 2) {
+                    showStatsOverlay = false;
+                }
             }
+        }
+        
+        CheckBox {
+            id: statsOverlayCheckBox
+            text: "显示统计数据"
+            checked: showStatsOverlay
+            enabled: viewSize === 2  // 只有视图大小为"大"时才允许勾选
+            onCheckedChanged: {
+                showStatsOverlay = checked;
+            }
+            
+            ToolTip.visible: hovered && !enabled
+            ToolTip.text: "请先将视图大小切换为\"大\"才能启用统计数据显示"
         }
         
         Button {
@@ -443,7 +470,6 @@ Window {
             }
         }
     }
-
     // 视频渲染网格区域
     GridView {
         id: videoGridView
@@ -459,6 +485,49 @@ Window {
         cellHeight: cellWidth * 240 / 135
         
         model: instanceConfigs
+
+        Timer {
+            id: scrollStopTimer
+            interval: 500
+            repeat: false
+            onTriggered: {
+                videoGridView.checkVisibleItems();
+            }
+        }
+
+        onMovingChanged: {
+            if (!moving) {
+                scrollStopTimer.restart();
+            }
+        }
+
+        function checkVisibleItems() {
+            var visibleIds = [];
+            var invisibleIds = [];
+            
+            var cols = viewSizeColumns[viewSize];
+            if (cols <= 0) return;
+            
+            // 计算可见区域的行范围
+            var startRow = Math.floor(contentY / cellHeight);
+            var endRow = Math.ceil((contentY + height) / cellHeight);
+            
+            // 转换为索引范围
+            var startIndex = startRow * cols;
+            var endIndex = endRow * cols;
+            
+            for (var i = 0; i < instanceConfigs.length; i++) {
+                var config = instanceConfigs[i];
+                if (i >= startIndex && i < endIndex) {
+                    visibleIds.push(config.instanceId);
+                } else {
+                    invisibleIds.push(config.instanceId);
+                }
+            }
+            
+            // 回调到C++并打印
+            multiInstanceViewModel.onVisibilityChanged(visibleIds, invisibleIds);
+        }
         
         delegate: Rectangle {
             id: videoCell
@@ -555,6 +624,38 @@ Window {
                 }
             }
             
+            // 统计数据显示蒙层
+            Components.StatsOverlay {
+                id: statsOverlay
+                anchors.top: videoRenderItem.top
+                anchors.left: videoRenderItem.left
+                anchors.right: videoRenderItem.right
+                clientStats: ""
+                // 只有在开关打开且有统计数据时才显示
+                visible: showStatsOverlay && statsOverlay.clientStats !== ""
+                
+                // 监听统计数据更新
+                Connections {
+                    target: multiInstanceViewModel
+                    function onClientStatsChanged() {
+                        console.log("[MainWindow] clientStatsChanged 信号触发，实例:", videoCell.instanceId);
+                        // 手动更新统计数据
+                        var newStats = multiInstanceViewModel.getInstanceStats(videoCell.instanceId);
+                        console.log("[MainWindow] 获取到的统计数据长度:", newStats.length);
+                        if (newStats && newStats.length > 0) {
+                            statsOverlay.clientStats = newStats;
+                        }
+                    }
+                }
+                
+                // 初始化时获取一次数据
+                Component.onCompleted: {
+                    var initialStats = multiInstanceViewModel.getInstanceStats(videoCell.instanceId);
+                    if (initialStats && initialStats.length > 0) {
+                        statsOverlay.clientStats = initialStats;
+                    }
+                }
+            }
             // 选择复选框
             CheckBox { 
                 id: instanceCheckBox
@@ -651,6 +752,25 @@ Window {
                 text: "已选中: " + checkedInstanceIds.length + " 个实例"
                 font.pixelSize: 12
                 color: checkedInstanceIds.length > 0 ? "#007bff" : "#666666"
+            }
+            
+            Text {
+                text: {
+                    try {
+                        if (multiInstanceViewModel.clientStats) {
+                            var stats = JSON.parse(multiInstanceViewModel.clientStats);
+                            var fps = stats.fps || 0;
+                            var bitrate = stats.bitrate || 0;
+                            var rtt = stats.rtt || 0;
+                            return "FPS: " + fps + " | 码率: " + (bitrate/1000).toFixed(1) + "Mbps | 延迟: " + rtt + "ms";
+                        }
+                    } catch(e) {
+                        // JSON 解析失败，忽略
+                    }
+                    return "统计数据: --";
+                }
+                font.pixelSize: 12
+                color: "#666666"
             }
             
             Item { Layout.fillWidth: true }

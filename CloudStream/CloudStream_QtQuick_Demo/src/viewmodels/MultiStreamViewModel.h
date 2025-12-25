@@ -14,6 +14,7 @@
 #include <atomic>
 #include "core/video/Frame.h"
 #include "core/video/VideoRenderItem.h"
+#include "core/StreamConfig.h"
 #include "tcr_c_api.h"
 
 /**
@@ -48,6 +49,7 @@ class MultiStreamViewModel : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(QStringList connectedInstanceIds READ connectedInstanceIds NOTIFY connectedInstanceIdsChanged)
+    Q_PROPERTY(QString clientStats READ clientStats NOTIFY clientStatsChanged)
 
 public:
     explicit MultiStreamViewModel(QObject *parent = nullptr);
@@ -61,6 +63,19 @@ public:
     QStringList connectedInstanceIds() const { return m_connectedInstanceIds; }
 
     /**
+     * @brief 获取客户端统计数据（JSON 格式）
+     * @return 包含帧率、码率、延迟等信息的 JSON 字符串
+     */
+    QString clientStats() const { return m_clientStats; }
+
+    /**
+     * @brief 根据实例ID获取该实例的统计数据（JSON 格式）
+     * @param instanceId 实例ID
+     * @return 该实例的统计数据 JSON 字符串，如果不存在则返回空字符串
+     */
+    Q_INVOKABLE QString getInstanceStats(const QString& instanceId) const;
+
+    /**
      * @brief 获取指定实例的连接状态
      * @param instanceId 实例ID
      * @return 0=未连接, 1=连接中, 2=已连接
@@ -69,6 +84,15 @@ public:
 
     // ==================== QML 调用接口 ====================
 
+public slots:
+    /**
+     * @brief 处理实例可见性变化（从QML调用）
+     * @param visibleIds 可见的实例ID列表
+     * @param invisibleIds 不可见的实例ID列表
+     */
+    void onVisibilityChanged(const QStringList& visibleIds, const QStringList& invisibleIds);
+
+public:
     /**
      * @brief 注册 VideoRenderItem 到指定实例
      * @param instanceId 实例ID
@@ -153,6 +177,13 @@ signals:
 
     void connectedInstanceIdsChanged();
 
+    /**
+     * @brief 统计数据更新信号
+     * 
+     * 当收到 TCR_SESSION_EVENT_CLIENT_STATS 事件时触发
+     */
+    void clientStatsChanged();
+
 private:
     // ==================== 内部数据结构 ====================
 
@@ -186,6 +217,7 @@ private:
     QVector<SessionInfo> m_sessions;        ///< 会话信息列表
     
     QStringList m_connectedInstanceIds;     ///< 已连接的实例ID列表
+    QString m_clientStats;                  ///< 客户端统计数据（JSON 格式）
     
     /// 实例连接状态映射：instanceId -> InstanceConnectionState
     QHash<QString, InstanceConnectionState> m_instanceConnectionStates;

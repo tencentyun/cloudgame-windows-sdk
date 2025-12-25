@@ -10,7 +10,8 @@ Item {
     // 对外暴露的属性
     property var streamingViewModel: null
     property bool isLandscape: false
-    
+    property bool showStats: false 
+
     // 内部使用的objectName，用于区分横竖屏
     readonly property string videoObjectName: isLandscape ? "videoRenderItem_landscape" : "videoRenderItem_portrait"
     
@@ -98,6 +99,33 @@ Item {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        clientStats: root.streamingViewModel ? root.streamingViewModel.clientStats : null
+        clientStats: ""
+        visible: root.showStats  // 根据showStats属性控制显示
+        
+        // 监听统计数据更新
+        Connections {
+            target: root.streamingViewModel
+            function onClientStatsChanged() {
+                if (!root.streamingViewModel) {
+                    return;
+                }
+                
+                // 获取当前实例的统计数据
+                var newStats = root.streamingViewModel.getInstanceStats();
+                if (newStats && newStats.length > 0) {
+                    statsOverlay.clientStats = newStats;
+                }
+            }
+        }
+        
+        // 初始化时获取一次数据
+        Component.onCompleted: {
+            if (root.streamingViewModel) {
+                var initialStats = root.streamingViewModel.getInstanceStats();
+                if (initialStats && initialStats.length > 0) {
+                    statsOverlay.clientStats = initialStats;
+                }
+            }
+        }
     }
 }

@@ -8,6 +8,10 @@ Item {
     // 对外暴露的属性
     property var streamingViewModel: null
     property bool isLandscape: false
+    property bool showStatsOverlay: false
+    
+    // 统计数据显示状态变化信号
+    signal showStatsChanged(bool showStats)
     
     // 按钮数据模型
     ListModel {
@@ -95,8 +99,35 @@ Item {
         }
     }
     
+    // 统计数据显示控制复选框
+    CheckBox {
+        id: statsCheckBox
+        text: "显示统计数据"
+        checked: root.showStatsOverlay
+        
+        anchors {
+            top: parent.top
+            left: parent.left
+            right: parent.right
+            margins: 10
+        }
+        
+        height: 40
+        
+        onCheckedChanged: {
+            root.showStatsOverlay = checked
+            root.showStatsChanged(checked)
+        }
+    }
+    
     ScrollView {
-        anchors.fill: parent
+        anchors {
+            top: statsCheckBox.bottom
+            left: parent.left
+            right: parent.right
+            bottom: parent.bottom
+            topMargin: 5
+        }
         
         // 根据横竖屏使用不同的布局
         Loader {

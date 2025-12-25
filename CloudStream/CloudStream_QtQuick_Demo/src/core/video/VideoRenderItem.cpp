@@ -47,11 +47,11 @@ void VideoRenderItem::setFrame(VideoFrameDataPtr frame)
     // 重要：立即释放旧帧，避免窗口最小化时帧累积
     // 因为窗口最小化时updatePaintNode不会被调用，旧帧会一直保留
     if (m_frame) {
-        Logger::info(QString("[VideoRenderItem::setFrame] Releasing old frame before setting new one, "
-                           "this=%1, old_frame_ptr=%2, old_timestamp_us=%3")
-                   .arg(reinterpret_cast<quintptr>(this))
-                   .arg(reinterpret_cast<quintptr>(m_frame->frame_handle))
-                   .arg(m_frame->timestamp_us));
+        // Logger::info(QString("[VideoRenderItem::setFrame] Releasing old frame before setting new one, "
+        //                    "this=%1, old_frame_ptr=%2, old_timestamp_us=%3")
+        //            .arg(reinterpret_cast<quintptr>(this))
+        //            .arg(reinterpret_cast<quintptr>(m_frame->frame_handle))
+        //            .arg(m_frame->timestamp_us));
         m_frame.reset();
     }
     
@@ -71,12 +71,9 @@ void VideoRenderItem::setFrame(VideoFrameDataPtr frame)
         emit videoSizeChanged();
     }
     
-    // 如果之前没有帧，现在有了，发射首帧到达信号
+    // 如果帧状态发生变化，发射信号
     if (wasEmpty && hasFrame()) {
-        Logger::info(QString("[VideoRenderItem::setFrame] First frame arrived, "
-                           "this=%1")
-                   .arg(reinterpret_cast<quintptr>(this)));
-        emit firstFrameArrived();
+        emit hasFrameChanged();
     }
     
     // 触发重绘
@@ -123,15 +120,12 @@ bool VideoRenderItem::hasFrame() const
  */
 QSGNode* VideoRenderItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData*)
 {
-    // [PERF] 记录开始时间
-    qint64 startTime = QDateTime::currentMSecsSinceEpoch();
-    
     // 如果没有有效帧数据，删除旧节点并返回空
     if (!hasFrame()) {
-        Logger::info(QString("[VideoRenderItem::updatePaintNode] No frame data, not rendering, "
-                           "this=%1, thread_id=%2")
-                   .arg(reinterpret_cast<quintptr>(this))
-                   .arg(reinterpret_cast<quintptr>(QThread::currentThreadId())));
+        // Logger::info(QString("[VideoRenderItem::updatePaintNode] No frame data, not rendering, "
+        //                    "this=%1, thread_id=%2")
+        //            .arg(reinterpret_cast<quintptr>(this))
+        //            .arg(reinterpret_cast<quintptr>(QThread::currentThreadId())));
         delete oldNode;
         return nullptr;
     }

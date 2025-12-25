@@ -90,7 +90,7 @@ void YuvDynamicTexture::commitTextureOperations(QRhi* rhi, QRhiResourceUpdateBat
     
     // 只有在数据标记为脏时才上传
     if (!dataDirty) {
-        Logger::info("[YuvDynamicTexture::commitTextureOperations] Data not dirty, skipping upload");
+        // Logger::info("[YuvDynamicTexture::commitTextureOperations] Data not dirty, skipping upload");
         return;
     }
     
@@ -131,10 +131,10 @@ void YuvDynamicTexture::setTextureData(const uint8_t* data, int width, int heigh
     
     // 记录是否覆盖了未上传的数据
     if (m_dataDirty.load(std::memory_order_acquire)) {
-        Logger::warning(QString("[YuvDynamicTexture::setTextureData] Overwriting dirty data! "
-                               "size=%1x%2, texture=%3")
-                       .arg(width).arg(height)
-                       .arg(reinterpret_cast<quintptr>(m_rhiTexture)));
+        // Logger::warning(QString("[YuvDynamicTexture::setTextureData] Overwriting dirty data! "
+        //                        "size=%1x%2, texture=%3")
+        //                .arg(width).arg(height)
+        //                .arg(reinterpret_cast<quintptr>(m_rhiTexture)));
     }
     
     qint64 copyStartTime = timer.elapsed();
