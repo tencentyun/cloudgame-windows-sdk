@@ -348,6 +348,8 @@ typedef struct {
                                       ///< 渲染时必须根据frame_buffer.type字段判断实际的缓冲区类型：
                                       ///< - D3D11类型：使用标准RGBA纹理shader渲染，无需YUV转换
                                       ///< - I420类型：需要在shader中进行YUV到RGB的颜色空间转换
+    int32_t firstFrameTimeoutMs;      ///< 首帧超时时间（毫秒），默认值为10000（10秒）
+                                      ///< 如果在此时间内未收到首帧，将触发超时处理
 } TcrSessionConfig;
 
 /**
@@ -393,6 +395,9 @@ static inline TcrSessionConfig tcr_session_config_default(void) {
     config.enable_hardware_decode = false;
 
     config.statsInterval = 1;
+    
+    // 首帧超时时间默认25秒
+    config.firstFrameTimeoutMs = 25000;
     
     return config;
 }
@@ -716,7 +721,18 @@ typedef enum {
      * @note 该事件常用于云端桌面场景。
      *       如果是云手机场景，请使用 TCR_SESSION_EVENT_SCREEN_CONFIG_CHANGE 事件。
      */
-    TCR_SESSION_EVENT_REMOTE_DESKTOP_INFO = 13
+    TCR_SESSION_EVENT_REMOTE_DESKTOP_INFO = 13,
+
+    /**
+     * @brief 首帧超时。
+     * 事件数据类型JSON格式字符串：
+     * @code{.json}
+     * {
+     *     "timeout": number  // 超时时间(毫秒)
+     * }
+     * @endcode
+     */
+    TCR_SESSION_EVENT_FIRST_FRAME_TIMEOUT = 14,
 } TcrSessionEvent;
 
 /**

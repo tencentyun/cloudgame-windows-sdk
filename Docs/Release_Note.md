@@ -1,5 +1,13 @@
 # Release Notes
 
+## Version 1.18.9
+### Features
+- 支持首帧超时回调
+
+### Download
+- [TcrSdk-Debug-1.18.9-20251226-90d39318d.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Debug-1.18.9-20251226-90d39318d.zip)
+- [TcrSdk-Release-1.18.9-20251226-90d39318d.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Release-1.18.9-20251226-90d39318d.zip)
+
 ## Version 1.18.6
 ### Features
 - 精简日志打印
