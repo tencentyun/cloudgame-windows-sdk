@@ -728,11 +728,17 @@ typedef enum {
      * 事件数据类型JSON格式字符串：
      * @code{.json}
      * {
-     *     "timeout": number  // 超时时间(毫秒)
+     *     "instance_id": string  // 实例ID
      * }
      * @endcode
      */
     TCR_SESSION_EVENT_FIRST_FRAME_TIMEOUT = 14,
+
+    /**
+     * @brief 连接正在重连。
+     * 该事件无关联数据。
+     */
+    TCR_SESSION_EVENT_RECONNECTING = 15,
 } TcrSessionEvent;
 
 /**
