@@ -92,17 +92,22 @@ public slots:
      */
     void onVisibilityChanged(const QStringList& visibleIds, const QStringList& invisibleIds);
 
+    /**
+     * @brief Copy text to system clipboard
+     * @param text Text to copy
+     */
+    void copyToClipboard(const QString& text);
+
 public:
     /**
      * @brief 注册 VideoRenderItem 到指定实例
      * @param instanceId 实例ID
-     * @param instanceIndex 实例索引（用于区分同一实例ID的多个视频流）
      * @param item VideoRenderItem 指针
      * 
-     * 说明：建立 "instanceId_instanceIndex" 到 VideoRenderItem 的映射关系，
+     * 说明：建立 instanceId 到 VideoRenderItem 的映射关系，
      *       用于视频帧回调时的路由分发
      */
-    Q_INVOKABLE void registerVideoRenderItem(const QString& instanceId, int instanceIndex, QObject* item);
+    Q_INVOKABLE void registerVideoRenderItem(const QString& instanceId, QObject* item);
 
     /**
      * @brief 初始化 TcrSdk 客户端
@@ -222,18 +227,22 @@ private:
     /// 实例连接状态映射：instanceId -> InstanceConnectionState
     QHash<QString, InstanceConnectionState> m_instanceConnectionStates;
     
-    /// 视频渲染项映射："instanceId_instanceIndex" -> VideoRenderItem
+    /// 视频渲染项映射：instanceId -> VideoRenderItem
     /// 使用 QPointer 防止访问已销毁的对象
     QHash<QString, QPointer<VideoRenderItem>> m_videoRenderItems;
 
     // 帧缓存优化相关
-    QMap<QString, VideoFrameDataPtr> m_frameCache;  // uniqueKey -> 最新帧
+    QMap<QString, VideoFrameDataPtr> m_frameCache;  // instanceId -> 最新帧
     QMutex m_frameCacheMutex;                       // 保护帧缓存的互斥锁
     QTimer* m_renderTimer = nullptr;                // 定时刷新定时器
 
     // 线程安全保护
     std::atomic<bool> m_isDestroying{false};        // 析构标志，用于快速检测
     QMutex m_videoRenderItemsMutex;                 // 保护 m_videoRenderItems 的互斥锁
+    
+    // 可见性状态记录
+    QStringList m_lastVisibleIds;                   // 上次可见的实例ID列表
+    QStringList m_lastInvisibleIds;                 // 上次不可见的实例ID列表
 
     // ==================== 内部方法 ====================
 
@@ -286,9 +295,9 @@ private:
      * - tcr_video_frame_release()：释放引用（由智能指针自动调用）
      * 
      * 说明：
-     * 1. 从 frame_buffer 中提取 instance_id 和 instance_index
-     * 2. 构造唯一标识符 "instanceId_instanceIndex"
-     * 3. 通过信号将帧数据发送到对应的 VideoRenderItem
+     * 1. 从 frame_buffer 中提取 instance_id
+     * 2. 直接使用 instance_id 作为唯一标识
+     * 3. 通过缓存机制将帧数据发送到对应的 VideoRenderItem
      */
     static void VideoFrameCallback(void* user_data, TcrVideoFrameHandle frame_handle);
 };

@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.16)
 project(CloudStream_QtQuick_Demo VERSION 0.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(QT_NO_PRIVATE_MODULE_WARNING ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Quick Network Concurrent ShaderTools GuiPrivate)
 
@@ -62,33 +63,33 @@ target_link_libraries(CloudStream_QtQuick_Demo
             dbghelp  # Windows调试帮助库，用于生成dump文件
 )
 
-# 处理 TcrSdk 库和 DLL
-set(TCRSDK_BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/TcrSdk)
+    # 处理 TcrSdk 库和 DLL
+    set(TCRSDK_BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/TcrSdk)
 
-if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-    set(TCRSDK_PLATFORM x64)
-else()
-    set(TCRSDK_PLATFORM Win32)
-endif()
+    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+        set(TCRSDK_PLATFORM x64)
+    else()
+        set(TCRSDK_PLATFORM Win32)
+    endif()
 
-# 用生成器表达式拼接路径
-set(TCRSDK_DLL "$<IF:$<CONFIG:Debug>,${TCRSDK_BASE_DIR}/Debug/${TCRSDK_PLATFORM}/TcrSdk.dll,${TCRSDK_BASE_DIR}/Release/${TCRSDK_PLATFORM}/TcrSdk.dll>")
-set(TCRSDK_PDB "$<IF:$<CONFIG:Debug>,${TCRSDK_BASE_DIR}/Debug/${TCRSDK_PLATFORM}/TcrSdk.pdb,${TCRSDK_BASE_DIR}/Release/${TCRSDK_PLATFORM}/TcrSdk.pdb>")
-set(TCRSDK_LIB "$<IF:$<CONFIG:Debug>,${TCRSDK_BASE_DIR}/Debug/${TCRSDK_PLATFORM}/TcrSdk.lib,${TCRSDK_BASE_DIR}/Release/${TCRSDK_PLATFORM}/TcrSdk.lib>")
+    # 用生成器表达式拼接路径
+    set(TCRSDK_DLL "$<IF:$<CONFIG:Debug>,${TCRSDK_BASE_DIR}/Debug/${TCRSDK_PLATFORM}/TcrSdk.dll,${TCRSDK_BASE_DIR}/Release/${TCRSDK_PLATFORM}/TcrSdk.dll>")
+    set(TCRSDK_PDB "$<IF:$<CONFIG:Debug>,${TCRSDK_BASE_DIR}/Debug/${TCRSDK_PLATFORM}/TcrSdk.pdb,${TCRSDK_BASE_DIR}/Release/${TCRSDK_PLATFORM}/TcrSdk.pdb>")
+    set(TCRSDK_LIB "$<IF:$<CONFIG:Debug>,${TCRSDK_BASE_DIR}/Debug/${TCRSDK_PLATFORM}/TcrSdk.lib,${TCRSDK_BASE_DIR}/Release/${TCRSDK_PLATFORM}/TcrSdk.lib>")
 
-target_link_libraries(CloudStream_QtQuick_Demo PRIVATE ${TCRSDK_LIB})
+    target_link_libraries(CloudStream_QtQuick_Demo PRIVATE ${TCRSDK_LIB})
 
-add_custom_command(TARGET CloudStream_QtQuick_Demo POST_BUILD
-COMMAND ${CMAKE_COMMAND} -E echo "Copying TcrSdk DLL: ${TCRSDK_DLL}"
-COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    ${TCRSDK_DLL}
-    $<TARGET_FILE_DIR:CloudStream_QtQuick_Demo>
-COMMAND ${CMAKE_COMMAND} -E echo "Copying TcrSdk PDB: ${TCRSDK_PDB}"
-COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    ${TCRSDK_PDB}
-    $<TARGET_FILE_DIR:CloudStream_QtQuick_Demo>
-COMMENT "Copying TcrSdk DLL and PDB for current config"
-VERBATIM
+    add_custom_command(TARGET CloudStream_QtQuick_Demo POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E echo "Copying TcrSdk DLL: ${TCRSDK_DLL}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${TCRSDK_DLL}
+        $<TARGET_FILE_DIR:CloudStream_QtQuick_Demo>
+    COMMAND ${CMAKE_COMMAND} -E echo "Copying TcrSdk PDB: ${TCRSDK_PDB}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${TCRSDK_PDB}
+        $<TARGET_FILE_DIR:CloudStream_QtQuick_Demo>
+    COMMENT "Copying TcrSdk DLL and PDB for current config"
+    VERBATIM
 )
 
 include(GNUInstallDirs)

@@ -26,6 +26,14 @@ Window {
     property int viewSize: 1                        // 视图大小: 0=小(30列), 1=中(10列), 2=大(5列)
     property var viewSizeColumns: [30, 10, 5]       // 对应每种视图的列数
     
+    // 监听视图大小变化，触发可见性检测
+    onViewSizeChanged: {
+        // 延迟执行，等待GridView完成布局更新
+        Qt.callLater(function() {
+            videoGridView.checkVisibleItems();
+        });
+    }
+    
     // 统计数据显示开关
     property bool showStatsOverlay: false           // 是否显示统计数据蒙层
     
@@ -320,6 +328,27 @@ Window {
         syncToSyncWindow(previousCheckedIds);
     }
 
+    /**
+     * 复制选中的实例ID到剪贴板
+     */
+    function copyCheckedInstanceIds() {
+        if (checkedInstanceIds.length === 0) {
+            console.log("没有选中的实例ID");
+            return;
+        }
+        
+        // 使用逗号分隔实例ID
+        var idsText = checkedInstanceIds.join(",");
+        
+        // 通过C++接口复制到剪贴板（确保Windows兼容性）
+        multiInstanceViewModel.copyToClipboard(idsText);
+        
+        console.log("已复制实例ID:", idsText);
+        
+        // 显示提示信息
+        copySuccessToast.show();
+    }
+
     // ============================================
     // 生命周期事件处理
     // ============================================
@@ -346,12 +375,49 @@ Window {
             var sessionConfigs = calculateSessionConfigs(instanceIds);
             instanceConfigs = calculateInstanceConfigs(sessionConfigs);
             multiInstanceViewModel.connectMultipleInstances(sessionConfigs);
+            
+            // 延迟执行初始可见性检测，确保 GridView 完成布局
+            Qt.callLater(function() {
+                videoGridView.checkVisibleItems();
+            });
         }
     }
 
     // ============================================
     // UI组件区域
     // ============================================
+    
+    // 复制成功提示
+    Rectangle {
+        id: copySuccessToast
+        anchors.centerIn: parent
+        width: 200
+        height: 50
+        color: "#80000000"
+        radius: 8
+        visible: false
+        z: 1000
+        
+        Text {
+            anchors.centerIn: parent
+            text: "已复制到剪贴板"
+            color: "white"
+            font.pixelSize: 14
+        }
+        
+        function show() {
+            visible = true;
+            hideTimer.restart();
+        }
+        
+        Timer {
+            id: hideTimer
+            interval: 2000
+            onTriggered: {
+                copySuccessToast.visible = false;
+            }
+        }
+    }
     
     // 顶部控制栏
     RowLayout {
@@ -386,6 +452,10 @@ Window {
                 if (viewSize !== 2) {
                     showStatsOverlay = false;
                 }
+                // 延迟执行可见性检测，等待GridView完成布局更新
+                Qt.callLater(function() {
+                    videoGridView.checkVisibleItems();
+                });
             }
         }
         
@@ -410,6 +480,17 @@ Window {
         }
 
         Button {
+            text: "复制实例ID"
+            enabled: checkedInstanceIds.length > 0
+            onClicked: {
+                copyCheckedInstanceIds();
+            }
+            
+            ToolTip.visible: hovered
+            ToolTip.text: "复制选中的实例ID（逗号分隔）"
+        }
+
+        Button {
             text: "同步操作"
             enabled: checkedInstanceIds.length > 0
             onClicked: {
@@ -420,33 +501,29 @@ Window {
         }
 
         Button {
-            text: "暂停音视频流(部分)"
-            enabled: instanceIds.length >= 2
+            text: "暂停音视频流"
+            enabled: checkedInstanceIds.length > 0
             onClicked: {
-                // 获取前两个实例ID
-                var targetInstanceIds = instanceIds.slice(0, 2);
-                console.log("暂停音视频流，实例:", targetInstanceIds);
+                // 获取选中的实例ID
+                console.log("暂停音视频流，实例:", checkedInstanceIds);
                 
                 // 调用C++接口暂停流媒体
-                // 注意：需要在MultiStreamViewModel中添加对应的Q_INVOKABLE方法
                 if (multiInstanceViewModel.pauseStreaming) {
-                    multiInstanceViewModel.pauseStreaming(targetInstanceIds);
+                    multiInstanceViewModel.pauseStreaming(checkedInstanceIds);
                 }
             }
         }
 
         Button {
-            text: "恢复音视频流(部分)"
-            enabled: instanceIds.length >= 2
+            text: "恢复音视频流"
+            enabled: checkedInstanceIds.length > 0
             onClicked: {
-                // 获取前两个实例ID
-                var targetInstanceIds = instanceIds.slice(0, 2);
-                console.log("恢复音视频流，实例:", targetInstanceIds);
+                // 获取选中的实例ID
+                console.log("恢复音视频流，实例:", checkedInstanceIds);
                 
                 // 调用C++接口恢复流媒体
-                // 注意：需要在MultiStreamViewModel中添加对应的Q_INVOKABLE方法
                 if (multiInstanceViewModel.resumeStreaming) {
-                    multiInstanceViewModel.resumeStreaming(targetInstanceIds);
+                    multiInstanceViewModel.resumeStreaming(checkedInstanceIds);
                 }
             }
         }
@@ -506,7 +583,16 @@ Window {
             var invisibleIds = [];
             
             var cols = viewSizeColumns[viewSize];
-            if (cols <= 0) return;
+            if (cols <= 0) {
+                console.warn("[checkVisibleItems] 列数无效:", cols);
+                return;
+            }
+            
+            // 检查 GridView 是否已正确初始化
+            if (cellHeight <= 0 || height <= 0) {
+                console.warn("[checkVisibleItems] GridView 尺寸未初始化 - cellHeight:", cellHeight, "height:", height);
+                return;
+            }
             
             // 计算可见区域的行范围
             var startRow = Math.floor(contentY / cellHeight);
@@ -514,7 +600,12 @@ Window {
             
             // 转换为索引范围
             var startIndex = startRow * cols;
-            var endIndex = endRow * cols;
+            var endIndex = Math.min(endRow * cols, instanceConfigs.length); // 防止越界
+            
+            console.log("[checkVisibleItems] 检测参数 - contentY:", contentY, "height:", height, 
+                       "cellHeight:", cellHeight, "cols:", cols);
+            console.log("[checkVisibleItems] 可见行范围:", startRow, "-", endRow, 
+                       "索引范围:", startIndex, "-", endIndex);
             
             for (var i = 0; i < instanceConfigs.length; i++) {
                 var config = instanceConfigs[i];
@@ -541,7 +632,6 @@ Window {
             property string instanceId: modelData.instanceId
             property int instanceIndex: modelData.instanceIndex
             property int sessionIndex: modelData.sessionIndex
-            property string uniqueKey: instanceId + "_" + instanceIndex
             // 连接状态: 0=未连接, 1=连接中, 2=已连接
             property int connectionState: 0
             property bool isConnected: connectionState === 2
@@ -575,7 +665,7 @@ Window {
             // 视频渲染项
             VideoRenderItem {
                 id: videoRenderItem
-                objectName: "videoRenderItem_" + videoCell.uniqueKey
+                objectName: "videoRenderItem_" + videoCell.instanceId
                 
                 // 居中显示
                 anchors.centerIn: parent
@@ -615,10 +705,9 @@ Window {
                 
                 Component.onCompleted: {
                     console.log("Registering VideoRenderItem for instance:", 
-                               videoCell.instanceId, "index:", videoCell.instanceIndex)
+                               videoCell.instanceId)
                     multiInstanceViewModel.registerVideoRenderItem(
-                        videoCell.instanceId, 
-                        videoCell.instanceIndex, 
+                        videoCell.instanceId,
                         videoRenderItem
                     )
                 }
@@ -638,10 +727,7 @@ Window {
                 Connections {
                     target: multiInstanceViewModel
                     function onClientStatsChanged() {
-                        console.log("[MainWindow] clientStatsChanged 信号触发，实例:", videoCell.instanceId);
-                        // 手动更新统计数据
                         var newStats = multiInstanceViewModel.getInstanceStats(videoCell.instanceId);
-                        console.log("[MainWindow] 获取到的统计数据长度:", newStats.length);
                         if (newStats && newStats.length > 0) {
                             statsOverlay.clientStats = newStats;
                         }

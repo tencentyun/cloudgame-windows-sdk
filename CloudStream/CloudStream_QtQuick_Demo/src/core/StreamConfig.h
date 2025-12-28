@@ -76,6 +76,6 @@ private:
     // Sub stream parameters (default values)
     int m_subStreamWidth = 288;
     int m_subStreamFps = 1;
-    int m_subStreamMinBitrate = 10;
-    int m_subStreamMaxBitrate = 100;
+    int m_subStreamMinBitrate = 100;
+    int m_subStreamMaxBitrate = 200;
 };

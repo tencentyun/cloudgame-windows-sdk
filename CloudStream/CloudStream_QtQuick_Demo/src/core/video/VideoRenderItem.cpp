@@ -61,11 +61,6 @@ void VideoRenderItem::setFrame(VideoFrameDataPtr frame)
     
     // 更新视频宽高
     if (m_frame && (m_frame->width != m_videoWidth || m_frame->height != m_videoHeight)) {
-        Logger::info(QString("[VideoRenderItem::setFrame] Video size changed, "
-                           "this=%1, width=%2, height=%3")
-                   .arg(reinterpret_cast<quintptr>(this))
-                   .arg(m_frame->width)
-                   .arg(m_frame->height));
         m_videoWidth = m_frame->width;
         m_videoHeight = m_frame->height;
         emit videoSizeChanged();
@@ -142,10 +137,6 @@ QSGNode* VideoRenderItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData*
         if (!yuvNode) {
             delete oldNode;
             yuvNode = new YuvNode();
-            Logger::info(QString("[VideoRenderItem::updatePaintNode] Created new YuvNode, "
-                               "this=%1, thread_id=%2")
-                       .arg(reinterpret_cast<quintptr>(this))
-                       .arg(reinterpret_cast<quintptr>(QThread::currentThreadId())));
         }
         
         // 更新节点的帧数据和渲染尺寸

@@ -7,6 +7,7 @@
 #include <QDebug>
 #include <QMetaType>
 #include <QGuiApplication>
+#include <QClipboard>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
@@ -175,41 +176,64 @@ void MultiStreamViewModel::onVisibilityChanged(const QStringList& visibleIds, co
                 .arg(invisibleIds.length())
                 .arg(invisibleIds.join(", ")));
     
-    // 对可见实例恢复流媒体
-    if (!visibleIds.isEmpty()) {
-        resumeStreaming(visibleIds);
+    // 过滤出真正需要恢复的实例（从不可见变为可见）
+    QStringList idsToResume;
+    for (const QString& id : visibleIds) {
+        if (m_lastInvisibleIds.contains(id)) {
+            idsToResume.append(id);
+        }
     }
     
-    // 对不可见实例暂停流媒体
-    if (!invisibleIds.isEmpty()) {
-        pauseStreaming(invisibleIds);
+    // 过滤出真正需要暂停的实例（从可见变为不可见）
+    QStringList idsToPause;
+    for (const QString& id : invisibleIds) {
+        if (m_lastVisibleIds.contains(id)) {
+            idsToPause.append(id);
+        }
     }
+    
+    Logger::info(QString("需要恢复的实例 (%1): %2")
+                .arg(idsToResume.length())
+                .arg(idsToResume.join(", ")));
+    Logger::info(QString("需要暂停的实例 (%1): %2")
+                .arg(idsToPause.length())
+                .arg(idsToPause.join(", ")));
+    
+    // 对真正需要恢复的实例恢复流媒体
+    if (!idsToResume.isEmpty()) {
+        resumeStreaming(idsToResume);
+    }
+    
+    // 对真正需要暂停的实例暂停流媒体
+    if (!idsToPause.isEmpty()) {
+        pauseStreaming(idsToPause);
+    }
+    
+    // 更新上次的状态
+    m_lastVisibleIds = visibleIds;
+    m_lastInvisibleIds = invisibleIds;
 }
 
 // ==================== 视频渲染项注册 ====================
 
 void MultiStreamViewModel::registerVideoRenderItem(const QString& instanceId,
-                                                   int instanceIndex, 
                                                    QObject* item)
 {
     auto vrItem = qobject_cast<VideoRenderItem*>(item);
     if (!vrItem) {
-        Logger::warning(QString("[registerVideoRenderItem] 类型转换失败: %1_%2")
-                       .arg(instanceId).arg(instanceIndex));
+        Logger::warning(QString("[registerVideoRenderItem] 类型转换失败: %1")
+                       .arg(instanceId));
         return;
     }
     
-    // 使用 "instanceId_instanceIndex" 作为唯一标识
-    // 这个标识符与 TcrSdk 视频帧回调中的 instance_id 和 instance_index 对应
-    QString uniqueKey = QString("%1_%2").arg(instanceId).arg(instanceIndex);
-    
+    // 使用 instanceId 作为唯一标识
     // 加锁保护 m_videoRenderItems 的写操作
     {
         QMutexLocker locker(&m_videoRenderItemsMutex);
-        m_videoRenderItems[uniqueKey] = vrItem;
+        m_videoRenderItems[instanceId] = vrItem;
     }
     
-    Logger::debug(QString("[registerVideoRenderItem] 注册成功: %1").arg(uniqueKey));
+    Logger::debug(QString("[registerVideoRenderItem] 注册成功: %1").arg(instanceId));
 }
 
 // ==================== 批量渲染处理 ====================
@@ -229,15 +253,15 @@ void MultiStreamViewModel::batchRenderFrames()
     // 步骤2：批量渲染所有缓存的帧（需要加锁访问 m_videoRenderItems）
     int renderedCount = 0;
     for (auto it = framesToRender.begin(); it != framesToRender.end(); ++it) {
-        const QString& uniqueKey = it.key();
+        const QString& instanceId = it.key();
         VideoFrameDataPtr frame = it.value();
         
         // 加锁检查渲染项是否仍然有效
         QPointer<VideoRenderItem> renderItem;
         {
             QMutexLocker locker(&m_videoRenderItemsMutex);
-            if (m_videoRenderItems.contains(uniqueKey)) {
-                renderItem = m_videoRenderItems[uniqueKey];
+            if (m_videoRenderItems.contains(instanceId)) {
+                renderItem = m_videoRenderItems[instanceId];
             }
         }
         
@@ -592,10 +616,7 @@ void MultiStreamViewModel::SessionEventCallback(void* user_data,
                 // 发送会话关闭信号（用于弹出对话框）
                 emit self->sessionClosed(sessionIndex, sessionInfo.instanceIds, eventDataCopy);
                 break;
-            case TCR_SESSION_EVENT_CLIENT_STATS:
-                Logger::info(QString("[SessionEventCallback] 会话 %1 统计数据: %2")
-                             .arg(sessionIndex).arg(eventDataCopy));
-                // 更新统计数据（包含帧率、码率、延迟等信息）
+            case TCR_SESSION_EVENT_CLIENT_STATS: // 更新统计数据（包含帧率、码率、延迟等信息）
                 self->m_clientStats = eventDataCopy;
                 emit self->clientStatsChanged();
                 break;
@@ -642,15 +663,11 @@ void MultiStreamViewModel::VideoFrameCallback(void* user_data,
     // 重要：instance_id 指针来自 TcrSdk 内部，可能随时失效
     // 必须在使用前立即复制到 QString 中
     QString instanceId;
-    QString uniqueKey;
-    int instanceIndex = 0;
     
     try {
         // 防御性编程：检查指针有效性
         if (frame_buffer->instance_id) {
             instanceId = QString::fromUtf8(frame_buffer->instance_id);
-            instanceIndex = frame_buffer->instance_index;
-            uniqueKey = QString("%1_%2").arg(instanceId).arg(instanceIndex);
         } else {
             Logger::warning("[VideoFrameCallback] instance_id 为空指针");
             return;
@@ -683,13 +700,13 @@ void MultiStreamViewModel::VideoFrameCallback(void* user_data,
         }
         
         // 检查是否有对应的渲染项
-        if (self->m_videoRenderItems.contains(uniqueKey)) {
-            QPointer<VideoRenderItem> renderItem = self->m_videoRenderItems[uniqueKey];
+        if (self->m_videoRenderItems.contains(instanceId)) {
+            QPointer<VideoRenderItem> renderItem = self->m_videoRenderItems[instanceId];
             if (renderItem) {
                 hasValidRenderItem = true;
             } else {
                 // 对象已被销毁，从映射中移除
-                self->m_videoRenderItems.remove(uniqueKey);
+                self->m_videoRenderItems.remove(instanceId);
             }
         }
     }
@@ -758,6 +775,17 @@ void MultiStreamViewModel::VideoFrameCallback(void* user_data,
         QMutexLocker locker(&self->m_frameCacheMutex);
         
         // 如果已有旧帧，会自动释放（智能指针）
-        self->m_frameCache[uniqueKey] = frameDataPtr;
+        self->m_frameCache[instanceId] = frameDataPtr;
+    }
+}
+
+void MultiStreamViewModel::copyToClipboard(const QString& text)
+{
+    QClipboard* clipboard = QGuiApplication::clipboard();
+    if (clipboard) {
+        clipboard->setText(text);
+        qDebug() << "Text copied to clipboard:" << text;
+    } else {
+        qWarning() << "Failed to access clipboard";
     }
 }

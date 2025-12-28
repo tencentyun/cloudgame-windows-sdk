@@ -232,8 +232,6 @@ void YuvMaterial::uploadTextures(const uint8_t* DataY,
                         height != m_size.height();
 
     if (needRecreate) {
-        Logger::info(QString("Frame size changed or first frame, recreating dynamic textures: %1x%2")
-                     .arg(width).arg(height));
         clear();  // 清理旧纹理
         
         // 创建动态纹理对象（只在尺寸变化时创建一次）

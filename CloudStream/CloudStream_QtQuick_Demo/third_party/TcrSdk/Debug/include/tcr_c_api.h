@@ -35,37 +35,40 @@
  *
  * -------------------- 代码示例 --------------------
  * 
- *   TcrConfig config = tcr_config_default();
- *   config.token = tokenResult.token.c_str();
- *   config.accessInfo = tokenResult.accessInfo.c_str();
+ *   TcrConfig config = tcr_session_config_default();;
+ *   config.Token = tokenResult.token.c_str();
+ *   config.AccessInfo = tokenResult.accessInfo.c_str();
  * 
  *   // 1. 初始化
  *   TcrClientHandle tcrClient = tcr_client_get_instance();
  *   tcr_client_init(tcrClient, &config);
  * 
- *   // 2. 创建串流会话
- *   TcrSessionConfig session_config = tcr_session_config_default();
- *   TcrSessionHandle tcrSession = tcr_client_create_session(tcrClient, &session_config);
+ *   // 2. 获取小流截图
+ *   char buffer[2048];
+ *   TcrAndroidInstance instance = tcr_client_get_android_instance(tcrClient);
+ *   tcr_instance_get_image(instance, buffer, 2048, instanceIds[0].c_str(), 0, 0, 0);
  * 
- *   // 3. 设置视频帧回调
- *   static TcrVideoFrameObserver video_observer = tcr_video_frame_observer_default();
+ *   // 3. 创建串流会话
+ *   TcrSessionHandle tcrSession = tcr_client_create_session(tcrClient);
+ * 
+ *   // 4. 连接实例
+ *   tcr_session_access(tcrSession, instanceIds, 1, false);
+ * 
+ *   // 5. 设置视频帧回调
+ *   static TcrVideoFrameObserver video_observer;
  *   video_observer.user_data = this;
  *   video_observer.on_frame = VideoFrameCallback;
  *   tcr_session_set_video_frame_observer(tcrSession, &video_observer);
  * 
- *   // 4. 设置事件回调
- *   static TcrSessionObserver session_observer = tcr_session_observer_default();
+ *   // 6. 设置事件回调
+ *   static TcrSessionObserver session_observer;
  *   session_observer.user_data = this;
  *   session_observer.on_event = SessionEventCallback;
  *   tcr_session_set_observer(tcrSession, &session_observer);
  * 
- *   // 5. 连接实例
- *   const char* instanceIds[] = {"cai-xxx-001"};
- *   tcr_session_access(tcrSession, instanceIds, 1, false);
+ *   // ... 业务操作 ...
  * 
- *   // 6. 清理回调并销毁会话
- *   tcr_session_set_video_frame_observer(tcrSession, NULL);
- *   tcr_session_set_observer(tcrSession, NULL);
+ *   // 7. 销毁会话
  *   tcr_client_destroy_session(tcrClient, tcrSession);
  *
  * --------------------------------------------------
@@ -945,7 +948,8 @@ TCRSDK_API void tcr_session_access(TcrSessionHandle session, const char** instan
  * 
  * // 在视频帧回调中区分不同实例的流
  * void VideoFrameCallback(void* user_data, TcrVideoFrameHandle frame_handle) {
- *     const char* instance_id = tcr_video_frame_get_instance_id(frame_handle);
+ *     const TcrVideoFrameBuffer* buffer = tcr_video_frame_get_buffer(frame_handle);
+ *     const char* instance_id = buffer->instance_id;
  *     // 根据instance_id处理不同实例的视频帧
  * }
  * @endcode
@@ -992,11 +996,8 @@ TCRSDK_API void tcr_session_resume_streaming(TcrSessionHandle session, const cha
  * @param fps 视频帧率（可选参数，设置为 0 或负数表示不设置此参数，有效范围：1-60）
  * @param minBitrate 最小码率（可选参数，单位 kbps，设置为 0 或负数表示不设置码率参数，需与 maxBitrate 同时设置）
  * @param maxBitrate 最大码率（可选参数，单位 kbps，设置为 0 或负数表示不设置码率参数，需与 minBitrate 同时设置）
- * @param video_width 视频宽度（可选参数，单位 px）。配合video_height使用：
- *                    - 当 video_width > 0 && video_height > 0 时：配置视频流的分辨率为宽video_width、高video_height
- *                    - 当 video_width > 0 && video_height = 0 时：短边固定为video_width，长边自适应
- *                    - 当 video_width = 0 && video_height > 0 时：长边固定为video_height，短边自适应
- * @param video_height 视频高度（可选参数，单位 px）。配合video_width使用，具体规则见video_width参数说明
+ * @param video_width 视频宽度（可选参数，单位 px）。0表示以高度为准，宽度等比拉伸；正数表示指定宽度
+ * @param video_height 视频高度（可选参数，单位 px）。0表示以宽度为准，高度等比拉伸；正数表示指定高度
  * @param instanceIds 实例ID数组，可选，为NULL时对所有实例生效
  * @param instance_count 实例ID数组长度，当instanceIds为NULL时此参数无效
  * 
