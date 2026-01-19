@@ -1,5 +1,13 @@
 # Release Notes
 
+## Version 1.18.14
+### Bugfix
+- 修复崩溃问题
+
+### Download
+- [TcrSdk-Debug-1.18.14-20260120-224e08f74.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Debug-1.18.14-20260120-224e08f74.zip)
+- [TcrSdk-Release-1.18.14-20260120-224e08f74.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Release-1.18.14-20260120-224e08f74.zip)
+
 ## Version 1.18.13
 ### Features
 - 优化首帧耗时&支持内部重连
