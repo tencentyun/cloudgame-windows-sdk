@@ -1,12 +1,12 @@
 # Release Notes
 
-## Version 1.18.15
+## Version 1.18.16
 ### Bugfix
 - 修复崩溃问题
 
 ### Download
-- [TcrSdk-Debug-1.18.15-20260121-9291c3898.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Debug-1.18.15-20260121-9291c3898.zip)
-- [TcrSdk-Release-1.18.15-20260121-9291c3898.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Release-1.18.15-20260121-9291c3898.zip)
+- [TcrSdk-Debug-1.18.16-20260121-5e63ec879.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Debug-1.18.16-20260121-5e63ec879.zip)
+- [TcrSdk-Release-1.18.16-20260121-5e63ec879.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Release-1.18.16-20260121-5e63ec879.zip)
 
 ## Version 1.18.13
 ### Features
