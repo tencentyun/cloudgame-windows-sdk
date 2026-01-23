@@ -908,14 +908,9 @@ TCRSDK_API void tcr_session_access(TcrSessionHandle session, const char** instan
  * @param session 会话句柄
  * @param instanceIds 云端实例ID数组
  * @param length 实例ID数组长度
- * @param defaultStreamingInstanceIds 默认出流的实例ID数组（可选，必须是instanceIds的子集）
- * @param defaultStreamingLength 默认出流实例ID数组长度（当defaultStreamingInstanceIds为NULL时此参数无效）
  * 
- * @note 出流控制说明：
- *   - **默认情况下，连接的实例不会自动出流**
- *   - 需要调用 tcr_session_resume_streaming 并传入需要出流的实例列表才会开始出流
- *   - 如果提供了 defaultStreamingInstanceIds 参数，这些实例将在连接后自动开始出流，无需再调用 tcr_session_resume_streaming
- *   - defaultStreamingInstanceIds 中的实例ID必须是 instanceIds 的子集，否则将被忽略
+ * @note 拉流控制说明：
+ *   - 连接后可通过 tcr_session_switch_streaming_instances 动态切换拉流实例列表
  * 
  * @note 使用限制：
  *   - 每个实例的视频流通过tcr_session_set_video_frame_observer回调
@@ -953,9 +948,50 @@ TCRSDK_API void tcr_session_access(TcrSessionHandle session, const char** instan
 TCRSDK_API void tcr_session_access_multi_stream(
     TcrSessionHandle session, 
     const char** instanceIds, 
-    int32_t length,
-    const char** defaultStreamingInstanceIds = NULL,
-    int32_t defaultStreamingLength = 0
+    int32_t length
+);
+
+/**
+ * @brief 动态切换多实例场景下的拉流实例列表
+ * 
+ * 该接口用于在已通过 tcr_session_access_multi_stream 连接多个实例后，
+ * 动态切换当前正在拉流的实例列表。
+ * 
+ * @param session 会话句柄
+ * @param streamingInstanceIds 需要拉流的实例ID数组，必须是 tcr_session_access_multi_stream 
+ *                             中 instanceIds 参数的子集
+ * @param streamingLength 拉流实例ID数组长度，不能超过会话配置中的 concurrentStreamingInstances
+ *                        （通过 TcrSessionConfig.concurrentStreamingInstances 配置）
+ * 
+ * @note 使用说明：
+ *   - 该接口仅在通过 tcr_session_access_multi_stream 连接多实例后才能调用
+ *   - streamingInstanceIds 中的所有实例ID必须在 tcr_session_access_multi_stream 的 instanceIds 中
+ *   - streamingLength 不能超过会话配置的 concurrentStreamingInstances 限制，
+ *     超过限制的请求将被拒绝
+ *   - 调用后，之前正在拉流但不在新列表中的实例会停止拉流
+ *   - 新列表中之前未拉流的实例会开始拉流
+ *   - 传入空列表（streamingLength=0）会停止所有实例的拉流
+ * 
+ * @warning 注意事项：
+ *   - 频繁切换拉流列表可能导致短暂的视频中断
+ *   - 建议根据实际业务需求合理控制切换频率
+ * 
+ * @example 典型用法
+ * @code
+ * // 1. 首先连接多个实例
+ * const char* all_instances[] = {"cai-001", "cai-002", "cai-003", "cai-004"};
+ * const char* default_streaming[] = {"cai-001", "cai-002"};
+ * tcr_session_access_multi_stream(session, all_instances, 4, default_streaming, 2);
+ * 
+ * // 2. 业务逻辑中动态切换拉流列表
+ * const char* new_streaming[] = {"cai-003", "cai-004"};
+ * tcr_session_switch_streaming_instances(session, new_streaming, 2);
+ * @endcode
+ */
+TCRSDK_API void tcr_session_switch_streaming_instances(
+    TcrSessionHandle session,
+    const char** streamingInstanceIds,
+    int32_t streamingLength
 );
 
 /**

@@ -3,6 +3,18 @@
 
 #include <stdint.h>
 
+/**
+ * @brief 多实例场景下同时拉流的最大实例数量
+ * 
+ * 该常量定义了在调用 tcr_session_access_multi_stream 或 tcr_session_switch_streaming_instances
+ * 时，允许同时拉流的实例数量上限。超过此限制的请求将被拒绝。
+ * 
+ * @note 该限制主要考虑：
+ *   - 客户端带宽和解码能力
+ *   - 服务端资源分配
+ */
+#define TCR_MAX_CONCURRENT_STREAMING_INSTANCES 100
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -348,8 +360,13 @@ typedef struct {
                                       ///< 渲染时必须根据frame_buffer.type字段判断实际的缓冲区类型：
                                       ///< - D3D11类型：使用标准RGBA纹理shader渲染，无需YUV转换
                                       ///< - I420类型：需要在shader中进行YUV到RGB的颜色空间转换
-    int32_t firstFrameTimeoutMs;      ///< 首帧超时时间（毫秒），默认值为10000（10秒）
-                                      ///< 如果在此时间内未收到首帧，将触发超时处理
+                                      
+    int32_t concurrentStreamingInstances; ///< 多实例场景下同时拉流的最大实例数量，
+                                      ///< 范围：1 到 TCR_MAX_CONCURRENT_STREAMING_INSTANCES, 值越小性能开销越小
+                                      ///< 默认值：1
+                                      ///< 
+                                      ///< @note 该配置会限制 tcr_session_switch_streaming_instances 接口
+                                      ///<       切换的实例数量，切换时传入的实例数不能超过此配置值
 } TcrSessionConfig;
 
 /**
@@ -396,8 +413,8 @@ static inline TcrSessionConfig tcr_session_config_default(void) {
 
     config.statsInterval = 1;
     
-    // 首帧超时时间默认25秒
-    config.firstFrameTimeoutMs = 25000;
+    // 默认最大同时拉流实例数为100
+    config.concurrentStreamingInstances = 1;
     
     return config;
 }
@@ -724,21 +741,32 @@ typedef enum {
     TCR_SESSION_EVENT_REMOTE_DESKTOP_INFO = 13,
 
     /**
-     * @brief 首帧超时。
-     * 事件数据类型JSON格式字符串：
-     * @code{.json}
-     * {
-     *     "instance_id": string  // 实例ID
-     * }
-     * @endcode
-     */
-    TCR_SESSION_EVENT_FIRST_FRAME_TIMEOUT = 14,
-
-    /**
      * @brief 连接正在重连。
      * 该事件无关联数据。
      */
-    TCR_SESSION_EVENT_RECONNECTING = 15,
+    TCR_SESSION_EVENT_RECONNECTING = 14,
+
+    /**
+     * @brief 实例断开连接通知。
+     * 当使用tcr_session_access_multi_stream连接多个实例时，如果某些实例断开了连接，将触发此事件。
+     * 客户端可以自行选择是否提示用户有实例断开，或者重新调用tcr_session_access_multi_stream重新连接。
+     * 事件数据类型JSON格式字符串：
+     * @code{.json}
+     * {
+     *     "user_list": [string]  // 断开连接的实例ID列表
+     * }
+     * @endcode
+     * @note 该事件仅在多实例场景（tcr_session_access_multi_stream）下触发
+     */
+    TCR_SESSION_EVENT_STREAMING_DISCONNECT = 15,
+
+    /**
+     * @brief 服务端推流成功事件。
+     * 表示客户端在连接完成后，成功收到服务端推流数据。
+     * 
+     * 该事件无关联数据。
+     */
+    TCR_SESSION_EVENT_SERVER_STREAMING_STARTED = 16,
 } TcrSessionEvent;
 
 /**

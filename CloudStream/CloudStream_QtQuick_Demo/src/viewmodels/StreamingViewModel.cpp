@@ -9,6 +9,30 @@
 #include <QMetaType>
 #include <QGuiApplication>
 
+// ==================== 常量定义 ====================
+
+namespace {
+    // Android 按键码定义
+    constexpr int32_t KEYCODE_BACK = 158;      // 返回键
+    constexpr int32_t KEYCODE_HOME = 172;      // Home键
+    constexpr int32_t KEYCODE_MENU = 139;      // 菜单键
+    constexpr int32_t KEYCODE_VOLUME_UP = 58;  // 音量加
+    constexpr int32_t KEYCODE_VOLUME_DOWN = 59;// 音量减
+    
+    // 数据通道配置
+    constexpr int32_t DATA_CHANNEL_PORT = 23332;
+    constexpr char DATA_CHANNEL_TYPE[] = "android";
+    
+    // 旋转角度映射
+    constexpr qreal ROTATION_0_DEGREE = 0.0;
+    constexpr qreal ROTATION_90_DEGREE = 90.0;
+    constexpr qreal ROTATION_180_DEGREE = 180.0;
+    constexpr qreal ROTATION_270_DEGREE = 270.0;
+    
+    // RequestId 缓冲区大小
+    constexpr size_t REQUEST_ID_BUFFER_SIZE = 256;
+}
+
 // ==================== 构造与析构 ====================
 
 StreamingViewModel::StreamingViewModel(QObject *parent)
@@ -33,27 +57,55 @@ StreamingViewModel::StreamingViewModel(QObject *parent)
 
 StreamingViewModel::~StreamingViewModel()
 {
+    Logger::info("[~StreamingViewModel] 开始析构");
+    
+    // 【步骤1】设置销毁标志，防止回调继续处理
+    m_isDestroying.store(true, std::memory_order_release);
+    
+    // 【步骤2】断开信号连接，防止悬空指针
+    if (m_videoRenderItem) {
+        disconnect(this, &StreamingViewModel::newVideoFrame,
+                   m_videoRenderItem, &VideoRenderPaintedItem::setFrame);
+        Logger::info(QString("[~StreamingViewModel] 已断开渲染组件连接: %1")
+                         .arg(m_videoRenderItem->objectName()));
+    }
+    
+    // 【步骤3】关闭会话并释放资源
     closeSession();
+    
+    Logger::info("[~StreamingViewModel] 析构完成");
 }
 
 // ==================== 视频渲染相关 ====================
 
 void StreamingViewModel::setVideoRenderItem(VideoRenderPaintedItem* item)
 {
-    m_videoRenderItem = item;
+    // 【步骤1】断开旧连接，防止悬空指针
     if (m_videoRenderItem) {
-        // 使用 QueuedConnection 确保线程安全
+        disconnect(this, &StreamingViewModel::newVideoFrame,
+                   m_videoRenderItem, &VideoRenderPaintedItem::setFrame);
+        Logger::info(QString("[setVideoRenderItem] 断开旧渲染组件: %1")
+                         .arg(m_videoRenderItem->objectName()));
+    }
+    
+    // 【步骤2】设置新的渲染组件
+    m_videoRenderItem = item;
+    
+    if (m_videoRenderItem) {
+        // 使用 QueuedConnection | UniqueConnection 确保线程安全且防止重复连接
         // 视频帧从解码线程 -> 主线程 -> 渲染线程
         connect(this, &StreamingViewModel::newVideoFrame,
                 m_videoRenderItem, &VideoRenderPaintedItem::setFrame,
-                Qt::QueuedConnection);
+                static_cast<Qt::ConnectionType>(Qt::QueuedConnection | Qt::UniqueConnection));
         
-            m_videoRenderItem->setRotationAngle(m_currentRotationAngle, m_currentVideoWidth, m_currentVideoHeight);
-            Logger::info(QString("[setVideoRenderItem] 应用旋转角度 %1 到新实例: %2, 视频尺寸: %3x%4")
-                             .arg(m_currentRotationAngle)
-                             .arg(m_videoRenderItem->objectName())
-                             .arg(m_currentVideoWidth)
-                             .arg(m_currentVideoHeight));
+        m_videoRenderItem->setRotationAngle(m_currentRotationAngle, m_currentVideoWidth, m_currentVideoHeight);
+        Logger::info(QString("[setVideoRenderItem] 已连接新渲染组件: %1, 旋转角度: %2°, 视频尺寸: %3x%4")
+                         .arg(m_videoRenderItem->objectName())
+                         .arg(m_currentRotationAngle)
+                         .arg(m_currentVideoWidth)
+                         .arg(m_currentVideoHeight));
+    } else {
+        Logger::info("[setVideoRenderItem] 渲染组件已置空");
     }
 }
 
@@ -109,6 +161,8 @@ void StreamingViewModel::connectSession(const QVariantList& instanceIds, bool is
 void StreamingViewModel::closeSession()
 {
     if (m_session) {
+        Logger::info("[closeSession] 开始关闭会话");
+        
         // 【步骤1】取消观察者（防止回调访问已释放的对象）
         // SDK API: tcr_session_set_observer(session, nullptr)
         tcr_session_set_observer(m_session, nullptr);
@@ -121,7 +175,11 @@ void StreamingViewModel::closeSession()
         if (m_tcrClient) {
             tcr_client_destroy_session(m_tcrClient, m_session);
         }
+        
+        // 【步骤3】重置状态
         m_session = nullptr;
+        m_sessionConnected = false;
+        m_dataChannel = nullptr;
     }
 }
 
@@ -233,57 +291,53 @@ void StreamingViewModel::sendTouchEvent(int x, int y, int width, int height,
 
 // ==================== 系统按键 ====================
 
+// 辅助函数：发送按键事件（按下+抬起）
+void StreamingViewModel::sendKeyEvent(int32_t keycode)
+{
+    if (!isSessionReady()) {
+        return;
+    }
+    
+    // SDK API: tcr_session_send_keyboard_event(session, keycode, down)
+    tcr_session_send_keyboard_event(m_session, keycode, true);   // 按下
+    tcr_session_send_keyboard_event(m_session, keycode, false);  // 抬起
+}
+
+bool StreamingViewModel::isSessionReady() const
+{
+    return m_session && m_sessionConnected;
+}
+
 void StreamingViewModel::onBackClicked()
 {
-    if (m_session && m_sessionConnected) {
-        // SDK API: tcr_session_send_keyboard_event(session, keycode, down)
-        // Keycode 158 = 返回键
-        tcr_session_send_keyboard_event(m_session, 158, true);   // 按下
-        tcr_session_send_keyboard_event(m_session, 158, false);  // 抬起
-    }
+    sendKeyEvent(KEYCODE_BACK);
 }
 
 void StreamingViewModel::onHomeClicked()
 {
-    if (m_session && m_sessionConnected) {
-        // Keycode 172 = Home 键
-        tcr_session_send_keyboard_event(m_session, 172, true);
-        tcr_session_send_keyboard_event(m_session, 172, false);
-    }
+    sendKeyEvent(KEYCODE_HOME);
 }
 
 void StreamingViewModel::onMenuClicked()
 {
-    if (m_session && m_sessionConnected) {
-        // Keycode 139 = 菜单键
-        tcr_session_send_keyboard_event(m_session, 139, true);
-        tcr_session_send_keyboard_event(m_session, 139, false);
-    }
+    sendKeyEvent(KEYCODE_MENU);
 }
 
 void StreamingViewModel::onVolumUp()
 {
-    if (m_session && m_sessionConnected) {
-        // Keycode 58 = 音量加
-        tcr_session_send_keyboard_event(m_session, 58, true);
-        tcr_session_send_keyboard_event(m_session, 58, false);
-    }
+    sendKeyEvent(KEYCODE_VOLUME_UP);
 }
 
 void StreamingViewModel::onVolumDown()
 {
-    if (m_session && m_sessionConnected) {
-        // Keycode 59 = 音量减
-        tcr_session_send_keyboard_event(m_session, 59, true);
-        tcr_session_send_keyboard_event(m_session, 59, false);
-    }
+    sendKeyEvent(KEYCODE_VOLUME_DOWN);
 }
 
 // ==================== 流控制 ====================
 
 void StreamingViewModel::onPauseVideoStreamClicked()
 {
-    if (!m_session || !m_sessionConnected) {
+    if (!isSessionReady()) {
         Logger::debug("[onPauseVideoStreamClicked] session not ready");
         return;
     }
@@ -293,7 +347,7 @@ void StreamingViewModel::onPauseVideoStreamClicked()
 
 void StreamingViewModel::onResumeVideoStreamClicked()
 {
-    if (!m_session || !m_sessionConnected) {
+    if (!isSessionReady()) {
         Logger::debug("[onResumeVideoStreamClicked] session not ready");
         return;
     }
@@ -303,7 +357,7 @@ void StreamingViewModel::onResumeVideoStreamClicked()
 
 void StreamingViewModel::onPauseAudioStreamClicked()
 {
-    if (!m_session || !m_sessionConnected) {
+    if (!isSessionReady()) {
         Logger::debug("[onPauseAudioStreamClicked] session not ready");
         return;
     }
@@ -313,8 +367,8 @@ void StreamingViewModel::onPauseAudioStreamClicked()
 
 void StreamingViewModel::onResumeAudioStreamClicked()
 {
-    if (!m_session || !m_sessionConnected) {
-        Logger::debug("[onPauseAudioStreamClicked] session not ready");
+    if (!isSessionReady()) {
+        Logger::debug("[onResumeAudioStreamClicked] session not ready");
         return;
     }
     // SDK API: 恢复音频推流
@@ -325,7 +379,7 @@ void StreamingViewModel::onResumeAudioStreamClicked()
 
 void StreamingViewModel::onEnableCameraClicked()
 {
-    if (!m_session || !m_sessionConnected) {
+    if (!isSessionReady()) {
         Logger::debug("[onEnableCameraClicked] session not ready");
         return;
     }
@@ -335,7 +389,7 @@ void StreamingViewModel::onEnableCameraClicked()
 
 void StreamingViewModel::onDisableCameraClicked()
 {
-    if (!m_session || !m_sessionConnected) {
+    if (!isSessionReady()) {
         Logger::debug("[onDisableCameraClicked] session not ready");
         return;
     }
@@ -345,7 +399,7 @@ void StreamingViewModel::onDisableCameraClicked()
 
 void StreamingViewModel::onEnableMicrophoneClicked()
 {
-    if (!m_session || !m_sessionConnected) {
+    if (!isSessionReady()) {
         Logger::debug("[onEnableMicrophoneClicked] session not ready");
         return;
     }
@@ -355,7 +409,7 @@ void StreamingViewModel::onEnableMicrophoneClicked()
 
 void StreamingViewModel::onDisableMicrophoneClicked()
 {
-    if (!m_session || !m_sessionConnected) {
+    if (!isSessionReady()) {
         Logger::debug("[onDisableMicrophoneClicked] session not ready");
         return;
     }
@@ -365,7 +419,7 @@ void StreamingViewModel::onDisableMicrophoneClicked()
 
 void StreamingViewModel::onVideoStreamSettingsClicked()
 {
-    if (!m_session || !m_sessionConnected) {
+    if (!isSessionReady()) {
         Logger::debug("[onVideoStreamSettingsClicked] session not ready");
         return;
     }
@@ -374,7 +428,7 @@ void StreamingViewModel::onVideoStreamSettingsClicked()
 
 void StreamingViewModel::enableCameraWithDevice(const QString& deviceId)
 {
-    if (!m_session || !m_sessionConnected) {
+    if (!isSessionReady()) {
         Logger::debug("[enableCameraWithDevice] session not ready");
         return;
     }
@@ -414,11 +468,6 @@ void StreamingViewModel::enableCameraWithDevice(const QString& deviceId)
 
 /**
  * @brief 会话事件回调（SDK 内部线程调用）
- * 
- * 处理流程：
- *   1. 在 SDK 线程中接收事件
- *   2. 通过 QMetaObject::invokeMethod 切换到主线程
- *   3. 在主线程中处理业务逻辑
  */
 void StreamingViewModel::SessionEventCallback(void* user_data,
                                               TcrSessionEvent event,
@@ -427,171 +476,201 @@ void StreamingViewModel::SessionEventCallback(void* user_data,
     StreamingViewModel* self = static_cast<StreamingViewModel*>(user_data);
     QString eventDataCopy = eventData ? QString::fromUtf8(eventData) : QString();
 
-    // 切换到主线程处理
-    QMetaObject::invokeMethod(self, [self, event, eventDataCopy]() {
+    // 【事件1：连接成功】
+    if (event == TCR_SESSION_EVENT_STATE_CONNECTED) {
+        self->handleSessionConnected();
+    } 
+    // 【事件2：摄像头状态变化】
+    else if (event == TCR_SESSION_EVENT_CAMERA_STATUS) {
+        self->handleCameraStatusChange(eventDataCopy);
+    } 
+    // 【事件3：统计数据更新】
+    else if (event == TCR_SESSION_EVENT_CLIENT_STATS) {
+        self->handleClientStatsUpdate(eventDataCopy);
+    } 
+    // 【事件4：连接断开】
+    else if (event == TCR_SESSION_EVENT_STATE_CLOSED) {
+        self->handleSessionClosed(eventDataCopy);
+    } 
+    // 【事件5：屏幕配置变化】
+    else if (event == TCR_SESSION_EVENT_SCREEN_CONFIG_CHANGE) {
+        self->handleScreenConfigChange(eventDataCopy);
+    }
+}
+
+void StreamingViewModel::handleSessionConnected()
+{
+    // RequestId 是前后台服务端中全链路标识当次请求的ID，客户端需要记录并上报该ID, 用于反馈给开发团队进行问题排查和定位。
+    char requestIdBuffer[REQUEST_ID_BUFFER_SIZE] = {0};
+    if (tcr_session_get_request_id(m_session, requestIdBuffer, sizeof(requestIdBuffer))) {
+        Logger::info(QString("[handleSessionConnected] 会话连接成功, RequestId: %1").arg(requestIdBuffer));
+    } else {
+        Logger::info("[handleSessionConnected] 会话连接成功");
+    }
+    
+    m_sessionConnected = true;
+    
+    // 创建自定义数据通道
+    createDataChannel();
+}
+
+void StreamingViewModel::handleCameraStatusChange(const QString& eventData)
+{
+    QJsonDocument doc = QJsonDocument::fromJson(eventData.toUtf8());
+    if (doc.isObject()) {
+        QString status = doc.object().value("status").toString();
+        Logger::info(QString("[云端摄像头状态变更] 最新状态:%1").arg(status));
+    }
+}
+
+void StreamingViewModel::handleClientStatsUpdate(const QString& eventData)
+{
+    // 更新统计数据（包含帧率、码率、延迟等信息）
+    m_clientStats = eventData;
+    emit clientStatsChanged();
+}
+
+void StreamingViewModel::handleSessionClosed(const QString& eventData)
+{
+    m_sessionConnected = false;
+    Logger::error("[handleSessionClosed] 会话断开: " + eventData);
+}
+
+void StreamingViewModel::handleScreenConfigChange(const QString& eventData)
+{
+    Logger::info("[handleScreenConfigChange] 屏幕配置变化: " + eventData);
+    
+    QJsonDocument doc = QJsonDocument::fromJson(eventData.toUtf8());
+    if (!doc.isObject()) {
+        Logger::warning("[handleScreenConfigChange] 屏幕配置变化数据解析失败");
+        return;
+    }
+    
+    QJsonObject obj = doc.object();
+    int width = obj.value("width").toInt();
+    int height = obj.value("height").toInt();
+    QString degree = obj.value("degree").toString();
+    
+    // 判断横竖屏：width > height 为横屏
+    bool isLandscape = (width > height);
+    
+    // 解析云端旋转角度并转换为客户端旋转角度
+    qreal rotationAngle = mapCloudRotationToClient(degree);
+    
+    Logger::info(QString("[handleScreenConfigChange] 屏幕方向变化: width=%1, height=%2, degree=%3, isLandscape=%4, rotationAngle=%5")
+                        .arg(width)
+                        .arg(height)
+                        .arg(degree)
+                        .arg(isLandscape ? "true" : "false")
+                        .arg(rotationAngle));
+    
+    // 保存当前旋转角度和视频流尺寸
+    m_currentRotationAngle = rotationAngle;
+    m_currentVideoWidth = width;
+    m_currentVideoHeight = height;
+    
+    // 设置视频渲染组件的旋转角度
+    if (m_videoRenderItem) {
+        m_videoRenderItem->setRotationAngle(rotationAngle, width, height);
+        Logger::info(QString("[handleScreenConfigChange] 已设置视频旋转角度: %1 到实例: %2, 视频尺寸: %3x%4")
+                            .arg(rotationAngle)
+                            .arg(m_videoRenderItem->objectName())
+                            .arg(width)
+                            .arg(height));
+    } else {
+        Logger::warning("[handleScreenConfigChange] m_videoRenderItem 为空，无法设置旋转角度");
+    }
+    
+    // 发射信号通知 QML 层屏幕方向变化
+    emit screenOrientationChanged(isLandscape);
+}
+
+qreal StreamingViewModel::mapCloudRotationToClient(const QString& cloudDegree)
+{
+    // 坐标转换逻辑说明：
+    // 云端手机的 degree 表示其屏幕旋转方向，但客户端需要反向旋转才能正确显示
+    // 例如：云端旋转90度（degree="90_degree"），客户端需要旋转270度来抵消
+    // 
+    // 映射关系：
+    //   云端 0度   -> 客户端 0度   (无旋转)
+    //   云端 90度  -> 客户端 270度 (逆时针90度)
+    //   云端 180度 -> 客户端 180度 (旋转180度)
+    //   云端 270度 -> 客户端 90度  (顺时针90度)
+    
+    if (cloudDegree.contains("90")) {
+        return ROTATION_270_DEGREE;
+    } else if (cloudDegree.contains("180")) {
+        return ROTATION_180_DEGREE;
+    } else if (cloudDegree.contains("270")) {
+        return ROTATION_90_DEGREE;
+    } else {
+        return ROTATION_0_DEGREE;
+    }
+}
+
+void StreamingViewModel::createDataChannel()
+{
+    // ========== 创建自定义数据通道示例 ==========
+    // 数据通道用于与云端App进行自定义数据交互
+    static TcrDataChannelObserver s_dc_observer = {
+        nullptr, // user_data，后面会设置
         
-        // 【事件1：连接成功】
-        if (event == TCR_SESSION_EVENT_STATE_CONNECTED) {
-            Logger::info("[SessionEventCallback] 会话连接成功");
-            self->m_sessionConnected = true;
+        // 【回调1：连接成功】
+        [](void* user_data, int32_t port) {
+            auto* self = static_cast<StreamingViewModel*>(user_data);
+            Logger::info(QString("[DataChannel] connected on port %1").arg(port));
 
-            // ========== 创建自定义数据通道示例 ==========
-            // 数据通道用于与云端App进行自定义数据交互
-            static TcrDataChannelObserver s_dc_observer = {
-                nullptr, // user_data，后面会设置
-                
-                // 【回调1：连接成功】
-                [](void* user_data, int32_t port) {
-                    auto* self = static_cast<StreamingViewModel*>(user_data);
-                    Logger::info(QString("[DataChannel] connected on port %1").arg(port));
-
-                    // 发送测试消息
-                    auto data = QByteArray("{\"action\":0,\"content\":\"{\\\"type\\\":\\\"PullStreamConnected\\\"}\",\"coords\":[],\"heightPixels\":0,\"isOpenScreenFollowRotation\":false,\"keyCode\":0,\"pointCount\":0,\"properties\":[],\"text\":\"\",\"touchType\":\"eventSdk\",\"widthPixels\":0}").toStdString();
-                    
-                    // SDK API: 通过自定义数据通道发送数据
-                    TcrErrorCode code = tcr_data_channel_send(
-                        self->m_dataChannel, 
-                        reinterpret_cast<const uint8_t*>(data.data()), 
-                        data.size());
-                    Logger::info(QString("[DataChannel] send result code=%1").arg(code));
-                },
-                
-                // 【回调2：错误处理】
-                [](void* user_data, int32_t port,
-                   const TcrErrorCode& code, const char* msg) {
-                    auto* self = static_cast<StreamingViewModel*>(user_data);
-                    Logger::error(QString("[DataChannel] error on port %1, code=%2, msg=%3")
-                                      .arg(port)
-                                      .arg(code)
-                                      .arg(msg ? msg : ""));
-                },
-                
-                // 【回调3：接收消息】
-                [](void* user_data, int32_t port,
-                   const uint8_t* data, size_t size) {
-                    auto* self = static_cast<StreamingViewModel*>(user_data);
-                    Logger::debug(QString("[DataChannel] recv message on port %1, size=%2")
-                                      .arg(port).arg(size));
-                    if (data && size > 0) {
-                        QByteArray rawData(reinterpret_cast<const char*>(data), static_cast<int>(size));
-                        Logger::debug(QString("[DataChannel] data content: %1")
-                                          .arg(QString::fromUtf8(rawData)));
-                    }
-                }
-            };
-            s_dc_observer.user_data = self;
-
-            // SDK API: 创建自定义数据通道
-            self->m_dataChannel = tcr_session_create_data_channel(
-                self->m_session, 
-                23332,              // 端口号
-                &s_dc_observer,     // 观察者
-                "android");         // 类型  "android" 或 "android_broadcast", 后者表示广播给群控被控实例
-                
-            if (self->m_dataChannel) {
-                Logger::info("[DataChannel] create success, port=23332");
-            } else {
-                Logger::error("[DataChannel] create failed");
-            }
-            // ==========================================
-
-        } 
-        // 【事件2：摄像头状态变化】
-        else if (event == TCR_SESSION_EVENT_CAMERA_STATUS) {
-            QString eventDataStr = eventDataCopy;
-            QJsonDocument doc = QJsonDocument::fromJson(eventDataStr.toUtf8());
-            if (doc.isObject()) {
-                QString status = doc.object().value("status").toString();
-                Logger::info(QString("[云端摄像头状态变更] 最新状态:%1").arg(status));
-            }
-        } 
-        // 【事件3：统计数据更新】
-        else if (event == TCR_SESSION_EVENT_CLIENT_STATS) {
-            // 更新统计数据（包含帧率、码率、延迟等信息）
-            self->m_clientStats = eventDataCopy;
-            emit self->clientStatsChanged();
-        } 
-        // 【事件4：连接断开】
-        else if (event == TCR_SESSION_EVENT_STATE_CLOSED) {
-            self->m_sessionConnected = false;
-            Logger::error("[SessionEventCallback] 会话断开: " + eventDataCopy);
-        } 
-        // 【事件5：屏幕配置变化】
-        // 当云端手机画面旋转时触发此事件
-        // eventData 是 JSON 格式，包含：
-        //   - width: 云端手机屏幕宽度（像素）
-        //   - height: 云端手机屏幕高度（像素）
-        //   - degree: 云端手机旋转方向（"0_degree", "90_degree", "180_degree", "270_degree"）
-        // 
-        // 坐标转换逻辑说明：
-        //   云端手机的 degree 表示其屏幕旋转方向，但客户端需要反向旋转才能正确显示
-        //   例如：云端旋转90度（degree="90_degree"），客户端需要旋转270度来抵消
-        //   
-        //   映射关系：
-        //     云端 0度   -> 客户端 0度   (无旋转)
-        //     云端 90度  -> 客户端 270度 (逆时针90度)
-        //     云端 180度 -> 客户端 180度 (旋转180度)
-        //     云端 270度 -> 客户端 90度  (顺时针90度)
-        else if (event == TCR_SESSION_EVENT_SCREEN_CONFIG_CHANGE) {
-            Logger::info("[SessionEventCallback] 屏幕配置变化: " + eventDataCopy);
-            
-            QJsonDocument doc = QJsonDocument::fromJson(eventDataCopy.toUtf8());
-            if (doc.isObject()) {
-                QJsonObject obj = doc.object();
-                int width = obj.value("width").toInt();
-                int height = obj.value("height").toInt();
-                QString degree = obj.value("degree").toString();
-                
-                // 判断横竖屏：width > height 为横屏
-                bool isLandscape = (width > height);
-                
-                // 解析云端旋转角度并转换为客户端旋转角度
-                // 客户端旋转角度 = 360 - 云端旋转角度（取模360）
-                qreal rotationAngle = 0.0;
-                if (degree.contains("90")) {
-                    rotationAngle = 270.0;  // 云端90度 -> 客户端270度
-                } else if (degree.contains("180")) {
-                    rotationAngle = 180.0;  // 云端180度 -> 客户端180度
-                } else if (degree.contains("270")) {
-                    rotationAngle = 90.0;   // 云端270度 -> 客户端90度
-                } else if (degree.contains("0")) {
-                    rotationAngle = 0.0;    // 云端0度 -> 客户端0度
-                }
-                
-                Logger::info(QString("[SessionEventCallback] 屏幕方向变化: width=%1, height=%2, degree=%3, isLandscape=%4, rotationAngle=%5")
-                                 .arg(width)
-                                 .arg(height)
-                                 .arg(degree)
-                                 .arg(isLandscape ? "true" : "false")
-                                 .arg(rotationAngle));
-                
-                // 保存当前旋转角度和视频流尺寸
-                // 这些参数用于后续的坐标转换和渲染
-                self->m_currentRotationAngle = rotationAngle;
-                self->m_currentVideoWidth = width;
-                self->m_currentVideoHeight = height;
-                
-                // 设置视频渲染组件的旋转角度
-                // width/height 是云端屏幕的实际尺寸，用于触摸坐标转换
-                if (self->m_videoRenderItem) {
-                    self->m_videoRenderItem->setRotationAngle(rotationAngle, width, height);
-                    Logger::info(QString("[SessionEventCallback] 已设置视频旋转角度: %1 到实例: %2, 视频尺寸: %3x%4")
-                                     .arg(rotationAngle)
-                                     .arg(self->m_videoRenderItem->objectName())
-                                     .arg(width)
-                                     .arg(height));
-                } else {
-                    Logger::warning("[SessionEventCallback] m_videoRenderItem 为空，无法设置旋转角度");
-                }
-                
-                // 发射信号通知 QML 层屏幕方向变化
-                emit self->screenOrientationChanged(isLandscape);
-            } else {
-                Logger::warning("[SessionEventCallback] 屏幕配置变化数据解析失败");
+            // 发送测试消息
+            self->sendDataChannelTestMessage();
+        },
+        
+        // 【回调2：错误处理】
+        [](void* user_data, int32_t port,
+            const TcrErrorCode& code, const char* msg) {
+            Logger::error(QString("[DataChannel] error on port %1, code=%2, msg=%3")
+                                .arg(port)
+                                .arg(code)
+                                .arg(msg ? msg : ""));
+        },
+        
+        // 【回调3：接收消息】
+        [](void* user_data, int32_t port,
+            const uint8_t* data, size_t size) {
+            Logger::debug(QString("[DataChannel] recv message on port %1, size=%2")
+                                .arg(port).arg(size));
+            if (data && size > 0) {
+                QByteArray rawData(reinterpret_cast<const char*>(data), static_cast<int>(size));
+                Logger::debug(QString("[DataChannel] data content: %1")
+                                    .arg(QString::fromUtf8(rawData)));
             }
         }
+    };
+    s_dc_observer.user_data = this;
+
+    // SDK API: 创建自定义数据通道
+    m_dataChannel = tcr_session_create_data_channel(
+        m_session, 
+        DATA_CHANNEL_PORT,      // 端口号
+        &s_dc_observer,         // 观察者
+        DATA_CHANNEL_TYPE);     // 类型  "android" 或 "android_broadcast", 后者表示广播给群控被控实例
         
-    }, Qt::QueuedConnection);
+    if (m_dataChannel) {
+        Logger::info(QString("[DataChannel] create success, port=%1").arg(DATA_CHANNEL_PORT));
+    } else {
+        Logger::error("[DataChannel] create failed");
+    }
+}
+
+void StreamingViewModel::sendDataChannelTestMessage()
+{
+    auto data = QByteArray("{\"action\":0,\"content\":\"{\\\"type\\\":\\\"PullStreamConnected\\\"}\",\"coords\":[],\"heightPixels\":0,\"isOpenScreenFollowRotation\":false,\"keyCode\":0,\"pointCount\":0,\"properties\":[],\"text\":\"\",\"touchType\":\"eventSdk\",\"widthPixels\":0}").toStdString();
+    
+    // SDK API: 通过自定义数据通道发送数据
+    TcrErrorCode code = tcr_data_channel_send(
+        m_dataChannel, 
+        reinterpret_cast<const uint8_t*>(data.data()), 
+        data.size());
+    Logger::info(QString("[DataChannel] send result code=%1").arg(code));
 }
 
 /**
@@ -610,6 +689,12 @@ void StreamingViewModel::VideoFrameCallback(void* user_data, TcrVideoFrameHandle
     StreamingViewModel* self = static_cast<StreamingViewModel*>(user_data);
     if (!self || !frame_handle) return;
     
+    // 【步骤0】检查对象是否正在销毁
+    if (self->m_isDestroying.load(std::memory_order_acquire)) {
+        // 对象正在销毁，不再处理新帧
+        return;
+    }
+    
     // 【步骤1】获取视频帧缓冲区
     // SDK API: tcr_video_frame_get_buffer(frame_handle)
     const TcrVideoFrameBuffer* frame_buffer = tcr_video_frame_get_buffer(frame_handle);
@@ -623,56 +708,85 @@ void StreamingViewModel::VideoFrameCallback(void* user_data, TcrVideoFrameHandle
     tcr_video_frame_add_ref(frame_handle);
 
     // 【步骤3】根据缓冲区类型创建对应的VideoFrameData对象
-    // VideoFrameDataPtr 析构时会自动调用 tcr_video_frame_release()
-    VideoFrameDataPtr frameDataPtr;
+    VideoFrameDataPtr frameDataPtr = self->createVideoFrameData(frame_handle, frame_buffer);
     
-    if (frame_buffer->type == TCR_VIDEO_BUFFER_TYPE_I420) {
-        // I420格式：CPU内存中的YUV数据
-        const TcrI420Buffer& i420Buffer = frame_buffer->buffer.i420;
-        
-        // 使用I420构造函数创建对象
-        frameDataPtr.reset(new VideoFrameData(
-            frame_handle,
-            i420Buffer.data_y,
-            i420Buffer.data_u,
-            i420Buffer.data_v,
-            i420Buffer.stride_y,
-            i420Buffer.stride_u,
-            i420Buffer.stride_v,
-            i420Buffer.width,
-            i420Buffer.height,
-            frame_buffer->timestamp_us
-        ));
-    }
-    else if (frame_buffer->type == TCR_VIDEO_BUFFER_TYPE_D3D11) {
-        // D3D11格式：GPU纹理数据
-        const TcrD3D11Buffer& d3d11Buffer = frame_buffer->buffer.d3d11;
-        
-        // 构造D3D11TextureData结构
-        D3D11TextureData textureData;
-        textureData.texture = d3d11Buffer.texture;
-        textureData.device = d3d11Buffer.device;
-        textureData.array_index = d3d11Buffer.array_index;
-        textureData.format = d3d11Buffer.format;
-        
-        // 使用D3D11构造函数创建对象
-        frameDataPtr.reset(new VideoFrameData(
-            frame_handle,
-            textureData,
-            d3d11Buffer.width,
-            d3d11Buffer.height,
-            frame_buffer->timestamp_us
-        ));
-    }
-    else {
+    if (!frameDataPtr) {
         // 未知类型，释放引用并返回
-        Logger::warning(QString("[VideoFrameCallback] 未知的帧类型: %1").arg(frame_buffer->type));
         tcr_video_frame_release(frame_handle);
         return;
     }
 
-    // 【步骤6】发送到主线程进行渲染
+    // 【步骤4】检查对象状态和渲染组件有效性
+    if (self->m_isDestroying.load(std::memory_order_acquire) || !self->m_videoRenderItem) {
+        // 对象正在销毁或渲染组件已销毁，释放帧并返回
+        tcr_video_frame_release(frame_handle);
+        return;
+    }
+
+    // 【步骤5】发送到主线程进行渲染
     emit self->newVideoFrame(frameDataPtr);
+}
+
+VideoFrameDataPtr StreamingViewModel::createVideoFrameData(
+    TcrVideoFrameHandle frame_handle, 
+    const TcrVideoFrameBuffer* frame_buffer)
+{
+    if (frame_buffer->type == TCR_VIDEO_BUFFER_TYPE_I420) {
+        return createI420FrameData(frame_handle, frame_buffer);
+    } 
+    else if (frame_buffer->type == TCR_VIDEO_BUFFER_TYPE_D3D11) {
+        return createD3D11FrameData(frame_handle, frame_buffer);
+    }
+    else {
+        Logger::warning(QString("[VideoFrameCallback] 未知的帧类型: %1").arg(frame_buffer->type));
+        return nullptr;
+    }
+}
+
+VideoFrameDataPtr StreamingViewModel::createI420FrameData(
+    TcrVideoFrameHandle frame_handle,
+    const TcrVideoFrameBuffer* frame_buffer)
+{
+    // I420格式：CPU内存中的YUV数据
+    const TcrI420Buffer& i420Buffer = frame_buffer->buffer.i420;
+    
+    // 使用I420构造函数创建对象
+    return VideoFrameDataPtr(new VideoFrameData(
+        frame_handle,
+        i420Buffer.data_y,
+        i420Buffer.data_u,
+        i420Buffer.data_v,
+        i420Buffer.stride_y,
+        i420Buffer.stride_u,
+        i420Buffer.stride_v,
+        i420Buffer.width,
+        i420Buffer.height,
+        frame_buffer->timestamp_us
+    ));
+}
+
+VideoFrameDataPtr StreamingViewModel::createD3D11FrameData(
+    TcrVideoFrameHandle frame_handle,
+    const TcrVideoFrameBuffer* frame_buffer)
+{
+    // D3D11格式：GPU纹理数据
+    const TcrD3D11Buffer& d3d11Buffer = frame_buffer->buffer.d3d11;
+    
+    // 构造D3D11TextureData结构
+    D3D11TextureData textureData;
+    textureData.texture = d3d11Buffer.texture;
+    textureData.device = d3d11Buffer.device;
+    textureData.array_index = d3d11Buffer.array_index;
+    textureData.format = d3d11Buffer.format;
+    
+    // 使用D3D11构造函数创建对象
+    return VideoFrameDataPtr(new VideoFrameData(
+        frame_handle,
+        textureData,
+        d3d11Buffer.width,
+        d3d11Buffer.height,
+        frame_buffer->timestamp_us
+    ));
 }
 
 // ==================== 摄像头设备管理 ====================

@@ -6,6 +6,8 @@
 #include <QKeyEvent>
 #include <QJsonObject>
 #include <QJsonDocument>
+#include <QPointer>
+#include <atomic>
 #include "core/video/Frame.h"
 #include "core/video/VideoRenderPaintedItem.h"
 #include "tcr_c_api.h"
@@ -287,7 +289,8 @@ private:
     // ==================== 成员变量 ====================
     
     // 渲染相关
-    VideoRenderPaintedItem* m_videoRenderItem = nullptr;  ///< 视频渲染组件
+    QPointer<VideoRenderPaintedItem> m_videoRenderItem;  ///< 视频渲染组件（使用QPointer自动管理生命周期）
+    std::atomic<bool> m_isDestroying{false};              ///< 对象是否正在销毁（用于回调中的安全检查）
     
     // SDK 句柄
     TcrClientHandle      m_tcrClient   = nullptr;  ///< TcrSdk 客户端句柄（单例）
@@ -332,6 +335,94 @@ private:
      * @param paused 是否暂停推流
      */
     void requestStreaming(bool paused);
+
+    /**
+     * @brief 检查会话是否就绪
+     * @return true=会话已连接且可用, false=会话未就绪
+     */
+    bool isSessionReady() const;
+
+    /**
+     * @brief 发送按键事件（按下+抬起）
+     * @param keycode Android按键码
+     */
+    void sendKeyEvent(int32_t keycode);
+
+    /**
+     * @brief 处理会话连接成功事件
+     */
+    void handleSessionConnected();
+
+    /**
+     * @brief 处理摄像头状态变化事件
+     * @param eventData 事件数据（JSON格式）
+     */
+    void handleCameraStatusChange(const QString& eventData);
+
+    /**
+     * @brief 处理统计数据更新事件
+     * @param eventData 事件数据（JSON格式）
+     */
+    void handleClientStatsUpdate(const QString& eventData);
+
+    /**
+     * @brief 处理会话断开事件
+     * @param eventData 事件数据（JSON格式）
+     */
+    void handleSessionClosed(const QString& eventData);
+
+    /**
+     * @brief 处理屏幕配置变化事件
+     * @param eventData 事件数据（JSON格式）
+     */
+    void handleScreenConfigChange(const QString& eventData);
+
+    /**
+     * @brief 映射云端旋转角度到客户端旋转角度
+     * @param cloudDegree 云端旋转角度字符串（如"90_degree"）
+     * @return 客户端旋转角度（0, 90, 180, 270）
+     */
+    qreal mapCloudRotationToClient(const QString& cloudDegree);
+
+    /**
+     * @brief 创建自定义数据通道
+     */
+    void createDataChannel();
+
+    /**
+     * @brief 发送数据通道测试消息
+     */
+    void sendDataChannelTestMessage();
+
+    /**
+     * @brief 根据帧缓冲区类型创建对应的VideoFrameData对象
+     * @param frame_handle 视频帧句柄
+     * @param frame_buffer 视频帧缓冲区
+     * @return VideoFrameData智能指针
+     */
+    VideoFrameDataPtr createVideoFrameData(
+        TcrVideoFrameHandle frame_handle,
+        const TcrVideoFrameBuffer* frame_buffer);
+
+    /**
+     * @brief 创建I420格式的VideoFrameData对象
+     * @param frame_handle 视频帧句柄
+     * @param frame_buffer 视频帧缓冲区
+     * @return VideoFrameData智能指针
+     */
+    VideoFrameDataPtr createI420FrameData(
+        TcrVideoFrameHandle frame_handle,
+        const TcrVideoFrameBuffer* frame_buffer);
+
+    /**
+     * @brief 创建D3D11格式的VideoFrameData对象
+     * @param frame_handle 视频帧句柄
+     * @param frame_buffer 视频帧缓冲区
+     * @return VideoFrameData智能指针
+     */
+    VideoFrameDataPtr createD3D11FrameData(
+        TcrVideoFrameHandle frame_handle,
+        const TcrVideoFrameBuffer* frame_buffer);
 
     // ==================== SDK 回调函数（静态方法） ====================
     

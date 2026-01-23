@@ -27,23 +27,26 @@ enum class InstanceConnectionState {
 };
 
 /**
- * @brief 多实例串流 ViewModel - TcrSdk 多会话管理示例
+ * @brief 多实例串流 ViewModel
  * 
  * 本类演示如何使用 TcrSdk C API 实现多实例同时串流：
  * 
  * 核心功能：
- * 1. 多会话管理：支持创建多个独立的 TcrSession，每个会话可连接多个云手机实例
- * 2. 视频帧分发：根据 instance_id 和 instance_index 将视频帧路由到对应的渲染组件
- * 3. 事件监听：处理会话连接状态、错误等事件
- * 4. 资源管理：正确管理 TcrClient、TcrSession 和观察者的生命周期
+ * 1. 会话管理：创建 TcrSession，通过 tcr_session_access_multi_stream 连接多个云手机实例
+ * 2. 动态切换：通过 tcr_session_switch_streaming_instances 动态切换当前拉流的实例
+ * 3. 视频帧分发：根据 instance_id 将视频帧路由到对应的渲染组件
+ * 4. 事件监听：处理会话连接状态、错误等事件
+ * 5. 资源管理：正确管理 TcrClient、TcrSession 和观察者的生命周期
+ * 6. 多Session支持：当并发实例数超过100时，自动创建多个session分别管理
  * 
  * TcrSdk API 使用流程：
  * 1. 初始化：tcr_client_get_instance() -> tcr_client_init()
  * 2. 创建会话：tcr_client_create_session()
  * 3. 设置观察者：tcr_session_set_observer() / tcr_session_set_video_frame_observer()
- * 4. 连接实例：tcr_session_access()
- * 5. 接收回调：SessionEventCallback / VideoFrameCallback
- * 6. 清理资源：tcr_client_destroy_session()
+ * 4. 连接实例：tcr_session_access_multi_stream()
+ * 5. 动态切换：tcr_session_switch_streaming_instances()
+ * 6. 接收回调：SessionEventCallback / VideoFrameCallback
+ * 7. 清理资源：tcr_client_destroy_session()
  */
 class MultiStreamViewModel : public QObject
 {
@@ -52,6 +55,9 @@ class MultiStreamViewModel : public QObject
     Q_PROPERTY(QString clientStats READ clientStats NOTIFY clientStatsChanged)
 
 public:
+    /// 单个session最大支持的并发流实例数
+    static constexpr int MAX_CONCURRENT_INSTANCES_PER_SESSION = 100;
+
     explicit MultiStreamViewModel(QObject *parent = nullptr);
     ~MultiStreamViewModel() override;
 
@@ -89,6 +95,9 @@ public slots:
      * @brief 处理实例可见性变化（从QML调用）
      * @param visibleIds 可见的实例ID列表
      * @param invisibleIds 不可见的实例ID列表
+     * 
+     * 说明：使用 tcr_session_switch_streaming_instances 动态切换拉流实例
+     *       当存在多个session时，将可见实例按session分组后分别切换
      */
     void onVisibilityChanged(const QStringList& visibleIds, const QStringList& invisibleIds);
 
@@ -122,19 +131,20 @@ public:
     Q_INVOKABLE void initialize(const QStringList& instanceIds, const QString& accessInfo, const QString& token);
 
     /**
-     * @brief 根据 QML 指定的会话配置连接多个实例
-     * @param sessionConfigs 会话配置列表，每个元素是一个实例ID数组
-     * 格式示例: [[\"instance1\", \"instance2\"], [\"instance3\", \"instance4\"]]
+     * @brief 连接多个实例
+     * @param allInstanceIds 所有需要连接的实例ID列表
+     * @param concurrentStreamingInstances 并发拉流实例数量（应该是每页可见的实例数量）
      * 
      * 说明：
-     * - 每个子数组代表一个会话（TcrSession）
-     * - 一个会话可以连接多个实例（群控场景）
-     * - 会自动创建对应数量的 TcrSession 并设置观察者
+     * - 当 concurrentStreamingInstances <= 100 时，创建单个 TcrSession
+     * - 当 concurrentStreamingInstances > 100 时，计算需要的session数量并创建多个session
+     * - 每个session管理一部分实例，确保并发流数量不超过100
+     * - 通过 onVisibilityChanged 动态切换各session的拉流实例
      */
-    Q_INVOKABLE void connectMultipleInstances(const QVariantList& sessionConfigs);
+    Q_INVOKABLE void connectMultipleInstances(const QStringList& allInstanceIds, int concurrentStreamingInstances);
 
     /**
-     * @brief 主动关闭所有会话，释放资源
+     * @brief 主动关闭会话，释放资源
      * 
      * TcrSdk API 调用：
      * - tcr_session_set_observer(nullptr)：取消事件观察者
@@ -144,20 +154,14 @@ public:
     Q_INVOKABLE void closeAllSessions();
 
     /**
-     * @brief 暂停指定实例的流媒体
+     * @brief 暂停指定实例的流媒体（保留用于手动控制）
      * @param instanceIds 实例ID列表
-     * 
-     * TcrSdk API 调用：
-     * - tcr_session_pause_streaming()：暂停流媒体
      */
     Q_INVOKABLE void pauseStreaming(const QStringList& instanceIds);
 
     /**
-     * @brief 恢复指定实例的流媒体
+     * @brief 恢复指定实例的流媒体（保留用于手动控制）
      * @param instanceIds 实例ID列表
-     * 
-     * TcrSdk API 调用：
-     * - tcr_session_resume_streaming()：恢复流媒体
      */
     Q_INVOKABLE void resumeStreaming(const QStringList& instanceIds);
 
@@ -199,7 +203,7 @@ private:
      */
     struct SessionUserData {
         MultiStreamViewModel* viewModel;  ///< ViewModel 对象指针
-        int sessionIndex;                 ///< 会话索引，用于定位 m_sessions 中的元素
+        int sessionIndex;                 ///< 会话索引
     };
 
     /**
@@ -207,22 +211,30 @@ private:
      */
     struct SessionInfo {
         TcrSessionHandle session = nullptr;           ///< TcrSdk 会话句柄
-        QStringList instanceIds;                      ///< 该会话连接的实例ID列表
+        QStringList allInstanceIds;                   ///< 传给access的所有实例ID列表（带特定顺序）
+        QStringList currentStreamingIds;              ///< 该会话当前正在拉流的实例ID列表
+        int concurrentStreamingInstances = 100;       ///< 该会话的并发流数量限制
         bool connected = false;                       ///< 连接状态
         
         // 观察者结构体（必须在整个会话生命周期内保持有效）
         TcrSessionObserver sessionObserver = {};      ///< 会话事件观察者
         TcrVideoFrameObserver videoFrameObserver = {};///< 视频帧观察者
-        SessionUserData userData;                     ///< 用户数据，传递给回调函数
+        SessionUserData* userData = nullptr;          ///< 用户数据，传递给回调函数（堆分配）
     };
 
     // ==================== 成员变量 ====================
 
     TcrClientHandle m_tcrClient = nullptr;  ///< TcrSdk 客户端句柄（全局单例）
-    QVector<SessionInfo> m_sessions;        ///< 会话信息列表
+    QVector<SessionInfo> m_sessions;        ///< 多会话信息列表
     
+    QStringList m_allInstanceIds;           ///< 所有管理的实例ID列表
     QStringList m_connectedInstanceIds;     ///< 已连接的实例ID列表
+    QStringList m_currentStreamingIds;      ///< 当前正在拉流的实例ID列表（所有session汇总）
     QString m_clientStats;                  ///< 客户端统计数据（JSON 格式）
+    int m_totalConcurrentInstances = 0;     ///< 总并发实例数（用于计算session数量）
+    
+    /// 实例到Session索引的映射：instanceId -> sessionIndex
+    QHash<QString, int> m_instanceToSessionIndex;
     
     /// 实例连接状态映射：instanceId -> InstanceConnectionState
     QHash<QString, InstanceConnectionState> m_instanceConnectionStates;
@@ -247,26 +259,70 @@ private:
     // ==================== 内部方法 ====================
 
     /**
-     * @brief 根据会话配置创建多个 TcrSession
-     * @param sessionConfigs 会话配置列表
+     * @brief 计算需要的session数量
+     * @param totalInstances 总实例数量
+     * @param concurrentInstances 期望的并发实例数量
+     * @return 需要创建的session数量
+     */
+    int calculateSessionCount(int totalInstances, int concurrentInstances);
+
+    /**
+     * @brief 将实例列表按session数量重新排序
+     * @param allInstanceIds 所有实例ID
+     * @param sessionCount session数量
+     * @return 每个session的实例ID列表（所有实例但顺序不同）
+     * 
+     * 说明：每个session都包含所有实例，但顺序不同，确保默认拉流的前100个不重复
+     */
+    QVector<QStringList> reorderInstancesForSessions(const QStringList& allInstanceIds, int sessionCount);
+
+    /**
+     * @brief 将可见实例分配到各个session进行切换
+     * @param visibleIds 可见的实例ID列表
+     * @return 每个session应该切换到的实例ID列表
+     */
+    QVector<QStringList> distributeVisibleInstancesToSessions(const QStringList& visibleIds);
+
+    /**
+     * @brief 创建单个 TcrSession 并连接指定实例
+     * @param sessionIndex session索引
+     * @param instanceIds 该session要管理的实例ID列表
+     * @param concurrentStreamingInstances 该session的并发拉流实例数量
      * 
      * TcrSdk API 调用流程：
      * 1. tcr_client_create_session()：创建会话
      * 2. 初始化观察者结构体
      * 3. setSessionObservers()：设置观察者
-     * 4. tcr_session_access()：连接实例
+     * 4. tcr_session_access_multi_stream()：连接实例
      */
-    void createSessionsWithConfigs(const QVariantList& sessionConfigs);
+    void createSession(int sessionIndex, const QStringList& instanceIds, int concurrentStreamingInstances);
 
     /**
-     * @brief 为指定会话设置观察者
-     * @param sessionIndex 会话索引
+     * @brief 为指定session设置观察者
+     * @param sessionIndex session索引
      * 
      * TcrSdk API 调用：
      * - tcr_session_set_observer()：设置会话事件观察者
      * - tcr_session_set_video_frame_observer()：设置视频帧观察者
      */
     void setSessionObservers(int sessionIndex);
+
+    /**
+     * @brief 切换当前拉流的实例列表
+     * @param streamingIds 需要拉流的实例ID列表
+     * 
+     * 说明：将实例按所属session分组，分别调用各session的switch接口
+     * TcrSdk API 调用：
+     * - tcr_session_switch_streaming_instances()：动态切换拉流实例
+     */
+    void switchStreamingInstances(const QStringList& streamingIds);
+
+    /**
+     * @brief 根据实例ID查找其所属的session索引
+     * @param instanceId 实例ID
+     * @return session索引，如果未找到返回-1
+     */
+    int findSessionIndexForInstance(const QString& instanceId) const;
 
     // 批量渲染缓存的帧
     void batchRenderFrames();  

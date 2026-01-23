@@ -20,7 +20,6 @@ Window {
     property var instanceIds: []                    // 传入的实例ID列表
     property var accessInfo: null                   // 访问信息
     property string token: ""                       // 认证令牌
-    readonly property int instancesPerSession: 100   // 硬编码的每个session的实例数量
     
     // 视图大小配置
     property int viewSize: 1                        // 视图大小: 0=小(30列), 1=中(10列), 2=大(5列)
@@ -39,7 +38,7 @@ Window {
     
     // 实例管理属性
     property var checkedInstanceIds: []             // 选中的实例ID列表
-    property var instanceConfigs: []                // 格式: [{instanceId: "xxx", instanceIndex: 0, sessionIndex: 0}, ...]
+    property var instanceConfigs: []                // 格式: [{instanceId: "xxx", instanceIndex: 0}, ...]
     
     // 窗口管理属性
     property var syncWindow: null                   // 同步窗口（单例）
@@ -53,7 +52,7 @@ Window {
     // 视图模型
     property MultiStreamViewModel multiInstanceViewModel: MultiStreamViewModel {}
     
-    // 监听会话关闭事件
+    // 监听会话连接状态变化
     Connections {
         target: multiInstanceViewModel
         function onSessionClosed(sessionIndex, instanceIds, reason) {
@@ -76,41 +75,45 @@ Window {
     // ============================================
     
     /**
-     * 计算session配置
-     * @param instanceIdList 实例ID列表
-     * @return session配置数组，每个元素是一个实例ID数组
-     */
-    function calculateSessionConfigs(instanceIdList) {
-        var sessionConfigs = [];
-        for (var i = 0; i < instanceIdList.length; i += instancesPerSession) {
-            var sessionInstances = [];
-            for (var j = i; j < Math.min(i + instancesPerSession, instanceIdList.length); j++) {
-                sessionInstances.push(instanceIdList[j]);
-            }
-            sessionConfigs.push(sessionInstances);
-        }
-        console.log("需要创建的session配置:", JSON.stringify(sessionConfigs));
-        return sessionConfigs;
-    }
-
-    /**
      * 计算实例配置
-     * @param sessionConfigs session配置数组
-     * @return 实例配置数组，包含instanceId、instanceIndex、sessionIndex
+     * @param instanceIdList 实例ID列表
+     * @return 实例配置数组，包含instanceId和instanceIndex
      */
-    function calculateInstanceConfigs(sessionConfigs) {
+    function calculateInstanceConfigs(instanceIdList) {
         var configs = [];
-        for (var i = 0; i < sessionConfigs.length; i++) {
-            var sessionInstances = sessionConfigs[i];
-            for (var j = 0; j < sessionInstances.length; j++) {
-                configs.push({
-                    instanceId: sessionInstances[j],
-                    instanceIndex: j,
-                    sessionIndex: i
-                });
-            }
+        for (var i = 0; i < instanceIdList.length; i++) {
+            configs.push({
+                instanceId: instanceIdList[i],
+                instanceIndex: i
+            });
         }
         return configs;
+    }
+    
+    /**
+     * 计算每页可见的实例数量
+     * @return 每页可见的实例数量（GridView可视区域内的格子数）
+     */
+    function calculateVisibleInstancesPerPage() {
+        var cols = viewSizeColumns[viewSize];
+        
+        // 计算单元格尺寸
+        var cellW = (multiInstanceWindow.width - 20) / cols;
+        var cellH = cellW * 240 / 135;
+        
+        // 计算GridView可用高度（减去顶部控制栏和底部状态栏）
+        var gridViewHeight = multiInstanceWindow.height - 100;  // 预估顶部和底部占用约100像素
+        
+        // 计算可见行数（向上取整确保覆盖部分可见的行，再加1行预加载）
+        var visibleRows = Math.ceil(gridViewHeight / cellH) + 1;
+        
+        // 计算每页可见的实例数量
+        var visibleInstances = visibleRows * cols;
+        
+        console.log("[calculateVisibleInstancesPerPage] 列数:", cols, "单元格高度:", cellH, 
+                   "可见行数:", visibleRows, "每页可见实例数:", visibleInstances);
+        
+        return visibleInstances;
     }
     
     /**
@@ -371,10 +374,14 @@ Window {
         if (instanceIds && instanceIds.length > 0) {
             multiInstanceViewModel.initialize(instanceIds, accessInfo, token);
             
-            // 计算并连接多个实例
-            var sessionConfigs = calculateSessionConfigs(instanceIds);
-            instanceConfigs = calculateInstanceConfigs(sessionConfigs);
-            multiInstanceViewModel.connectMultipleInstances(sessionConfigs);
+            // 计算实例配置
+            instanceConfigs = calculateInstanceConfigs(instanceIds);
+            
+            // 计算每页可见的实例数量
+            var visibleInstancesPerPage = calculateVisibleInstancesPerPage();
+            
+            // 直接传递所有实例ID和同时串流数量给C++层
+            multiInstanceViewModel.connectMultipleInstances(instanceIds, visibleInstancesPerPage);
             
             // 延迟执行初始可见性检测，确保 GridView 完成布局
             Qt.callLater(function() {
@@ -429,7 +436,7 @@ Window {
         spacing: 10
 
         Text {
-            text: "多实例视频渲染 - 总计: " + instanceIds.length + " 个实例 (每会话" + instancesPerSession + "个)"
+            text: "多实例视频渲染 - 总计: " + instanceIds.length + " 个实例"
             font.pixelSize: 16
             font.bold: true
         }
@@ -534,8 +541,10 @@ Window {
             text: "重新连接"
             onClicked: {
                 if (instanceIds && instanceIds.length > 0) {
-                    var sessionConfigs = calculateSessionConfigs(instanceIds);
-                    multiInstanceViewModel.connectMultipleInstances(sessionConfigs);
+                    // 计算每页可见的实例数量
+                    var visibleInstancesPerPage = calculateVisibleInstancesPerPage();
+                    // 直接传递所有实例ID和同时串流数量
+                    multiInstanceViewModel.connectMultipleInstances(instanceIds, visibleInstancesPerPage);
                 }
             }
         }
@@ -631,7 +640,6 @@ Window {
             // 实例信息属性
             property string instanceId: modelData.instanceId
             property int instanceIndex: modelData.instanceIndex
-            property int sessionIndex: modelData.sessionIndex
             // 连接状态: 0=未连接, 1=连接中, 2=已连接
             property int connectionState: 0
             property bool isConnected: connectionState === 2
@@ -880,7 +888,7 @@ Window {
             padding: 20
             
             Text {
-                text: "会话 " + sessionClosedDialog.sessionIndex + " 已断开连接"
+                text: "会话已断开连接"
                 font.pixelSize: 16
                 font.bold: true
                 color: "#d32f2f"
@@ -932,8 +940,9 @@ Window {
                     sessionClosedDialog.close();
                     // 重新连接所有实例
                     if (instanceIds && instanceIds.length > 0) {
-                        var sessionConfigs = calculateSessionConfigs(instanceIds);
-                        multiInstanceViewModel.connectMultipleInstances(sessionConfigs);
+                        // 计算每页可见的实例数量
+                        var visibleInstancesPerPage = calculateVisibleInstancesPerPage();
+                        multiInstanceViewModel.connectMultipleInstances(instanceIds, visibleInstancesPerPage);
                     }
                 }
             }

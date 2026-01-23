@@ -1,5 +1,14 @@
 # Release Notes
 
+## Version 1.19.0
+### Features
+- 会话支持动态切流
+- 支持回调服务端推流成功事件、实例断开事件等
+
+### Download
+- [TcrSdk-Debug-1.19.0-20260123-588081334.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Debug-1.19.0-20260123-588081334.zip)
+- [TcrSdk-Release-1.19.0-20260123-588081334.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Release-1.19.0-20260123-588081334.zip)
+
 ## Version 1.18.16
 ### Bugfix
 - 修复崩溃问题

@@ -35,40 +35,37 @@
  *
  * -------------------- 代码示例 --------------------
  * 
- *   TcrConfig config = tcr_session_config_default();;
- *   config.Token = tokenResult.token.c_str();
- *   config.AccessInfo = tokenResult.accessInfo.c_str();
+ *   TcrConfig config = tcr_config_default();
+ *   config.token = tokenResult.token.c_str();
+ *   config.accessInfo = tokenResult.accessInfo.c_str();
  * 
  *   // 1. 初始化
  *   TcrClientHandle tcrClient = tcr_client_get_instance();
  *   tcr_client_init(tcrClient, &config);
  * 
- *   // 2. 获取小流截图
- *   char buffer[2048];
- *   TcrAndroidInstance instance = tcr_client_get_android_instance(tcrClient);
- *   tcr_instance_get_image(instance, buffer, 2048, instanceIds[0].c_str(), 0, 0, 0);
+ *   // 2. 创建串流会话
+ *   TcrSessionConfig session_config = tcr_session_config_default();
+ *   TcrSessionHandle tcrSession = tcr_client_create_session(tcrClient, &session_config);
  * 
- *   // 3. 创建串流会话
- *   TcrSessionHandle tcrSession = tcr_client_create_session(tcrClient);
- * 
- *   // 4. 连接实例
- *   tcr_session_access(tcrSession, instanceIds, 1, false);
- * 
- *   // 5. 设置视频帧回调
- *   static TcrVideoFrameObserver video_observer;
+ *   // 3. 设置视频帧回调
+ *   static TcrVideoFrameObserver video_observer = tcr_video_frame_observer_default();
  *   video_observer.user_data = this;
  *   video_observer.on_frame = VideoFrameCallback;
  *   tcr_session_set_video_frame_observer(tcrSession, &video_observer);
  * 
- *   // 6. 设置事件回调
- *   static TcrSessionObserver session_observer;
+ *   // 4. 设置事件回调
+ *   static TcrSessionObserver session_observer = tcr_session_observer_default();
  *   session_observer.user_data = this;
  *   session_observer.on_event = SessionEventCallback;
  *   tcr_session_set_observer(tcrSession, &session_observer);
  * 
- *   // ... 业务操作 ...
+ *   // 5. 连接实例
+ *   const char* instanceIds[] = {"cai-xxx-001"};
+ *   tcr_session_access(tcrSession, instanceIds, 1, false);
  * 
- *   // 7. 销毁会话
+ *   // 6. 清理回调并销毁会话
+ *   tcr_session_set_video_frame_observer(tcrSession, NULL);
+ *   tcr_session_set_observer(tcrSession, NULL);
  *   tcr_client_destroy_session(tcrClient, tcrSession);
  *
  * --------------------------------------------------
@@ -911,14 +908,9 @@ TCRSDK_API void tcr_session_access(TcrSessionHandle session, const char** instan
  * @param session 会话句柄
  * @param instanceIds 云端实例ID数组
  * @param length 实例ID数组长度
- * @param defaultStreamingInstanceIds 默认出流的实例ID数组（可选，必须是instanceIds的子集）
- * @param defaultStreamingLength 默认出流实例ID数组长度（当defaultStreamingInstanceIds为NULL时此参数无效）
  * 
- * @note 出流控制说明：
- *   - **默认情况下，连接的实例不会自动出流**
- *   - 需要调用 tcr_session_resume_streaming 并传入需要出流的实例列表才会开始出流
- *   - 如果提供了 defaultStreamingInstanceIds 参数，这些实例将在连接后自动开始出流，无需再调用 tcr_session_resume_streaming
- *   - defaultStreamingInstanceIds 中的实例ID必须是 instanceIds 的子集，否则将被忽略
+ * @note 拉流控制说明：
+ *   - 连接后可通过 tcr_session_switch_streaming_instances 动态切换拉流实例列表
  * 
  * @note 使用限制：
  *   - 每个实例的视频流通过tcr_session_set_video_frame_observer回调
@@ -948,8 +940,7 @@ TCRSDK_API void tcr_session_access(TcrSessionHandle session, const char** instan
  * 
  * // 在视频帧回调中区分不同实例的流
  * void VideoFrameCallback(void* user_data, TcrVideoFrameHandle frame_handle) {
- *     const TcrVideoFrameBuffer* buffer = tcr_video_frame_get_buffer(frame_handle);
- *     const char* instance_id = buffer->instance_id;
+ *     const char* instance_id = tcr_video_frame_get_instance_id(frame_handle);
  *     // 根据instance_id处理不同实例的视频帧
  * }
  * @endcode
@@ -957,9 +948,50 @@ TCRSDK_API void tcr_session_access(TcrSessionHandle session, const char** instan
 TCRSDK_API void tcr_session_access_multi_stream(
     TcrSessionHandle session, 
     const char** instanceIds, 
-    int32_t length,
-    const char** defaultStreamingInstanceIds = NULL,
-    int32_t defaultStreamingLength = 0
+    int32_t length
+);
+
+/**
+ * @brief 动态切换多实例场景下的拉流实例列表
+ * 
+ * 该接口用于在已通过 tcr_session_access_multi_stream 连接多个实例后，
+ * 动态切换当前正在拉流的实例列表。
+ * 
+ * @param session 会话句柄
+ * @param streamingInstanceIds 需要拉流的实例ID数组，必须是 tcr_session_access_multi_stream 
+ *                             中 instanceIds 参数的子集
+ * @param streamingLength 拉流实例ID数组长度，不能超过会话配置中的 concurrentStreamingInstances
+ *                        （通过 TcrSessionConfig.concurrentStreamingInstances 配置）
+ * 
+ * @note 使用说明：
+ *   - 该接口仅在通过 tcr_session_access_multi_stream 连接多实例后才能调用
+ *   - streamingInstanceIds 中的所有实例ID必须在 tcr_session_access_multi_stream 的 instanceIds 中
+ *   - streamingLength 不能超过会话配置的 concurrentStreamingInstances 限制，
+ *     超过限制的请求将被拒绝
+ *   - 调用后，之前正在拉流但不在新列表中的实例会停止拉流
+ *   - 新列表中之前未拉流的实例会开始拉流
+ *   - 传入空列表（streamingLength=0）会停止所有实例的拉流
+ * 
+ * @warning 注意事项：
+ *   - 频繁切换拉流列表可能导致短暂的视频中断
+ *   - 建议根据实际业务需求合理控制切换频率
+ * 
+ * @example 典型用法
+ * @code
+ * // 1. 首先连接多个实例
+ * const char* all_instances[] = {"cai-001", "cai-002", "cai-003", "cai-004"};
+ * const char* default_streaming[] = {"cai-001", "cai-002"};
+ * tcr_session_access_multi_stream(session, all_instances, 4, default_streaming, 2);
+ * 
+ * // 2. 业务逻辑中动态切换拉流列表
+ * const char* new_streaming[] = {"cai-003", "cai-004"};
+ * tcr_session_switch_streaming_instances(session, new_streaming, 2);
+ * @endcode
+ */
+TCRSDK_API void tcr_session_switch_streaming_instances(
+    TcrSessionHandle session,
+    const char** streamingInstanceIds,
+    int32_t streamingLength
 );
 
 /**
@@ -996,8 +1028,11 @@ TCRSDK_API void tcr_session_resume_streaming(TcrSessionHandle session, const cha
  * @param fps 视频帧率（可选参数，设置为 0 或负数表示不设置此参数，有效范围：1-60）
  * @param minBitrate 最小码率（可选参数，单位 kbps，设置为 0 或负数表示不设置码率参数，需与 maxBitrate 同时设置）
  * @param maxBitrate 最大码率（可选参数，单位 kbps，设置为 0 或负数表示不设置码率参数，需与 minBitrate 同时设置）
- * @param video_width 视频宽度（可选参数，单位 px）。0表示以高度为准，宽度等比拉伸；正数表示指定宽度
- * @param video_height 视频高度（可选参数，单位 px）。0表示以宽度为准，高度等比拉伸；正数表示指定高度
+ * @param video_width 视频宽度（可选参数，单位 px）。配合video_height使用：
+ *                    - 当 video_width > 0 && video_height > 0 时：配置视频流的分辨率为宽video_width、高video_height
+ *                    - 当 video_width > 0 && video_height = 0 时：短边固定为video_width，长边自适应
+ *                    - 当 video_width = 0 && video_height > 0 时：长边固定为video_height，短边自适应
+ * @param video_height 视频高度（可选参数，单位 px）。配合video_width使用，具体规则见video_width参数说明
  * @param instanceIds 实例ID数组，可选，为NULL时对所有实例生效
  * @param instance_count 实例ID数组长度，当instanceIds为NULL时此参数无效
  * 

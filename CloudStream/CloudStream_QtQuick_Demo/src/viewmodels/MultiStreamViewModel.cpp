@@ -12,6 +12,7 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <algorithm>
+#include <cmath>
 
 // ==================== 构造与析构 ====================
 
@@ -43,16 +44,13 @@ MultiStreamViewModel::~MultiStreamViewModel()
         m_renderTimer->stop();
     }
     
-    // ===== 第三层防护：取消观察者并等待回调完成 =====
-    // 重要：先清理所有观察者，防止回调继续执行
-    // 这是使用 TcrSdk 的关键步骤，必须在销毁会话前取消观察者
+    // ===== 第三层防护：取消所有session的观察者并等待回调完成 =====
     for (auto& sessionInfo : m_sessions) {
         if (sessionInfo.session) {
             tcr_session_set_observer(sessionInfo.session, nullptr);
             tcr_session_set_video_frame_observer(sessionInfo.session, nullptr);
         }
     }
-    
     
     // ===== 第四层防护：加锁清理资源 =====
     {
@@ -66,7 +64,7 @@ MultiStreamViewModel::~MultiStreamViewModel()
         m_frameCache.clear();
     }
     
-    // 关闭所有会话
+    // 关闭会话
     closeAllSessions();
     
     tcr_client_release(tcr_client_get_instance());
@@ -90,18 +88,14 @@ void MultiStreamViewModel::initialize(const QStringList& instanceIds,
     std::string accessInfoStr = accessInfo.toStdString();
 
     // 步骤1：配置 TcrSdk 初始化参数
-    // TcrConfig 包含两个必填字段：Token 和 AccessInfo
     TcrConfig config = tcr_config_default();
     config.token = tokenStr.c_str();
     config.accessInfo = accessInfoStr.c_str();
     
     // 步骤2：获取 TcrClient 全局单例句柄
-    // tcr_client_get_instance() 返回全局唯一的 TcrClientHandle
     TcrClientHandle client = tcr_client_get_instance();
     
     // 步骤3：初始化 TcrClient
-    // 注意：此函数可调用多次以更新配置，但只需成功初始化一次
-    // 所有后续 TcrSdk 接口调用必须在此函数返回成功之后进行
     TcrErrorCode result = tcr_client_init(client, &config);
     if (result != TCR_SUCCESS) {
         Logger::error("[initialize] TcrSdk 初始化失败");
@@ -146,10 +140,9 @@ QString MultiStreamViewModel::getInstanceStats(const QString& instanceId) const
     
     QJsonObject streamObj = videoStreams[instanceId].toObject();
     
-    // 构建返回的 JSON 对象：包含全局统计 + 该实例的视频流统计
+    // 构建返回的 JSON 对象
     QJsonObject result;
     
-    // 复制全局统计数据（排除 video_streams）
     result["request_id"] = root["request_id"];
     result["session_id"] = root["session_id"];
     result["instance_id"] = instanceId;
@@ -157,7 +150,6 @@ QString MultiStreamViewModel::getInstanceStats(const QString& instanceId) const
     result["raw_rtt"] = root["raw_rtt"];
     result["edge_rtt"] = root["edge_rtt"];
     
-    // 直接复制该实例的完整视频流统计对象
     for (auto it = streamObj.begin(); it != streamObj.end(); ++it) {
         result[it.key()] = it.value();
     }
@@ -176,42 +168,202 @@ void MultiStreamViewModel::onVisibilityChanged(const QStringList& visibleIds, co
                 .arg(invisibleIds.length())
                 .arg(invisibleIds.join(", ")));
     
-    // 过滤出真正需要恢复的实例（从不可见变为可见）
-    QStringList idsToResume;
-    for (const QString& id : visibleIds) {
-        if (m_lastInvisibleIds.contains(id)) {
-            idsToResume.append(id);
-        }
+    // 检查是否有变化
+    QSet<QString> newVisibleSet = QSet<QString>(visibleIds.begin(), visibleIds.end());
+    QSet<QString> currentStreamingSet = QSet<QString>(m_currentStreamingIds.begin(), m_currentStreamingIds.end());
+    
+    if (newVisibleSet == currentStreamingSet) {
+        Logger::info("[onVisibilityChanged] 可见实例列表无变化，跳过切换");
+        return;
     }
     
-    // 过滤出真正需要暂停的实例（从可见变为不可见）
-    QStringList idsToPause;
-    for (const QString& id : invisibleIds) {
-        if (m_lastVisibleIds.contains(id)) {
-            idsToPause.append(id);
-        }
-    }
-    
-    Logger::info(QString("需要恢复的实例 (%1): %2")
-                .arg(idsToResume.length())
-                .arg(idsToResume.join(", ")));
-    Logger::info(QString("需要暂停的实例 (%1): %2")
-                .arg(idsToPause.length())
-                .arg(idsToPause.join(", ")));
-    
-    // 对真正需要恢复的实例恢复流媒体
-    if (!idsToResume.isEmpty()) {
-        resumeStreaming(idsToResume);
-    }
-    
-    // 对真正需要暂停的实例暂停流媒体
-    if (!idsToPause.isEmpty()) {
-        pauseStreaming(idsToPause);
-    }
+    // 使用 tcr_session_switch_streaming_instances 动态切换拉流实例
+    switchStreamingInstances(visibleIds);
     
     // 更新上次的状态
     m_lastVisibleIds = visibleIds;
     m_lastInvisibleIds = invisibleIds;
+}
+
+// ==================== 计算session数量 ====================
+
+int MultiStreamViewModel::calculateSessionCount(int totalInstances, int concurrentInstances)
+{
+    // 如果并发实例数不超过限制，只需要1个session
+    if (concurrentInstances <= MAX_CONCURRENT_INSTANCES_PER_SESSION) {
+        return 1;
+    }
+    
+    // 计算需要的session数量：向上取整(concurrentInstances / MAX)
+    int sessionCount = static_cast<int>(std::ceil(static_cast<double>(concurrentInstances) / MAX_CONCURRENT_INSTANCES_PER_SESSION));
+    
+    Logger::info(QString("[calculateSessionCount] 并发实例数: %1, 需要session数量: %2")
+                .arg(concurrentInstances)
+                .arg(sessionCount));
+    
+    return sessionCount;
+}
+
+// ==================== 分配实例到多个session ====================
+
+QVector<QStringList> MultiStreamViewModel::reorderInstancesForSessions(const QStringList& allInstanceIds, int sessionCount)
+{
+    QVector<QStringList> result(sessionCount);
+    
+    if (sessionCount <= 0 || allInstanceIds.isEmpty()) {
+        return result;
+    }
+    
+    int totalInstances = allInstanceIds.size();
+    int instancesPerSession = MAX_CONCURRENT_INSTANCES_PER_SESSION;  // 每个session默认拉100个
+    
+    // 为每个session创建重新排序的实例列表
+    // 策略：Session i 的前100个实例是全局的第 i*100 到 (i+1)*100-1 个
+    for (int i = 0; i < sessionCount; ++i) {
+        QStringList& sessionList = result[i];
+        
+        // 计算这个session"优先"的实例范围
+        int priorityStart = i * instancesPerSession;
+        int priorityEnd = qMin(priorityStart + instancesPerSession, totalInstances);
+        
+        // 先添加优先的实例（这些会被默认拉流）
+        for (int j = priorityStart; j < priorityEnd; ++j) {
+            sessionList.append(allInstanceIds[j]);
+        }
+        
+        // 再添加剩余的实例（保持顺序，先添加优先范围之后的，再添加之前的）
+        // 优先范围之后的
+        for (int j = priorityEnd; j < totalInstances; ++j) {
+            sessionList.append(allInstanceIds[j]);
+        }
+        // 优先范围之前的
+        for (int j = 0; j < priorityStart; ++j) {
+            sessionList.append(allInstanceIds[j]);
+        }
+        
+        Logger::info(QString("[reorderInstancesForSessions] Session %1 实例顺序: 前%2个优先 (索引%3-%4), 总计%5个")
+                    .arg(i)
+                    .arg(priorityEnd - priorityStart)
+                    .arg(priorityStart)
+                    .arg(priorityEnd - 1)
+                    .arg(sessionList.size()));
+    }
+    
+    return result;
+}
+
+QVector<QStringList> MultiStreamViewModel::distributeVisibleInstancesToSessions(const QStringList& visibleIds)
+{
+    int sessionCount = m_sessions.size();
+    QVector<QStringList> result(sessionCount);
+    
+    if (sessionCount <= 0 || visibleIds.isEmpty()) {
+        return result;
+    }
+    
+    // 将可见实例均匀分配到各个session
+    // 策略：按顺序分配，第i个实例分配给第 (i % sessionCount) 个session
+    // 这样可以确保每个session分配到的实例数量接近 visibleIds.size() / sessionCount
+    
+    // 更好的策略：按块分配，前100个给session0，接下来100个给session1...
+    int instancesPerSession = MAX_CONCURRENT_INSTANCES_PER_SESSION;
+    
+    for (int i = 0; i < visibleIds.size(); ++i) {
+        int sessionIndex = i / instancesPerSession;
+        if (sessionIndex >= sessionCount) {
+            sessionIndex = sessionCount - 1;  // 超出的都放到最后一个session
+        }
+        result[sessionIndex].append(visibleIds[i]);
+    }
+    
+    // 打印分配结果
+    for (int i = 0; i < sessionCount; ++i) {
+        Logger::debug(QString("[distributeVisibleInstancesToSessions] Session %1 分配到 %2 个可见实例")
+                    .arg(i)
+                    .arg(result[i].size()));
+    }
+    
+    return result;
+}
+
+// ==================== 查找实例所属session ====================
+
+int MultiStreamViewModel::findSessionIndexForInstance(const QString& instanceId) const
+{
+    return m_instanceToSessionIndex.value(instanceId, -1);
+}
+
+// ==================== 切换拉流实例 ====================
+
+void MultiStreamViewModel::switchStreamingInstances(const QStringList& streamingIds)
+{
+    Logger::info(QString("[switchStreamingInstances] 切换拉流实例: %1 个").arg(streamingIds.size()));
+    
+    if (m_sessions.isEmpty()) {
+        Logger::warning("[switchStreamingInstances] 没有可用的session");
+        return;
+    }
+    
+    // 将可见实例分配到各个session
+    QVector<QStringList> streamingBySession = distributeVisibleInstancesToSessions(streamingIds);
+    
+    // 对每个session分别调用切换接口
+    for (int i = 0; i < m_sessions.size(); ++i) {
+        SessionInfo& sessionInfo = m_sessions[i];
+        const QStringList& sessionStreamingIds = streamingBySession[i];
+        
+        if (!sessionInfo.session) {
+            continue;
+        }
+        
+        // 检查是否有变化
+        QSet<QString> newSet(sessionStreamingIds.begin(), sessionStreamingIds.end());
+        QSet<QString> currentSet(sessionInfo.currentStreamingIds.begin(), sessionInfo.currentStreamingIds.end());
+        
+        if (newSet == currentSet) {
+            Logger::debug(QString("[switchStreamingInstances] Session %1 无变化，跳过").arg(i));
+            continue;
+        }
+        
+        // 验证要切换的实例是否都在该session的allInstanceIds中
+        QStringList validIds;
+        QSet<QString> sessionAllIds(sessionInfo.allInstanceIds.begin(), sessionInfo.allInstanceIds.end());
+        for (const QString& id : sessionStreamingIds) {
+            if (sessionAllIds.contains(id)) {
+                validIds.append(id);
+            } else {
+                Logger::warning(QString("[switchStreamingInstances] 实例 %1 不在Session %2 的实例列表中")
+                              .arg(id)
+                              .arg(i));
+            }
+        }
+        
+        if (validIds.isEmpty()) {
+            Logger::debug(QString("[switchStreamingInstances] Session %1 没有有效的切换实例").arg(i));
+            continue;
+        }
+        
+        // 转换为 C 字符串数组并调用 SDK
+        auto result = VariantListConverter::convert(validIds);
+        
+        tcr_session_switch_streaming_instances(
+            sessionInfo.session,
+            result.pointers.data(),
+            static_cast<int32_t>(result.pointers.size())
+        );
+        
+        // 更新该session当前拉流实例列表
+        sessionInfo.currentStreamingIds = validIds;
+        
+        Logger::info(QString("[switchStreamingInstances] Session %1 已切换到 %2 个实例")
+                    .arg(i)
+                    .arg(validIds.size()));
+    }
+    
+    // 更新全局当前拉流实例列表
+    m_currentStreamingIds = streamingIds;
+    
+    Logger::info(QString("[switchStreamingInstances] 总共切换到 %1 个实例").arg(streamingIds.size()));
 }
 
 // ==================== 视频渲染项注册 ====================
@@ -226,8 +378,6 @@ void MultiStreamViewModel::registerVideoRenderItem(const QString& instanceId,
         return;
     }
     
-    // 使用 instanceId 作为唯一标识
-    // 加锁保护 m_videoRenderItems 的写操作
     {
         QMutexLocker locker(&m_videoRenderItemsMutex);
         m_videoRenderItems[instanceId] = vrItem;
@@ -240,23 +390,20 @@ void MultiStreamViewModel::registerVideoRenderItem(const QString& instanceId,
 
 void MultiStreamViewModel::batchRenderFrames()
 {
-    // 步骤1：加锁并交换缓存（最小化锁持有时间）
     QMap<QString, VideoFrameDataPtr> framesToRender;
     {
         QMutexLocker locker(&m_frameCacheMutex);
         if (m_frameCache.isEmpty()) {
-            return;  // 没有待渲染的帧
+            return;
         }
-        framesToRender.swap(m_frameCache);  // 交换而非复制，高效
+        framesToRender.swap(m_frameCache);
     }
     
-    // 步骤2：批量渲染所有缓存的帧（需要加锁访问 m_videoRenderItems）
     int renderedCount = 0;
     for (auto it = framesToRender.begin(); it != framesToRender.end(); ++it) {
         const QString& instanceId = it.key();
         VideoFrameDataPtr frame = it.value();
         
-        // 加锁检查渲染项是否仍然有效
         QPointer<VideoRenderItem> renderItem;
         {
             QMutexLocker locker(&m_videoRenderItemsMutex);
@@ -265,7 +412,6 @@ void MultiStreamViewModel::batchRenderFrames()
             }
         }
         
-        // 在锁外执行渲染操作（避免长时间持锁）
         if (renderItem) {
             renderItem->setFrame(frame);
             renderedCount++;
@@ -275,136 +421,164 @@ void MultiStreamViewModel::batchRenderFrames()
 
 // ==================== 多实例连接 ====================
 
-void MultiStreamViewModel::connectMultipleInstances(const QVariantList& sessionConfigs)
+void MultiStreamViewModel::connectMultipleInstances(const QStringList& allInstanceIds, int concurrentStreamingInstances)
 {
-    Logger::info(QString("[connectMultipleInstances] 开始连接 %1 个会话")
-                .arg(sessionConfigs.size()));
+    Logger::info(QString("[connectMultipleInstances] 开始连接 %1 个实例，同时串流数量: %2")
+                .arg(allInstanceIds.size())
+                .arg(concurrentStreamingInstances));
     
     // 关闭现有会话（如果有）
     closeAllSessions();
     
-    if (sessionConfigs.isEmpty()) {
-        Logger::warning("[connectMultipleInstances] 会话配置列表为空");
+    if (allInstanceIds.isEmpty()) {
+        Logger::warning("[connectMultipleInstances] 实例ID列表为空");
         return;
     }
+    
+    // 保存所有实例ID和总并发数
+    m_allInstanceIds = allInstanceIds;
+    m_totalConcurrentInstances = concurrentStreamingInstances;
     
     // 确保 TcrClient 已初始化
     if (!m_tcrClient) {
         m_tcrClient = tcr_client_get_instance();
     }
     
-    // 创建会话并连接实例
-    createSessionsWithConfigs(sessionConfigs);
+    // 计算需要的session数量
+    int sessionCount = calculateSessionCount(allInstanceIds.size(), concurrentStreamingInstances);
     
-    // 收集所有实例ID并设置为连接中状态
-    QStringList allInstanceIds;
-    for (const QVariant& sessionConfig : sessionConfigs) {
-        QStringList sessionInstances = sessionConfig.toStringList();
-        allInstanceIds.append(sessionInstances);
+    // 为每个session生成重新排序的实例列表（每个session都包含所有实例，但顺序不同）
+    QVector<QStringList> instanceDistribution = reorderInstancesForSessions(allInstanceIds, sessionCount);
+    
+    // 初始化session列表和实例映射
+    m_sessions.resize(sessionCount);
+    m_instanceToSessionIndex.clear();
+    
+    // 建立实例到session的映射（用于视频帧路由）
+    // 策略：每个实例映射到它作为"优先实例"的那个session
+    for (int i = 0; i < sessionCount; ++i) {
+        int priorityStart = i * MAX_CONCURRENT_INSTANCES_PER_SESSION;
+        int priorityEnd = qMin(priorityStart + MAX_CONCURRENT_INSTANCES_PER_SESSION, allInstanceIds.size());
         
-        // 设置为连接中状态
-        for (const QString& instanceId : sessionInstances) {
-            m_instanceConnectionStates[instanceId] = InstanceConnectionState::Connecting;
-            emit instanceConnectionChanged(instanceId, false);
+        for (int j = priorityStart; j < priorityEnd; ++j) {
+            m_instanceToSessionIndex[allInstanceIds[j]] = i;
         }
     }
     
+    // 创建每个session
+    for (int i = 0; i < sessionCount; ++i) {
+        const QStringList& sessionInstanceOrder = instanceDistribution[i];
+        
+        // 每个session的并发数都是100
+        int actualConcurrent = MAX_CONCURRENT_INSTANCES_PER_SESSION;
+        
+        // 创建session，传入重新排序的实例列表
+        createSession(i, sessionInstanceOrder, actualConcurrent);
+    }
+    
+    // 设置所有实例为连接中状态
+    for (const QString& instanceId : allInstanceIds) {
+        m_instanceConnectionStates[instanceId] = InstanceConnectionState::Connecting;
+        emit instanceConnectionChanged(instanceId, false);
+    }
+    
     m_connectedInstanceIds.clear();
+    m_currentStreamingIds.clear();
     emit connectedInstanceIdsChanged();
+    
+    Logger::info(QString("[connectMultipleInstances] 已创建 %1 个session，每个session管理所有 %2 个实例")
+                .arg(sessionCount)
+                .arg(allInstanceIds.size()));
 }
 
-void MultiStreamViewModel::createSessionsWithConfigs(const QVariantList& sessionConfigs)
+void MultiStreamViewModel::createSession(int sessionIndex, const QStringList& instanceIds, int concurrentStreamingInstances)
 {
-    int sessionCount = sessionConfigs.size();
-    Logger::info(QString("[createSessionsWithConfigs] 创建 %1 个会话").arg(sessionCount));
+    Logger::info(QString("[createSession] 创建Session %1，传入 %2 个实例，同时串流数量: %3")
+                .arg(sessionIndex)
+                .arg(instanceIds.size())
+                .arg(concurrentStreamingInstances));
     
-    m_sessions.resize(sessionCount);
+    if (instanceIds.isEmpty()) {
+        Logger::warning(QString("[createSession] Session %1 实例列表为空").arg(sessionIndex));
+        return;
+    }
     
-    for (int i = 0; i < sessionCount; i++) {
-        QStringList sessionInstanceIds = sessionConfigs[i].toStringList();
-        
-        if (sessionInstanceIds.isEmpty()) {
-            Logger::warning(QString("[createSessionsWithConfigs] 会话 %1 的实例列表为空").arg(i));
-            continue;
-        }
+    if (sessionIndex < 0 || sessionIndex >= m_sessions.size()) {
+        Logger::error(QString("[createSession] 无效的session索引: %1").arg(sessionIndex));
+        return;
+    }
 
-        // ===== TcrSdk API 使用步骤 =====
-        
-        // 步骤1：创建会话配置
-        // 使用 tcr_session_config_default() 获取默认配置，然后自定义需要的参数
-        TcrSessionConfig config = tcr_session_config_default();
-        
-        // 从StreamConfig单例获取配置的串流参数
-        StreamConfig* streamConfig = StreamConfig::instance();
-        
-        // 自定义视频流参数（使用大流参数）
-        config.stream_profile.video_width = streamConfig->subStreamWidth();   // 指定短边的宽度
-        config.stream_profile.fps = streamConfig->subStreamFps();             // 帧率
-        config.stream_profile.max_bitrate = streamConfig->subStreamMaxBitrate();   // 最大码率
-        config.stream_profile.min_bitrate = streamConfig->subStreamMinBitrate();    // 最小码率
-        config.enable_audio = false; 
-        
-        Logger::info(QString("[createSessionsWithConfigs] 使用串流参数 - 宽度:%1, 帧率:%2, 码率:%3-%4")
-                    .arg(config.stream_profile.video_width)
-                    .arg(config.stream_profile.fps)
-                    .arg(config.stream_profile.min_bitrate)
-                    .arg(config.stream_profile.max_bitrate));
-        
-        // 步骤2：创建会话
-        // tcr_client_create_session() 返回会话句柄，用于后续所有会话操作
-        m_sessions[i].session = tcr_client_create_session(m_tcrClient, &config);
-        m_sessions[i].instanceIds = sessionInstanceIds;
-        
-        if (!m_sessions[i].session) {
-            Logger::error(QString("[createSessionsWithConfigs] 会话 %1 创建失败").arg(i));
-            continue;
-        }
-        
-        Logger::info(QString("[createSessionsWithConfigs] 会话 %1 创建成功，实例: %2")
-                    .arg(i).arg(sessionInstanceIds.join(",")));
-        
-        // 步骤3：初始化用户数据和观察者结构体
-        // 用户数据用于在 C 回调函数中传递上下文信息
-        m_sessions[i].userData.viewModel = this;
-        m_sessions[i].userData.sessionIndex = i;
-        
-        // 初始化会话事件观察者
-        m_sessions[i].sessionObserver.user_data = &m_sessions[i].userData;
-        m_sessions[i].sessionObserver.on_event = &MultiStreamViewModel::SessionEventCallback;
-        
-        // 初始化视频帧观察者
-        m_sessions[i].videoFrameObserver.user_data = &m_sessions[i].userData;
-        m_sessions[i].videoFrameObserver.on_frame = &MultiStreamViewModel::VideoFrameCallback;
-        
-        // 步骤4：设置观察者
-        // 必须在连接实例前设置，否则无法接收回调
-        setSessionObservers(i);
-        
-        // 步骤5：连接实例
-        // tcr_session_access() 启动会话并连接到指定的云手机实例
-        auto result = VariantListConverter::convert(sessionInstanceIds);
-        if (!result.pointers.empty()) {
-            // tcr_session_access(
-            //     m_sessions[i].session,
-            //     result.pointers.data(),
-            //     static_cast<int32_t>(result.pointers.size()),
-            //     false
-            // );
+    SessionInfo& sessionInfo = m_sessions[sessionIndex];
 
-            // tcr_session_access_multi_stream(
-            //     m_sessions[i].session,
-            //     result.pointers.data(),
-            //     static_cast<int32_t>(result.pointers.size())
-            // );
-            tcr_session_access_multi_stream(
-                m_sessions[i].session,
-                result.pointers.data(),
-                static_cast<int32_t>(result.pointers.size()),
-                result.pointers.data(),
-                static_cast<int32_t>(result.pointers.size())
-            );
-            Logger::debug(QString("[createSessionsWithConfigs] 会话 %1 开始连接实例").arg(i));
-        }
+    // ===== TcrSdk API 使用步骤 =====
+    
+    // 步骤1：创建会话配置
+    TcrSessionConfig config = tcr_session_config_default();
+    
+    // 从StreamConfig单例获取配置的串流参数
+    StreamConfig* streamConfig = StreamConfig::instance();
+    
+    // 自定义视频流参数
+    config.stream_profile.video_width = streamConfig->subStreamWidth();
+    config.stream_profile.fps = streamConfig->subStreamFps();
+    config.stream_profile.max_bitrate = streamConfig->subStreamMaxBitrate();
+    config.stream_profile.min_bitrate = streamConfig->subStreamMinBitrate();
+    config.enable_audio = false;
+    
+    // 设置并发拉流实例数量（确保不超过100）
+    config.concurrentStreamingInstances = qMin(concurrentStreamingInstances, MAX_CONCURRENT_INSTANCES_PER_SESSION);
+    
+    Logger::info(QString("[createSession] Session %1 使用串流参数 - 宽度:%2, 帧率:%3, 码率:%4-%5, 同时串流数量:%6")
+                .arg(sessionIndex)
+                .arg(config.stream_profile.video_width)
+                .arg(config.stream_profile.fps)
+                .arg(config.stream_profile.min_bitrate)
+                .arg(config.stream_profile.max_bitrate)
+                .arg(config.concurrentStreamingInstances));
+    
+    // 步骤2：创建会话
+    sessionInfo.session = tcr_client_create_session(m_tcrClient, &config);
+    sessionInfo.allInstanceIds = instanceIds;  // 保存带顺序的所有实例ID
+    sessionInfo.concurrentStreamingInstances = config.concurrentStreamingInstances;
+    sessionInfo.currentStreamingIds.clear();
+    
+    if (!sessionInfo.session) {
+        Logger::error(QString("[createSession] Session %1 创建失败").arg(sessionIndex));
+        return;
+    }
+    
+    Logger::info(QString("[createSession] Session %1 创建成功，前3个实例: %2...")
+                .arg(sessionIndex)
+                .arg(instanceIds.mid(0, 3).join(",")));
+    
+    // 步骤3：初始化用户数据和观察者结构体（堆分配，确保生命周期）
+    sessionInfo.userData = new SessionUserData();
+    sessionInfo.userData->viewModel = this;
+    sessionInfo.userData->sessionIndex = sessionIndex;
+    
+    // 初始化会话事件观察者
+    sessionInfo.sessionObserver.user_data = sessionInfo.userData;
+    sessionInfo.sessionObserver.on_event = &MultiStreamViewModel::SessionEventCallback;
+    
+    // 初始化视频帧观察者
+    sessionInfo.videoFrameObserver.user_data = sessionInfo.userData;
+    sessionInfo.videoFrameObserver.on_frame = &MultiStreamViewModel::VideoFrameCallback;
+    
+    // 步骤4：设置观察者
+    setSessionObservers(sessionIndex);
+    
+    // 步骤5：连接所有实例（使用 tcr_session_access_multi_stream）
+    // 注意：传入的是带特定顺序的实例列表，前100个会被默认拉流
+    auto result = VariantListConverter::convert(instanceIds);
+    if (!result.pointers.empty()) {
+        tcr_session_access_multi_stream(
+            sessionInfo.session,
+            result.pointers.data(),
+            static_cast<int32_t>(result.pointers.size())
+        );
+        Logger::debug(QString("[createSession] Session %1 开始连接实例（多流模式），传入 %2 个实例")
+                     .arg(sessionIndex)
+                     .arg(result.pointers.size()));
     }
 }
 
@@ -414,20 +588,22 @@ void MultiStreamViewModel::setSessionObservers(int sessionIndex)
         return;
     }
     
-    if (!m_sessions[sessionIndex].session) {
+    SessionInfo& sessionInfo = m_sessions[sessionIndex];
+    
+    if (!sessionInfo.session) {
         return;
     }
     
-    // 设置会话事件观察者 - 接收连接状态、错误等事件
+    // 设置会话事件观察者
     tcr_session_set_observer(
-        m_sessions[sessionIndex].session, 
-        &m_sessions[sessionIndex].sessionObserver
+        sessionInfo.session, 
+        &sessionInfo.sessionObserver
     );
     
-    // 设置视频帧观察者 - 接收解码后的视频帧
+    // 设置视频帧观察者
     tcr_session_set_video_frame_observer(
-        m_sessions[sessionIndex].session, 
-        &m_sessions[sessionIndex].videoFrameObserver
+        sessionInfo.session, 
+        &sessionInfo.videoFrameObserver
     );
 }
 
@@ -435,12 +611,13 @@ void MultiStreamViewModel::setSessionObservers(int sessionIndex)
 
 void MultiStreamViewModel::closeAllSessions()
 {
-    Logger::info("[closeAllSessions] 开始关闭所有会话");
+    Logger::info(QString("[closeAllSessions] 开始关闭 %1 个会话").arg(m_sessions.size()));
     
-    for (auto& sessionInfo : m_sessions) {
+    for (int i = 0; i < m_sessions.size(); ++i) {
+        SessionInfo& sessionInfo = m_sessions[i];
+        
         if (sessionInfo.session) {
             // 重要：必须先取消观察者，再销毁会话
-            // 这是 TcrSdk 的正确使用方式，防止回调访问已释放的内存
             tcr_session_set_observer(sessionInfo.session, nullptr);
             tcr_session_set_video_frame_observer(sessionInfo.session, nullptr);
             
@@ -450,11 +627,25 @@ void MultiStreamViewModel::closeAllSessions()
             }
             sessionInfo.session = nullptr;
         }
+        
+        // 释放用户数据
+        if (sessionInfo.userData) {
+            delete sessionInfo.userData;
+            sessionInfo.userData = nullptr;
+        }
+        
+        sessionInfo.allInstanceIds.clear();
+        sessionInfo.currentStreamingIds.clear();
+        sessionInfo.connected = false;
     }
     
     m_sessions.clear();
+    m_instanceToSessionIndex.clear();
+    m_allInstanceIds.clear();
     m_connectedInstanceIds.clear();
+    m_currentStreamingIds.clear();
     m_instanceConnectionStates.clear();
+    m_totalConcurrentInstances = 0;
     emit connectedInstanceIdsChanged();
     
     Logger::info("[closeAllSessions] 所有会话已关闭");
@@ -469,37 +660,44 @@ void MultiStreamViewModel::pauseStreaming(const QStringList& instanceIds)
         return;
     }
     
-    // 转换 QStringList 到 C 字符串数组
-    auto result = VariantListConverter::convert(instanceIds);
-    if (result.pointers.empty()) {
-        Logger::error("[pauseStreaming] 转换实例ID列表失败");
-        return;
+    // 按session分组
+    QHash<int, QStringList> instancesBySession;
+    for (const QString& instanceId : instanceIds) {
+        int sessionIndex = findSessionIndexForInstance(instanceId);
+        if (sessionIndex >= 0) {
+            instancesBySession[sessionIndex].append(instanceId);
+        }
     }
     
-    // 注意：为了简单演示功能，这里只对第一个会话调用暂停接口
-    // 实际应用中需要根据实例ID查找对应的会话
-    if (m_sessions.empty()) {
-        Logger::warning("[pauseStreaming] 没有可用的会话");
-        return;
-    }
-    
-    const auto& sessionInfo = m_sessions[0];  // 只使用第一个会话
-    if (sessionInfo.session) {
-        // 调用 TcrSdk API 暂停流媒体
-        // 参数说明：
-        // - session: 会话句柄
-        // - media_type: nullptr 表示暂停音视频流
-        // - instanceIds: 实例ID数组
-        // - instance_count: 实例数量
+    // 对每个session分别调用暂停接口
+    for (auto it = instancesBySession.begin(); it != instancesBySession.end(); ++it) {
+        int sessionIndex = it.key();
+        const QStringList& sessionInstances = it.value();
+        
+        if (sessionIndex < 0 || sessionIndex >= m_sessions.size()) {
+            continue;
+        }
+        
+        SessionInfo& sessionInfo = m_sessions[sessionIndex];
+        if (!sessionInfo.session) {
+            continue;
+        }
+        
+        auto result = VariantListConverter::convert(sessionInstances);
+        if (result.pointers.empty()) {
+            continue;
+        }
+        
         tcr_session_pause_streaming(
             sessionInfo.session,
-            nullptr,  // 暂停音视频流
+            nullptr,
             result.pointers.data(),
             static_cast<int32_t>(result.pointers.size())
         );
         
-        Logger::info(QString("[pauseStreaming] 会话 0 已暂停流媒体，实例: %1")
-                    .arg(instanceIds.join(",")));
+        Logger::info(QString("[pauseStreaming] Session %1 已暂停流媒体，实例: %2")
+                    .arg(sessionIndex)
+                    .arg(sessionInstances.join(",")));
     }
 }
 
@@ -512,37 +710,44 @@ void MultiStreamViewModel::resumeStreaming(const QStringList& instanceIds)
         return;
     }
     
-    // 转换 QStringList 到 C 字符串数组
-    auto result = VariantListConverter::convert(instanceIds);
-    if (result.pointers.empty()) {
-        Logger::error("[resumeStreaming] 转换实例ID列表失败");
-        return;
+    // 按session分组
+    QHash<int, QStringList> instancesBySession;
+    for (const QString& instanceId : instanceIds) {
+        int sessionIndex = findSessionIndexForInstance(instanceId);
+        if (sessionIndex >= 0) {
+            instancesBySession[sessionIndex].append(instanceId);
+        }
     }
     
-    // 注意：为了简单演示功能，这里只对第一个会话调用恢复接口
-    // 实际应用中需要根据实例ID查找对应的会话
-    if (m_sessions.empty()) {
-        Logger::warning("[resumeStreaming] 没有可用的会话");
-        return;
-    }
-    
-    const auto& sessionInfo = m_sessions[0];  // 只使用第一个会话
-    if (sessionInfo.session) {
-        // 调用 TcrSdk API 恢复流媒体
-        // 参数说明：
-        // - session: 会话句柄
-        // - media_type: nullptr 表示恢复音视频流
-        // - instanceIds: 实例ID数组
-        // - instance_count: 实例数量
+    // 对每个session分别调用恢复接口
+    for (auto it = instancesBySession.begin(); it != instancesBySession.end(); ++it) {
+        int sessionIndex = it.key();
+        const QStringList& sessionInstances = it.value();
+        
+        if (sessionIndex < 0 || sessionIndex >= m_sessions.size()) {
+            continue;
+        }
+        
+        SessionInfo& sessionInfo = m_sessions[sessionIndex];
+        if (!sessionInfo.session) {
+            continue;
+        }
+        
+        auto result = VariantListConverter::convert(sessionInstances);
+        if (result.pointers.empty()) {
+            continue;
+        }
+        
         tcr_session_resume_streaming(
             sessionInfo.session,
-            nullptr,  // 恢复音视频流
+            nullptr,
             result.pointers.data(),
             static_cast<int32_t>(result.pointers.size())
         );
         
-        Logger::info(QString("[resumeStreaming] 会话 0 已恢复流媒体，实例: %1")
-                    .arg(instanceIds.join(",")));
+        Logger::info(QString("[resumeStreaming] Session %1 已恢复流媒体，实例: %2")
+                    .arg(sessionIndex)
+                    .arg(sessionInstances.join(",")));
     }
 }
 
@@ -552,82 +757,88 @@ void MultiStreamViewModel::SessionEventCallback(void* user_data,
                                                TcrSessionEvent event,
                                                const char* eventData)
 {
-    // 步骤1：从 user_data 中恢复上下文信息
     SessionUserData* userData = static_cast<SessionUserData*>(user_data);
+    if (!userData || !userData->viewModel) {
+        return;
+    }
+    
     MultiStreamViewModel* self = userData->viewModel;
     int sessionIndex = userData->sessionIndex;
     
-    // 步骤2：复制事件数据（避免生命周期问题）
+    // 检查是否正在销毁
+    if (self->m_isDestroying.load(std::memory_order_acquire)) {
+        return;
+    }
+    
+    // 检查session索引有效性
+    if (sessionIndex < 0 || sessionIndex >= self->m_sessions.size()) {
+        Logger::warning(QString("[SessionEventCallback] 无效的session索引: %1").arg(sessionIndex));
+        return;
+    }
+    
+    SessionInfo& sessionInfo = self->m_sessions[sessionIndex];
     QString eventDataCopy = eventData ? QString::fromUtf8(eventData) : QString();
-
-    // 步骤3：切换到主线程处理事件
-    // 回调函数可能在非主线程执行，使用 QMetaObject::invokeMethod 确保线程安全
-    QMetaObject::invokeMethod(self, [self, sessionIndex, event, eventDataCopy]() {
-        // 验证会话索引有效性
-        if (sessionIndex < 0 || sessionIndex >= self->m_sessions.size()) {
-            Logger::warning(QString("[SessionEventCallback] 无效的会话索引: %1").arg(sessionIndex));
-            return;
-        }
-        
-        SessionInfo& sessionInfo = self->m_sessions[sessionIndex];
-        
-        // 处理不同的事件类型
-        switch (event) {
-            case TCR_SESSION_EVENT_STATE_CONNECTED: {
-                // 会话连接成功
-                Logger::info(QString("[SessionEventCallback] 会话 %1 连接成功，实例: %2")
-                            .arg(sessionIndex).arg(sessionInfo.instanceIds.join(",")));
+    
+    // 处理不同的事件类型
+    switch (event) {
+        case TCR_SESSION_EVENT_STATE_CONNECTED: {
+            Logger::info(QString("[SessionEventCallback] Session %1 连接成功，管理 %2 个实例")
+                        .arg(sessionIndex)
+                        .arg(sessionInfo.allInstanceIds.size()));
+            
+            sessionInfo.connected = true;
+            
+            // 更新该session管理的所有实例为已连接状态
+            for (const QString& instanceId : sessionInfo.allInstanceIds) {
+                self->m_instanceConnectionStates[instanceId] = InstanceConnectionState::Connected;
                 
-                sessionInfo.connected = true;
-                
-                // 更新为已连接状态
-                for (const QString& instanceId : sessionInfo.instanceIds) {
-                    self->m_instanceConnectionStates[instanceId] = InstanceConnectionState::Connected;
-                    
-                    // 添加到已连接列表
-                    if (!self->m_connectedInstanceIds.contains(instanceId)) {
-                        self->m_connectedInstanceIds.append(instanceId);
-                    }
-                    
-                    emit self->instanceConnectionChanged(instanceId, true);
+                if (!self->m_connectedInstanceIds.contains(instanceId)) {
+                    self->m_connectedInstanceIds.append(instanceId);
                 }
                 
-                emit self->connectedInstanceIdsChanged();
-                break;
+                emit self->instanceConnectionChanged(instanceId, true);
             }
-                
-            case TCR_SESSION_EVENT_STATE_CLOSED:
-                // 会话关闭
-                Logger::error(QString("[SessionEventCallback] 会话 %1 断开: %2")
-                             .arg(sessionIndex).arg(eventDataCopy));
-                
-                sessionInfo.connected = false;
-                
-                // 更新为未连接状态并从已连接列表中移除
-                for (const QString& instanceId : sessionInfo.instanceIds) {
-                    self->m_instanceConnectionStates[instanceId] = InstanceConnectionState::Disconnected;
-                    self->m_connectedInstanceIds.removeAll(instanceId);
-                    emit self->instanceConnectionChanged(instanceId, false);
-                }
-                
-                // 触发列表变化信号，更新QML界面
-                emit self->connectedInstanceIdsChanged();
-                
-                // 发送会话关闭信号（用于弹出对话框）
-                emit self->sessionClosed(sessionIndex, sessionInfo.instanceIds, eventDataCopy);
-                break;
-            case TCR_SESSION_EVENT_CLIENT_STATS: // 更新统计数据（包含帧率、码率、延迟等信息）
-                self->m_clientStats = eventDataCopy;
-                emit self->clientStatsChanged();
-                break;
+            
+            emit self->connectedInstanceIdsChanged();
+            break;
         }
-    }, Qt::QueuedConnection);
+            
+        case TCR_SESSION_EVENT_STATE_CLOSED:
+            Logger::error(QString("[SessionEventCallback] Session %1 断开: %2")
+                         .arg(sessionIndex)
+                         .arg(eventDataCopy));
+            
+            sessionInfo.connected = false;
+            
+            // 更新该session管理的所有实例为未连接状态
+            for (const QString& instanceId : sessionInfo.allInstanceIds) {
+                self->m_instanceConnectionStates[instanceId] = InstanceConnectionState::Disconnected;
+                self->m_connectedInstanceIds.removeAll(instanceId);
+                emit self->instanceConnectionChanged(instanceId, false);
+            }
+            
+            emit self->connectedInstanceIdsChanged();
+            emit self->sessionClosed(sessionIndex, sessionInfo.allInstanceIds, eventDataCopy);
+            break;
+            
+        case TCR_SESSION_EVENT_CLIENT_STATS:
+            // TODO: 合并多个session的统计数据（这里简单地使用最后一个session的数据）
+            self->m_clientStats = eventDataCopy;
+            emit self->clientStatsChanged();
+            break;
+            
+        default:
+            Logger::debug(QString("[SessionEventCallback] Session %1 收到事件: %2, 数据: %3")
+                         .arg(sessionIndex)
+                         .arg(event)
+                         .arg(eventDataCopy));
+            break;
+    }
 }
 
 void MultiStreamViewModel::VideoFrameCallback(void* user_data,
                                              TcrVideoFrameHandle frame_handle)
 {
-    // ===== 步骤1：参数有效性检查 =====
     if (!user_data || !frame_handle) {
         Logger::warning("[VideoFrameCallback] 无效参数");
         return;
@@ -640,32 +851,27 @@ void MultiStreamViewModel::VideoFrameCallback(void* user_data,
     }
     
     MultiStreamViewModel* self = userData->viewModel;
+    int sessionIndex = userData->sessionIndex;
     
-    // ===== 步骤2：快速检测析构状态（原子操作，无锁） =====
-    // 使用 memory_order_acquire 确保看到 store 之前的所有写操作
     if (self->m_isDestroying.load(std::memory_order_acquire)) {
-        // 对象正在析构，立即返回，不处理任何数据
-        Logger::warning("[VideoFrameCallback] 对象正在析构，不处理数据");
         return;
     }
     
-    int sessionIndex = userData->sessionIndex;
+    // 检查session索引有效性
+    if (sessionIndex < 0 || sessionIndex >= self->m_sessions.size()) {
+        tcr_video_frame_release(frame_handle);
+        return;
+    }
     
-    // ===== 步骤3：获取视频帧缓冲区 =====
-    // tcr_video_frame_get_buffer() 返回帧数据的只读指针
     const TcrVideoFrameBuffer* frame_buffer = tcr_video_frame_get_buffer(frame_handle);
     if (!frame_buffer) {
         Logger::warning("[VideoFrameCallback] 无效的视频帧缓冲区");
         return;
     }
 
-    // ===== 步骤4：立即复制字符串数据（防止指针失效）=====
-    // 重要：instance_id 指针来自 TcrSdk 内部，可能随时失效
-    // 必须在使用前立即复制到 QString 中
     QString instanceId;
     
     try {
-        // 防御性编程：检查指针有效性
         if (frame_buffer->instance_id) {
             instanceId = QString::fromUtf8(frame_buffer->instance_id);
         } else {
@@ -677,57 +883,42 @@ void MultiStreamViewModel::VideoFrameCallback(void* user_data,
         return;
     }
     
-    // ===== 步骤5：验证实例是否属于当前会话 =====
-    if (sessionIndex >= 0 && sessionIndex < self->m_sessions.size()) {
-        const SessionInfo& sessionInfo = self->m_sessions[sessionIndex];
-        if (!sessionInfo.instanceIds.contains(instanceId)) {
-            Logger::warning(QString("[VideoFrameCallback] 实例 %1 不属于会话 %2")
-                           .arg(instanceId).arg(sessionIndex));
-            tcr_video_frame_release(frame_handle);
-            return;
-        }
+    // 验证实例是否属于当前session（使用allInstanceIds）
+    const SessionInfo& sessionInfo = self->m_sessions[sessionIndex];
+    if (!sessionInfo.allInstanceIds.contains(instanceId)) {
+        Logger::warning(QString("[VideoFrameCallback] 实例 %1 不属于Session %2")
+                       .arg(instanceId)
+                       .arg(sessionIndex));
+        return;
     }
     
-    // ===== 步骤6：加锁检查渲染项是否存在且有效 =====
     bool hasValidRenderItem = false;
     {
         QMutexLocker locker(&self->m_videoRenderItemsMutex);
         
-        // 再次检查析构状态（双重检查）
         if (self->m_isDestroying.load(std::memory_order_acquire)) {
-            Logger::warning("[VideoFrameCallback] 对象正在析构，不处理数据");
             return;
         }
         
-        // 检查是否有对应的渲染项
         if (self->m_videoRenderItems.contains(instanceId)) {
             QPointer<VideoRenderItem> renderItem = self->m_videoRenderItems[instanceId];
             if (renderItem) {
                 hasValidRenderItem = true;
             } else {
-                // 对象已被销毁，从映射中移除
                 self->m_videoRenderItems.remove(instanceId);
             }
         }
     }
-    // 锁已释放
     
-    // 如果没有有效的渲染项，直接返回
     if (!hasValidRenderItem) {
-        tcr_video_frame_release(frame_handle);
         return;
     }
 
-    // 步骤6：增加引用计数
-    // 重要：必须调用 tcr_video_frame_add_ref() 增加引用计数
-    // 否则帧数据可能在使用前被释放
     tcr_video_frame_add_ref(frame_handle);
     
-    // 步骤7：根据缓冲区类型创建视频帧数据智能指针
     VideoFrameDataPtr frameDataPtr;
     
     if (frame_buffer->type == TCR_VIDEO_BUFFER_TYPE_I420) {
-        // I420格式：CPU内存中的YUV数据
         const TcrI420Buffer& i420Buffer = frame_buffer->buffer.i420;
         
         frameDataPtr.reset(new VideoFrameData(
@@ -744,7 +935,6 @@ void MultiStreamViewModel::VideoFrameCallback(void* user_data,
         ));
     }
     else if (frame_buffer->type == TCR_VIDEO_BUFFER_TYPE_D3D11) {
-        // D3D11格式：GPU纹理数据
         const TcrD3D11Buffer& d3d11Buffer = frame_buffer->buffer.d3d11;
         
         D3D11TextureData textureData;
@@ -762,19 +952,13 @@ void MultiStreamViewModel::VideoFrameCallback(void* user_data,
         ));
     }
     else {
-        // 未知类型，释放引用并返回
         Logger::warning(QString("[VideoFrameCallback] 未知的帧类型: %1").arg(frame_buffer->type));
         tcr_video_frame_release(frame_handle);
         return;
     }
 
-
-    // 步骤9：将帧存入缓存
-    // 使用互斥锁保护缓存，只保留每个实例的最新帧
     {
         QMutexLocker locker(&self->m_frameCacheMutex);
-        
-        // 如果已有旧帧，会自动释放（智能指针）
         self->m_frameCache[instanceId] = frameDataPtr;
     }
 }
