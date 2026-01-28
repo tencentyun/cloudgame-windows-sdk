@@ -13,7 +13,7 @@
  *   - 客户端带宽和解码能力
  *   - 服务端资源分配
  */
-#define TCR_MAX_CONCURRENT_STREAMING_INSTANCES 100
+#define TCR_MAX_CONCURRENT_STREAMING_INSTANCES 500
 
 #ifdef __cplusplus
 extern "C" {
@@ -310,7 +310,7 @@ typedef struct TcrVideoFrameBuffer {
     int64_t timestamp_us;      ///< 视频帧时间戳(微秒)
     TcrVideoRotation rotation; ///< 该字段暂不支持
     const char* instance_id;   ///< 实例ID
-    int instance_index;        ///< 实例索引，在非群控模式下表示当前视频流对应instanceIds数组中的第几路(从0开始)，用于区分相同ID的多路视频流
+    int instance_index;        ///< 视频流索引
 } TcrVideoFrameBuffer;
 
 /**
@@ -761,12 +761,31 @@ typedef enum {
     TCR_SESSION_EVENT_STREAMING_DISCONNECT = 15,
 
     /**
+     * @brief 实例切换失败通知。
+     * 当调用tcr_session_switch_streaming_instances切换实例时，如果某些实例切换失败，将触发此事件。
+     * 事件数据类型JSON格式字符串：
+     * @code{.json}
+     * {
+     *     "failed_list": [
+     *         {
+     *             "instance_id": string,  // 切换失败的实例ID
+     *             "reason": string        // 失败原因
+     *         },
+     *         ...
+     *     ]
+     * }
+     * @endcode
+     * @note 该事件仅在多实例场景（tcr_session_access_multi_stream）下触发
+     */
+    TCR_SESSION_EVENT_STREAMING_SWITCH_FAILED = 16,
+
+    /**
      * @brief 服务端推流成功事件。
      * 表示客户端在连接完成后，成功收到服务端推流数据。
      * 
      * 该事件无关联数据。
      */
-    TCR_SESSION_EVENT_SERVER_STREAMING_STARTED = 16,
+    TCR_SESSION_EVENT_SERVER_STREAMING_STARTED = 17,
 } TcrSessionEvent;
 
 /**

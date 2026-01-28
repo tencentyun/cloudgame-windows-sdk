@@ -55,9 +55,8 @@ Window {
     // 监听会话连接状态变化
     Connections {
         target: multiInstanceViewModel
-        function onSessionClosed(sessionIndex, instanceIds, reason) {
+        function onSessionClosed(instanceIds, reason) {
             // 弹出对话框
-            sessionClosedDialog.sessionIndex = sessionIndex;
             sessionClosedDialog.instanceIds = instanceIds;
             sessionClosedDialog.reason = reason;
             sessionClosedDialog.open();
@@ -362,7 +361,7 @@ Window {
 
     onClosing: {
         console.log("MultiInstanceWindow closing")
-        multiInstanceViewModel.closeAllSessions();
+        multiInstanceViewModel.closeSession();
     }
 
     Component.onDestruction: {
@@ -550,9 +549,9 @@ Window {
         }
 
         Button {
-            text: "关闭所有会话"
+            text: "关闭会话"
             onClicked: {
-                multiInstanceViewModel.closeAllSessions();
+                multiInstanceViewModel.closeSession();
             }
         }
     }
@@ -879,7 +878,6 @@ Window {
         anchors.centerIn: parent
         width: 400
         
-        property int sessionIndex: -1
         property var instanceIds: []
         property string reason: ""
         

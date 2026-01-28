@@ -1,5 +1,13 @@
 # Release Notes
 
+## Version 1.20.0
+### Features
+- 增加同时拉流路数上线到500
+
+### Download
+- [TcrSdk-Debug-1.20.0-20260128-66a5031a6.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Debug-1.20.0-20260128-66a5031a6.zip)
+- [TcrSdk-Release-1.20.0-20260128-66a5031a6.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Release-1.20.0-20260128-66a5031a6.zip)
+
 ## Version 1.19.0
 ### Features
 - 会话支持动态切流

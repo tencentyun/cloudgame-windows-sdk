@@ -911,36 +911,30 @@ TCRSDK_API void tcr_session_access(TcrSessionHandle session, const char** instan
  * 
  * @note 拉流控制说明：
  *   - 连接后可通过 tcr_session_switch_streaming_instances 动态切换拉流实例列表
+ *   - 连接后可通过 tcr_session_resume_streaming / tcr_session_pause_streaming 控制指定实例的出流
  * 
  * @note 使用限制：
  *   - 每个实例的视频流通过tcr_session_set_video_frame_observer回调
- *   - 回调中的TcrVideoFrameHandle需包含实例ID信息以区分不同流
+ *   - 可通过回调中TcrVideoFrameBuffer的instance_id字段区分不同实例的流
  * 
  * @warning 
  *   - 此接口与tcr_session_access互斥，同一session只能调用其中一个
  *   - 调用此接口后，群控相关接口（如tcr_instance_set_sync_list）针对该会话将不可用
  * 
- * @example 典型用法1：手动控制出流
+ * @example 典型用法
  * @code
  * const char* instances[] = {"cai-xxx-001", "cai-xxx-002", "cai-xxx-003"};
- * // 连接3个实例，默认都不出流
- * tcr_session_access_multi_stream(session, instances, 3, NULL, 0);
+ * // 连接3个实例
+ * tcr_session_access_multi_stream(session, instances, 3);
  * 
  * // 连接成功后根据需要让指定实例开始出流
  * const char* streaming_instances[] = {"cai-xxx-001", "cai-xxx-002"};
  * tcr_session_resume_streaming(session, "video", streaming_instances, 2);
- * @endcode
- * 
- * @example 典型用法2：指定默认出流实例
- * @code
- * const char* instances[] = {"cai-xxx-001", "cai-xxx-002", "cai-xxx-003"};
- * const char* default_streaming[] = {"cai-xxx-001"};  // 只让第一个实例默认出流
- * // 连接3个实例，其中cai-xxx-001会自动开始出流
- * tcr_session_access_multi_stream(session, instances, 3, default_streaming, 1);
  * 
  * // 在视频帧回调中区分不同实例的流
  * void VideoFrameCallback(void* user_data, TcrVideoFrameHandle frame_handle) {
- *     const char* instance_id = tcr_video_frame_get_instance_id(frame_handle);
+ *     const TcrVideoFrameBuffer* buffer = tcr_video_frame_get_buffer(frame_handle);
+ *     const char* instance_id = buffer->instance_id;
  *     // 根据instance_id处理不同实例的视频帧
  * }
  * @endcode
@@ -971,6 +965,8 @@ TCRSDK_API void tcr_session_access_multi_stream(
  *   - 调用后，之前正在拉流但不在新列表中的实例会停止拉流
  *   - 新列表中之前未拉流的实例会开始拉流
  *   - 传入空列表（streamingLength=0）会停止所有实例的拉流
+ *   - 如果某些实例切换失败，会触发 TCR_SESSION_EVENT_STREAMING_SWITCH_FAILED 事件，
+ *     事件数据包含失败的实例ID和失败原因
  * 
  * @warning 注意事项：
  *   - 频繁切换拉流列表可能导致短暂的视频中断
@@ -980,8 +976,7 @@ TCRSDK_API void tcr_session_access_multi_stream(
  * @code
  * // 1. 首先连接多个实例
  * const char* all_instances[] = {"cai-001", "cai-002", "cai-003", "cai-004"};
- * const char* default_streaming[] = {"cai-001", "cai-002"};
- * tcr_session_access_multi_stream(session, all_instances, 4, default_streaming, 2);
+ * tcr_session_access_multi_stream(session, all_instances, 4);
  * 
  * // 2. 业务逻辑中动态切换拉流列表
  * const char* new_streaming[] = {"cai-003", "cai-004"};
