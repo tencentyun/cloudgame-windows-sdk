@@ -1,12 +1,12 @@
 # Release Notes
 
-## Version 1.21.2
+## Version 1.21.3
 ### Features
 - 新增接口`tcr_client_prepare`支持预先建立连接以优化首帧
 
 ### Download
-- [TcrSdk-Debug-1.21.2-20260203-453f352ad.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Debug-1.21.2-20260203-453f352ad.zip)
-- [TcrSdk-Release-1.21.2-20260203-453f352ad.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Release-1.21.2-20260203-453f352ad.zip)
+- [TcrSdk-Debug-1.21.3-20260204-6229f47d3.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Debug-1.21.3-20260204-6229f47d3.zip)
+- [TcrSdk-Release-1.21.3-20260204-6229f47d3.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Release-1.21.3-20260204-6229f47d3.zip)
 
 ## Version 1.20.0
 ### Features
