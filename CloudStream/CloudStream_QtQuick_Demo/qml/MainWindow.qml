@@ -23,13 +23,20 @@ Window {
     
     // 视图大小配置
     property int viewSize: 1                        // 视图大小: 0=小(30列), 1=中(10列), 2=大(5列)
-    property var viewSizeColumns: [30, 10, 5]       // 对应每种视图的列数
+    property var viewSizeColumns: [20, 10, 5]       // 对应每种视图的列数
     
     // 监听视图大小变化，触发可见性检测
     onViewSizeChanged: {
         // 延迟执行，等待GridView完成布局更新
         Qt.callLater(function() {
             videoGridView.checkVisibleItems();
+            
+            // 重新连接多实例，以使用新的 visibleInstancesPerPage
+            if (instanceIds && instanceIds.length > 0) {
+                var visibleInstancesPerPage = calculateVisibleInstancesPerPage();
+                console.log("[onViewSizeChanged] 视图大小变化，重新连接，visibleInstancesPerPage:", visibleInstancesPerPage);
+                multiInstanceViewModel.connectMultipleInstances(instanceIds, visibleInstancesPerPage);
+            }
         });
     }
     
@@ -458,10 +465,6 @@ Window {
                 if (viewSize !== 2) {
                     showStatsOverlay = false;
                 }
-                // 延迟执行可见性检测，等待GridView完成布局更新
-                Qt.callLater(function() {
-                    videoGridView.checkVisibleItems();
-                });
             }
         }
         
