@@ -12,7 +12,7 @@
 #include "viewmodels/MultiStreamViewModel.h"
 #include "viewmodels/InstanceTokenViewModel.h"
 #include "core/StreamConfig.h"
-
+#include "tcr_c_api.h"
 
 /**
  * @brief 应用程序入口函数
@@ -84,6 +84,11 @@ int main(int argc, char *argv[]) {
 
     // -------------------- 加载QML主界面 --------------------
     engine.loadFromModule("CloudStream_QtQuick_Demo", "InstanceTokenWindow");
+
+
+    // 预加载, 降低TcrSdk首帧延迟
+    TcrClientHandle client = tcr_client_get_instance();
+    tcr_client_prepare(client, true);
 
     // -------------------- 进入主事件循环 --------------------
     return app.exec();

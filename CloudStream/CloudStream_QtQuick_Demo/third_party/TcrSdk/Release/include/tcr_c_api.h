@@ -225,6 +225,14 @@ static inline TcrSessionObserver tcr_session_observer_default(void) {
 TCRSDK_API TcrClientHandle tcr_client_get_instance();
 
 /**
+ * @brief 预初始化TcrClient，建立网络连接
+ * @param client TcrClientHandle
+ * @param testEnv 是否使用测试环境，默认为false
+ * @note 该方法用于提前建立网络连接，可在tcr_client_init之前的某个时机调用
+ */
+TCRSDK_API void tcr_client_prepare(TcrClientHandle client, bool testEnv = false);
+
+/**
  * @brief 初始化TcrClientHandle
  * @param client TcrClientHandle
  * @param config TcrConfig参数指针, 通过tcr_config_default()获取默认配置
