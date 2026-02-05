@@ -83,7 +83,7 @@ int main(int argc, char *argv[]) {
         Qt::QueuedConnection);
 
     // -------------------- 加载QML主界面 --------------------
-    engine.loadFromModule("CloudStream_QtQuick_Demo", "InstanceTokenWindow");
+    engine.loadFromModule("QtQuick_Demo", "InstanceTokenWindow");
 
 
     // 预加载, 降低TcrSdk首帧延迟
