@@ -25,6 +25,7 @@ VideoFrameData::VideoFrameData(void* handle,
     , timestamp_us(timestamp)
 {}
 
+#ifdef _WIN32
 VideoFrameData::VideoFrameData(void* handle,
                                const D3D11TextureData& texture_data,
                                int w, int h, int64_t timestamp)
@@ -35,6 +36,7 @@ VideoFrameData::VideoFrameData(void* handle,
     , height(h)
     , timestamp_us(timestamp)
 {}
+#endif
 
 VideoFrameData::~VideoFrameData() {
     if (frame_handle) {

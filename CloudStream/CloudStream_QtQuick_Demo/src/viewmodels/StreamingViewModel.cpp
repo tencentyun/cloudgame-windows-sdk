@@ -728,15 +728,17 @@ void StreamingViewModel::VideoFrameCallback(void* user_data, TcrVideoFrameHandle
 }
 
 VideoFrameDataPtr StreamingViewModel::createVideoFrameData(
-    TcrVideoFrameHandle frame_handle, 
+    TcrVideoFrameHandle frame_handle,
     const TcrVideoFrameBuffer* frame_buffer)
 {
     if (frame_buffer->type == TCR_VIDEO_BUFFER_TYPE_I420) {
         return createI420FrameData(frame_handle, frame_buffer);
-    } 
+    }
+#ifdef _WIN32
     else if (frame_buffer->type == TCR_VIDEO_BUFFER_TYPE_D3D11) {
         return createD3D11FrameData(frame_handle, frame_buffer);
     }
+#endif
     else {
         Logger::warning(QString("[VideoFrameCallback] 未知的帧类型: %1").arg(frame_buffer->type));
         return nullptr;
@@ -765,20 +767,21 @@ VideoFrameDataPtr StreamingViewModel::createI420FrameData(
     ));
 }
 
+#ifdef _WIN32
 VideoFrameDataPtr StreamingViewModel::createD3D11FrameData(
     TcrVideoFrameHandle frame_handle,
     const TcrVideoFrameBuffer* frame_buffer)
 {
     // D3D11格式：GPU纹理数据
     const TcrD3D11Buffer& d3d11Buffer = frame_buffer->buffer.d3d11;
-    
+
     // 构造D3D11TextureData结构
     D3D11TextureData textureData;
     textureData.texture = d3d11Buffer.texture;
     textureData.device = d3d11Buffer.device;
     textureData.array_index = d3d11Buffer.array_index;
     textureData.format = d3d11Buffer.format;
-    
+
     // 使用D3D11构造函数创建对象
     return VideoFrameDataPtr(new VideoFrameData(
         frame_handle,
@@ -788,6 +791,7 @@ VideoFrameDataPtr StreamingViewModel::createD3D11FrameData(
         frame_buffer->timestamp_us
     ));
 }
+#endif
 
 // ==================== 摄像头设备管理 ====================
 

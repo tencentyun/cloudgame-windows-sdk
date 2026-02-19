@@ -629,12 +629,12 @@ void MultiStreamViewModel::VideoFrameCallback(void* user_data,
     }
 
     tcr_video_frame_add_ref(frame_handle);
-    
+
     VideoFrameDataPtr frameDataPtr;
-    
+
     if (frame_buffer->type == TCR_VIDEO_BUFFER_TYPE_I420) {
         const TcrI420Buffer& i420Buffer = frame_buffer->buffer.i420;
-        
+
         frameDataPtr.reset(new VideoFrameData(
             frame_handle,
             i420Buffer.data_y,
@@ -648,15 +648,16 @@ void MultiStreamViewModel::VideoFrameCallback(void* user_data,
             frame_buffer->timestamp_us
         ));
     }
+#ifdef _WIN32
     else if (frame_buffer->type == TCR_VIDEO_BUFFER_TYPE_D3D11) {
         const TcrD3D11Buffer& d3d11Buffer = frame_buffer->buffer.d3d11;
-        
+
         D3D11TextureData textureData;
         textureData.texture = d3d11Buffer.texture;
         textureData.device = d3d11Buffer.device;
         textureData.array_index = d3d11Buffer.array_index;
         textureData.format = d3d11Buffer.format;
-        
+
         frameDataPtr.reset(new VideoFrameData(
             frame_handle,
             textureData,
@@ -665,6 +666,7 @@ void MultiStreamViewModel::VideoFrameCallback(void* user_data,
             frame_buffer->timestamp_us
         ));
     }
+#endif
     else {
         Logger::warning(QString("[VideoFrameCallback] 未知的帧类型: %1").arg(frame_buffer->type));
         tcr_video_frame_release(frame_handle);

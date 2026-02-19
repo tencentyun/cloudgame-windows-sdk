@@ -1,6 +1,8 @@
 #include "VideoRenderItem.h"
 #include "YuvNode.h"
+#ifdef _WIN32
 #include "D3D11Node.h"
+#endif
 #include "YuvTestPattern.h"
 #include "utils/Logger.h"
 #include <QSGNode>
@@ -92,16 +94,18 @@ bool VideoRenderItem::hasFrame() const
     // 根据帧类型检查数据有效性
     if (m_frame->frame_type == VideoFrameType::I420_CPU) {
         // YUV420格式：检查三个分量的数据指针
-        return m_frame->data_y != nullptr && 
-               m_frame->data_u != nullptr && 
+        return m_frame->data_y != nullptr &&
+               m_frame->data_u != nullptr &&
                m_frame->data_v != nullptr;
-    } 
+    }
+#ifdef _WIN32
     else if (m_frame->frame_type == VideoFrameType::D3D11_GPU) {
         // D3D11纹理格式：检查纹理和设备指针
-        return m_frame->d3d11_data.texture != nullptr && 
+        return m_frame->d3d11_data.texture != nullptr &&
                m_frame->d3d11_data.device != nullptr;
     }
-    
+#endif
+
     return false;
 }
 
@@ -143,11 +147,12 @@ QSGNode* VideoRenderItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData*
         yuvNode->setFrame(window(), m_frame.data(), QSizeF(width(), height()), m_frameDirty);
         resultNode = yuvNode;
     }
+#ifdef _WIN32
     else if (m_frame->frame_type == VideoFrameType::D3D11_GPU)
     {
         // D3D11纹理格式：使用D3D11Node渲染
         D3D11Node* d3d11Node = dynamic_cast<D3D11Node*>(oldNode);
-        
+
         // 如果旧节点类型不匹配，删除并创建新节点
         if (!d3d11Node) {
             delete oldNode;
@@ -157,11 +162,12 @@ QSGNode* VideoRenderItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData*
                        .arg(reinterpret_cast<quintptr>(this))
                        .arg(reinterpret_cast<quintptr>(QThread::currentThreadId())));
         }
-        
+
         // 更新节点的帧数据和渲染尺寸
         d3d11Node->setFrame(window(), m_frame.data(), QSizeF(width(), height()), m_frameDirty);
         resultNode = d3d11Node;
     }
+#endif
     else
     {
         // 未知类型，删除旧节点
