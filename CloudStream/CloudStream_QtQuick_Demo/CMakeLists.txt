@@ -5,7 +5,7 @@ project(QtQuick_Demo VERSION 0.1 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(QT_NO_PRIVATE_MODULE_WARNING ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Quick Network Concurrent ShaderTools GuiPrivate)
+find_package(Qt6 REQUIRED COMPONENTS Quick Network Concurrent ShaderTools GuiPrivate QuickControls2 QuickLayouts QuickDialogs2)
 
 qt_standard_project_setup(REQUIRES 6.8)
 
@@ -82,6 +82,9 @@ target_link_libraries(QtQuick_Demo
             Qt6::Network
             Qt6::Concurrent
             Qt6::GuiPrivate
+            Qt6::QuickControls2
+            Qt6::QuickLayouts
+            Qt6::QuickDialogs2
 )
 
 # ----------------- TcrSdk 动态库配置 -----------------
@@ -208,8 +211,9 @@ elseif(APPLE)
         add_custom_command(TARGET QtQuick_Demo POST_BUILD
             COMMAND "${MACDEPLOYQT_EXECUTABLE}"
                 "$<TARGET_BUNDLE_DIR:QtQuick_Demo>"
+                -qmldir=${CMAKE_CURRENT_SOURCE_DIR}/qml
                 -verbose=1
-            COMMENT "Running macdeployqt to bundle Qt frameworks"
+            COMMENT "Running macdeployqt to bundle Qt frameworks and QML modules"
             VERBATIM
         )
     else()
