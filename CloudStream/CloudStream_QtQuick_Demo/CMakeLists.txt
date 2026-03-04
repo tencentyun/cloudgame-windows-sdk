@@ -76,6 +76,14 @@ set_target_properties(QtQuick_Demo PROPERTIES
     WIN32_EXECUTABLE TRUE
 )
 
+# macOS 隐私权限声明（TCC）
+# 访问摄像头和麦克风时 macOS 要求 Info.plist 中包含对应的 UsageDescription
+if(APPLE)
+    set_target_properties(QtQuick_Demo PROPERTIES
+        MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/Info.plist.in"
+    )
+endif()
+
 # Qt 模块链接
 target_link_libraries(QtQuick_Demo
     PRIVATE Qt6::Quick
