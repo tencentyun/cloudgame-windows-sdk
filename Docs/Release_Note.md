@@ -1,5 +1,13 @@
 # Release Notes
 
+## Version 1.21.5
+### Bugfix
+- 修复进程退出时概率性崩溃问题
+
+### Download
+- [TcrSdk-Debug-1.21.5-20260303-42a1f08c1.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Debug-1.21.5-20260303-42a1f08c1.zip)
+- [TcrSdk-Release-1.21.5-20260303-42a1f08c1.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Release-1.21.5-20260303-42a1f08c1.zip)
+
 ## Version 1.21.4
 ### Bugfix
 - 修复一些崩溃
