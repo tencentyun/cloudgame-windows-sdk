@@ -66,10 +66,9 @@ void YuvNode::setFrame(QQuickWindow* window,
         // [PERF] 计算updateMaterial耗时
         updateMaterialTime = QDateTime::currentMSecsSinceEpoch() - beforeUpdateMaterial;
     } 
-    else 
+    else
     {
         // 清除材质（无效帧或不支持的类型）
-        // TODO: 未来在此处添加D3D11_GPU类型的处理分支
         qint64 beforeUpdateMaterial = QDateTime::currentMSecsSinceEpoch();
         
         updateMaterial(window, 

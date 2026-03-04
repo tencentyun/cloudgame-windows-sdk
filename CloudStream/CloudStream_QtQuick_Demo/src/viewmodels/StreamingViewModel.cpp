@@ -678,7 +678,7 @@ void StreamingViewModel::sendDataChannelTestMessage()
  * 
  * 处理流程：
  *   1. 增加帧引用计数（防止 SDK 提前释放）
- *   2. 获取帧数据（支持 I420 CPU 格式和 D3D11 GPU 格式）
+ *   2. 获取帧数据（支持 I420 CPU 格式）
  *   3. 封装为智能指针（自动管理生命周期）
  *   4. 通过信号发送到主线程
  * 
@@ -733,13 +733,7 @@ VideoFrameDataPtr StreamingViewModel::createVideoFrameData(
 {
     if (frame_buffer->type == TCR_VIDEO_BUFFER_TYPE_I420) {
         return createI420FrameData(frame_handle, frame_buffer);
-    }
-#ifdef _WIN32
-    else if (frame_buffer->type == TCR_VIDEO_BUFFER_TYPE_D3D11) {
-        return createD3D11FrameData(frame_handle, frame_buffer);
-    }
-#endif
-    else {
+    } else {
         Logger::warning(QString("[VideoFrameCallback] 未知的帧类型: %1").arg(frame_buffer->type));
         return nullptr;
     }
@@ -766,32 +760,6 @@ VideoFrameDataPtr StreamingViewModel::createI420FrameData(
         frame_buffer->timestamp_us
     ));
 }
-
-#ifdef _WIN32
-VideoFrameDataPtr StreamingViewModel::createD3D11FrameData(
-    TcrVideoFrameHandle frame_handle,
-    const TcrVideoFrameBuffer* frame_buffer)
-{
-    // D3D11格式：GPU纹理数据
-    const TcrD3D11Buffer& d3d11Buffer = frame_buffer->buffer.d3d11;
-
-    // 构造D3D11TextureData结构
-    D3D11TextureData textureData;
-    textureData.texture = d3d11Buffer.texture;
-    textureData.device = d3d11Buffer.device;
-    textureData.array_index = d3d11Buffer.array_index;
-    textureData.format = d3d11Buffer.format;
-
-    // 使用D3D11构造函数创建对象
-    return VideoFrameDataPtr(new VideoFrameData(
-        frame_handle,
-        textureData,
-        d3d11Buffer.width,
-        d3d11Buffer.height,
-        frame_buffer->timestamp_us
-    ));
-}
-#endif
 
 // ==================== 摄像头设备管理 ====================
 

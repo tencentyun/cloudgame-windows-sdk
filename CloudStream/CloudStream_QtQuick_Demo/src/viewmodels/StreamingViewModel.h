@@ -414,18 +414,6 @@ private:
         TcrVideoFrameHandle frame_handle,
         const TcrVideoFrameBuffer* frame_buffer);
 
-#ifdef _WIN32
-    /**
-     * @brief 创建D3D11格式的VideoFrameData对象
-     * @param frame_handle 视频帧句柄
-     * @param frame_buffer 视频帧缓冲区
-     * @return VideoFrameData智能指针
-     */
-    VideoFrameDataPtr createD3D11FrameData(
-        TcrVideoFrameHandle frame_handle,
-        const TcrVideoFrameBuffer* frame_buffer);
-#endif
-
     // ==================== SDK 回调函数（静态方法） ====================
     
     /**

@@ -1,8 +1,5 @@
 #include "VideoRenderItem.h"
 #include "YuvNode.h"
-#ifdef _WIN32
-#include "D3D11Node.h"
-#endif
 #include "YuvTestPattern.h"
 #include "utils/Logger.h"
 #include <QSGNode>
@@ -79,10 +76,9 @@ void VideoRenderItem::setFrame(VideoFrameDataPtr frame)
 
 /**
  * @brief 判断当前是否有有效的帧数据
- * 
+ *
  * 检查帧数据是否存在且有效：
  * - 对于I420_CPU类型：检查尺寸和YUV数据指针
- * - 对于D3D11_GPU类型：检查尺寸和纹理指针
  */
 bool VideoRenderItem::hasFrame() const
 {
@@ -90,7 +86,7 @@ bool VideoRenderItem::hasFrame() const
     if (!m_frame || m_frame->width <= 0 || m_frame->height <= 0) {
         return false;
     }
-    
+
     // 根据帧类型检查数据有效性
     if (m_frame->frame_type == VideoFrameType::I420_CPU) {
         // YUV420格式：检查三个分量的数据指针
@@ -98,23 +94,15 @@ bool VideoRenderItem::hasFrame() const
                m_frame->data_u != nullptr &&
                m_frame->data_v != nullptr;
     }
-#ifdef _WIN32
-    else if (m_frame->frame_type == VideoFrameType::D3D11_GPU) {
-        // D3D11纹理格式：检查纹理和设备指针
-        return m_frame->d3d11_data.texture != nullptr &&
-               m_frame->d3d11_data.device != nullptr;
-    }
-#endif
 
     return false;
 }
 
 /**
  * @brief 更新渲染节点
- * 
+ *
  * 在渲染线程中被调用，负责根据帧类型创建或更新对应的渲染节点。
  * - I420_CPU类型使用YuvNode渲染
- * - D3D11_GPU类型使用D3D11Node渲染
  * 如果没有有效帧数据，返回nullptr表示不渲染任何内容。
  */
 QSGNode* VideoRenderItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData*)
@@ -147,27 +135,6 @@ QSGNode* VideoRenderItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData*
         yuvNode->setFrame(window(), m_frame.data(), QSizeF(width(), height()), m_frameDirty);
         resultNode = yuvNode;
     }
-#ifdef _WIN32
-    else if (m_frame->frame_type == VideoFrameType::D3D11_GPU)
-    {
-        // D3D11纹理格式：使用D3D11Node渲染
-        D3D11Node* d3d11Node = dynamic_cast<D3D11Node*>(oldNode);
-
-        // 如果旧节点类型不匹配，删除并创建新节点
-        if (!d3d11Node) {
-            delete oldNode;
-            d3d11Node = new D3D11Node();
-            Logger::info(QString("[VideoRenderItem::updatePaintNode] Created new D3D11Node, "
-                               "this=%1, thread_id=%2")
-                       .arg(reinterpret_cast<quintptr>(this))
-                       .arg(reinterpret_cast<quintptr>(QThread::currentThreadId())));
-        }
-
-        // 更新节点的帧数据和渲染尺寸
-        d3d11Node->setFrame(window(), m_frame.data(), QSizeF(width(), height()), m_frameDirty);
-        resultNode = d3d11Node;
-    }
-#endif
     else
     {
         // 未知类型，删除旧节点

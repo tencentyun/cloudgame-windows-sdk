@@ -16,8 +16,6 @@ file(GLOB_RECURSE SRC_CPP_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "src/*.cpp"
 if(NOT WIN32)
     # 在非 Windows 平台上排除 Windows 特定文件
     list(FILTER SRC_CPP_FILES EXCLUDE REGEX ".*CrashDumpHandler\\.cpp$")
-    list(FILTER SRC_CPP_FILES EXCLUDE REGEX ".*D3D11Node\\.cpp$")
-    list(FILTER SRC_CPP_FILES EXCLUDE REGEX ".*D3D11Material\\.cpp$")
 endif()
 
 qt_add_executable(QtQuick_Demo
@@ -31,33 +29,16 @@ target_include_directories(QtQuick_Demo PRIVATE
 )
 
 # 添加着色器文件到资源系统
-if(WIN32)
-    # Windows: 包含 D3D11 着色器
-    qt6_add_shaders(QtQuick_Demo "shaders"
-        BATCHABLE
-        PRECOMPILE
-        OPTIMIZED
-        PREFIX
-            "/shaders"
-        FILES
-            "shaders/yuv.vert"
-            "shaders/yuv.frag"
-            "shaders/d3d11_texture.vert"
-            "shaders/d3d11_texture.frag"
-    )
-else()
-    # macOS/Linux: 只包含 YUV 着色器
-    qt6_add_shaders(QtQuick_Demo "shaders"
-        BATCHABLE
-        PRECOMPILE
-        OPTIMIZED
-        PREFIX
-            "/shaders"
-        FILES
-            "shaders/yuv.vert"
-            "shaders/yuv.frag"
-    )
-endif()
+qt6_add_shaders(QtQuick_Demo "shaders"
+    BATCHABLE
+    PRECOMPILE
+    OPTIMIZED
+    PREFIX
+        "/shaders"
+    FILES
+        "shaders/yuv.vert"
+        "shaders/yuv.frag"
+)
 
 # 获取qml目录下的所有QML文件（相对路径）
 file(GLOB_RECURSE QML_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "qml/*.qml")
