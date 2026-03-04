@@ -14,6 +14,7 @@
 #include "viewmodels/MultiStreamViewModel.h"
 #include "viewmodels/InstanceTokenViewModel.h"
 #include "core/StreamConfig.h"
+#include "core/AppConfig.h"
 #include "tcr_c_api.h"
 
 /**
@@ -69,6 +70,14 @@ int main(int argc, char *argv[]) {
             Q_UNUSED(engine)
             Q_UNUSED(scriptEngine)
             return StreamConfig::instance();
+        });
+
+    /// 注册AppConfig单例，供QML使用
+    qmlRegisterSingletonType<AppConfig>("CustomComponents", 1, 0, "AppConfig",
+        [](QQmlEngine *engine, QJSEngine *scriptEngine) -> QObject * {
+            Q_UNUSED(engine)
+            Q_UNUSED(scriptEngine)
+            return AppConfig::instance();
         });
 
     engine.rootContext()->setContextProperty("instanceAccessViewModel", instanceAccessViewModel);

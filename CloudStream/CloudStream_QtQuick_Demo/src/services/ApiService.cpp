@@ -1,5 +1,6 @@
 #include "ApiService.h"
 #include "../utils/Logger.h"
+#include "../core/AppConfig.h"
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QNetworkReply>
@@ -151,7 +152,7 @@ void ApiService::createAndroidInstancesAccessToken(
     
     // 发送请求并处理响应
     sendRequest(
-        "/CreateAndroidInstancesAccessToken", 
+        AppConfig::instance()->apiPath(),
         data, 
         [this](const QJsonObject& response) {
             // 解析响应数据

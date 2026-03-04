@@ -119,6 +119,15 @@ if(WIN32)
         VERBATIM
     )
 
+    # 复制 config.json 到可执行文件目录
+    add_custom_command(TARGET QtQuick_Demo POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/config.json"
+            "$<TARGET_FILE_DIR:QtQuick_Demo>/config.json"
+        COMMENT "Copying config.json to output directory"
+        VERBATIM
+    )
+
 elseif(APPLE)
     # ============= macOS 配置 =============
     set(TCRSDK_DIR "${TCRSDK_BASE_DIR}/macos")
@@ -208,6 +217,15 @@ elseif(APPLE)
     else()
         message(STATUS "macdeployqt not found. Qt frameworks must be deployed manually.")
     endif()
+
+    # 复制 config.json 到 .app 包内的可执行文件目录
+    add_custom_command(TARGET QtQuick_Demo POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/config.json"
+            "$<TARGET_FILE_DIR:QtQuick_Demo>/config.json"
+        COMMENT "Copying config.json into app bundle"
+        VERBATIM
+    )
 
 else()
     message(FATAL_ERROR "Unsupported platform. Only Windows and macOS are supported.")

@@ -4,6 +4,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QJsonObject>
+#include "core/AppConfig.h"
 
 /**
  * @brief 网络服务类
@@ -54,6 +55,6 @@ private:
      * 云渲染开发团队搭建的体验后台地址，用于Demo开发和测试。
      * 生产环境需要替换为正式的业务后台地址。
      */
-    QString m_baseUrl = "https://test-accelerator-biz-server.cai.crtrcloud.com";
+    QString m_baseUrl = AppConfig::instance()->baseUrl();
 };
 
