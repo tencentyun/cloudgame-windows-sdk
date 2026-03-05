@@ -70,6 +70,10 @@ ApplicationWindow {
                 isLandscape: false
                 showStatsOverlay: streamingWindow.showStatsOverlay
                 onShowStatsChanged: streamingWindow.showStatsOverlay = showStats
+                onCameraDeviceListRequested: function(devices) {
+                    cameraDeviceDialog.deviceList = devices
+                    cameraDeviceDialog.open()
+                }
             }
         }
     }
@@ -98,6 +102,10 @@ ApplicationWindow {
                 isLandscape: true
                 showStatsOverlay: streamingWindow.showStatsOverlay
                 onShowStatsChanged: streamingWindow.showStatsOverlay = showStats
+                onCameraDeviceListRequested: function(devices) {
+                    cameraDeviceDialog.deviceList = devices
+                    cameraDeviceDialog.open()
+                }
             }
         }
     }

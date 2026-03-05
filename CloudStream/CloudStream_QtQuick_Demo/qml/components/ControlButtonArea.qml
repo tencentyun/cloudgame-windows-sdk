@@ -12,6 +12,9 @@ Item {
     
     // 统计数据显示状态变化信号
     signal showStatsChanged(bool showStats)
+
+    // 摄像头设备列表请求信号
+    signal cameraDeviceListRequested(var devices)
     
     // 按钮数据模型
     ListModel {
@@ -93,8 +96,7 @@ Item {
                 break
             case "cameraDeviceList":
                 var devices = streamingViewModel.getCameraDeviceList()
-                root.parent.parent.parent.cameraDeviceDialog.deviceList = devices
-                root.parent.parent.parent.cameraDeviceDialog.open()
+                root.cameraDeviceListRequested(devices)
                 break
         }
     }
