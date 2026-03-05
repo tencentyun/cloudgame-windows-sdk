@@ -8,6 +8,7 @@
 #include <QDebug>
 #include <QMetaType>
 #include <QGuiApplication>
+#include <cstring>
 
 // ==================== 常量定义 ====================
 
@@ -800,6 +801,63 @@ QStringList StreamingViewModel::getCameraDeviceList()
     }
     
     return deviceList;
+}
+
+// ==================== 麦克风设备管理 ====================
+
+QStringList StreamingViewModel::getMicrophoneDeviceList()
+{
+    QStringList deviceList;
+
+    if (!m_session) {
+        Logger::debug("[getMicrophoneDeviceList] session not ready");
+        return deviceList;
+    }
+
+    int32_t deviceCount = tcr_session_get_microphone_device_count(m_session);
+    Logger::info(QString("[getMicrophoneDeviceList] 检测到 %1 个麦克风设备").arg(deviceCount));
+
+    for (int32_t i = 0; i < deviceCount; ++i) {
+        TcrMicrophoneDeviceInfo deviceInfo;
+        if (tcr_session_get_microphone_device(m_session, i, &deviceInfo)) {
+            QString deviceId = QString::fromUtf8(deviceInfo.device_id);
+            QString deviceName = QString::fromUtf8(deviceInfo.device_name);
+            Logger::info(QString("[getMicrophoneDeviceList] 设备 %1: ID=%2, Name=%3")
+                             .arg(i)
+                             .arg(deviceId)
+                             .arg(deviceName));
+            deviceList << deviceId;
+        } else {
+            Logger::error(QString("[getMicrophoneDeviceList] 获取设备 %1 信息失败").arg(i));
+        }
+    }
+
+    return deviceList;
+}
+
+void StreamingViewModel::enableMicrophoneWithDevice(const QString& deviceId)
+{
+    if (!isSessionReady()) {
+        Logger::debug("[enableMicrophoneWithDevice] session not ready");
+        return;
+    }
+
+    if (deviceId.isEmpty()) {
+        Logger::warning("[enableMicrophoneWithDevice] deviceId is empty");
+        return;
+    }
+
+    Logger::info(QString("[enableMicrophoneWithDevice] 启用麦克风设备: %1").arg(deviceId));
+
+    TcrMicrophoneConfig config = {};
+    QByteArray deviceIdBytes = deviceId.toUtf8();
+    strncpy(config.device_id, deviceIdBytes.constData(), sizeof(config.device_id) - 1);
+
+    if (tcr_session_enable_microphone_with_config(m_session, &config)) {
+        Logger::info(QString("[enableMicrophoneWithDevice] 麦克风启用成功: %1").arg(deviceId));
+    } else {
+        Logger::error(QString("[enableMicrophoneWithDevice] 麦克风启用失败: deviceId=%1").arg(deviceId));
+    }
 }
 
 QString StreamingViewModel::getInstanceStats() const
