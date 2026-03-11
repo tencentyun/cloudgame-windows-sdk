@@ -99,7 +99,7 @@ if(WIN32)
 
     # 添加头文件目录
     target_include_directories(QtQuick_Demo PRIVATE
-        ${TCRSDK_BASE_DIR}/win/Release/include
+        ${TCRSDK_BASE_DIR}/include
     )
 
     # 链接导入库
@@ -134,7 +134,7 @@ elseif(APPLE)
 
     # 添加头文件目录
     target_include_directories(QtQuick_Demo PRIVATE
-        ${TCRSDK_DIR}/include
+        ${TCRSDK_BASE_DIR}/include
     )
 
     # 查找 dylib 文件（支持版本化文件名）
