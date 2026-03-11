@@ -3,6 +3,25 @@
 <!-- FORMAT_VERSION: 1.0 -->
 
 ---
+## [1.22.3] - 2026-03-11
+
+### Features
+- 1.支持macos版本
+- 2.新增获取可用麦克风和设置指定麦克风接口
+
+### Bugfix
+- 修复崩溃问题
+
+
+### Download
+
+| Platform | Arch | Package |
+|----------|------|---------|
+| windows | x86_64 | [TcrSdk-windows-Debug-1.22.3-20260311-a6e05db2.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Debug-1.22.3-20260311-a6e05db2.zip) |
+| windows | x86_64 | [TcrSdk-windows-Release-1.22.3-20260311-a6e05db2.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Release-1.22.3-20260311-a6e05db2.zip) |
+| macos | universal | [TcrSdk-macos-universal-1.22.3-20260311-a6e05db2.zip](https://cg-sdk-1258344699.cos.ap-nanjing.myqcloud.com/CloudDeviceWinSDK/sdk/TcrSdk-universal-1.22.3-20260311-a6e05db2.zip) |
+
+---
 
 ## [1.21.5] - 2026-03-03
 
