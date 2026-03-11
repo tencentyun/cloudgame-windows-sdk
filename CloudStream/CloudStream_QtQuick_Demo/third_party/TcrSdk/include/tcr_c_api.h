@@ -1315,6 +1315,30 @@ TCRSDK_API bool tcr_session_enable_local_microphone(TcrSessionHandle session, bo
  */
 TCRSDK_API bool tcr_session_is_local_microphone_enabled(TcrSessionHandle session);
 
+/**
+ * @brief 获取可用麦克风设备数量
+ * @param session 会话句柄
+ * @return 可用设备数量 (>=0)
+ */
+TCRSDK_API int tcr_session_get_microphone_device_count(TcrSessionHandle session);
+
+/**
+ * @brief 获取指定麦克风设备信息
+ * @param session 会话句柄
+ * @param device_index 设备索引 [0, 设备数量-1]
+ * @param info 输出参数，指向 TcrMicrophoneDeviceInfo 结构体，由调用方分配
+ * @return 成功返回 true，失败返回 false
+ */
+TCRSDK_API bool tcr_session_get_microphone_device(TcrSessionHandle session, int device_index, TcrMicrophoneDeviceInfo* info);
+
+/**
+ * @brief 使用指定配置启用麦克风
+ * @param session 会话句柄
+ * @param config 麦克风配置（device_id 为空时使用系统默认设备）
+ * @return 成功返回 true，失败返回 false
+ */
+TCRSDK_API bool tcr_session_enable_microphone_with_config(TcrSessionHandle session, const TcrMicrophoneConfig* config);
+
 
 /**
  * @brief 将TcrSessionEvent枚举值转换为事件类型字符串

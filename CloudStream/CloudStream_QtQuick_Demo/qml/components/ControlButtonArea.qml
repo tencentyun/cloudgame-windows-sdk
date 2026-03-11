@@ -12,6 +12,12 @@ Item {
     
     // 统计数据显示状态变化信号
     signal showStatsChanged(bool showStats)
+
+    // 摄像头设备列表请求信号
+    signal cameraDeviceListRequested(var devices)
+
+    // 麦克风设备列表请求信号
+    signal microphoneDeviceListRequested(var devices)
     
     // 按钮数据模型
     ListModel {
@@ -39,6 +45,8 @@ Item {
         ListElement { text: "设置视频流参数"; action: "videoSettings"; group: 6 }
         
         ListElement { text: "查看摄像头设备列表"; action: "cameraDeviceList"; group: 7 }
+
+        ListElement { text: "查看麦克风设备列表"; action: "microphoneDeviceList"; group: 8 }
     }
     
     // 处理按钮点击事件
@@ -93,8 +101,11 @@ Item {
                 break
             case "cameraDeviceList":
                 var devices = streamingViewModel.getCameraDeviceList()
-                root.parent.parent.parent.cameraDeviceDialog.deviceList = devices
-                root.parent.parent.parent.cameraDeviceDialog.open()
+                root.cameraDeviceListRequested(devices)
+                break
+            case "microphoneDeviceList":
+                var micDevices = streamingViewModel.getMicrophoneDeviceList()
+                root.microphoneDeviceListRequested(micDevices)
                 break
         }
     }

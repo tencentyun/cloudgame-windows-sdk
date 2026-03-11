@@ -2,6 +2,7 @@
 #define TCRSDK_TCR_TYPES_H_
 
 #include <stdint.h>
+#include <stddef.h>
 
 /**
  * @brief 多实例场景下同时拉流的最大实例数量
@@ -140,7 +141,7 @@ static inline TcrConfig tcr_config_default(void) {
     
     // 默认不启用硬件解码
     config.hardwareDecode = false;
-    
+
     return config;
 }
 
@@ -513,6 +514,22 @@ typedef struct TcrCameraDeviceInfo {
 } TcrCameraDeviceInfo;
 
 /**
+ * @brief 麦克风设备信息
+ */
+typedef struct TcrMicrophoneDeviceInfo {
+    char device_name[128];  // 设备名称（对应 kAdmMaxDeviceNameSize）
+    char device_id[128];    // 设备ID/GUID（Windows有效；macOS为空，用device_name标识）
+} TcrMicrophoneDeviceInfo;
+
+/**
+ * @brief 麦克风配置结构体
+ */
+typedef struct TcrMicrophoneConfig {
+    char device_id[128];  // 指定麦克风设备 ID（对应 TcrMicrophoneDeviceInfo.device_name 或 device_id）
+                          // 为空字符串时使用系统默认设备（兼容旧 enable 接口行为）
+} TcrMicrophoneConfig;
+
+/**
  * @brief 自定义数据通道观察者结构体
  */
 typedef struct TcrDataChannelObserver {
@@ -768,8 +785,8 @@ typedef enum {
      * {
      *     "failed_list": [
      *         {
-     *             "instance_id": string,  // 切换失败的实例ID
-     *             "reason": string        // 失败原因
+     *             "instance_id": "cai-1300056159-fe2d6755rra",  // 切换失败的实例ID
+     *             "reason": "instance offline"                   // 失败原因
      *         },
      *         ...
      *     ]

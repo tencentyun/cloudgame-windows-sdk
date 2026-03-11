@@ -25,17 +25,6 @@ VideoFrameData::VideoFrameData(void* handle,
     , timestamp_us(timestamp)
 {}
 
-VideoFrameData::VideoFrameData(void* handle,
-                               const D3D11TextureData& texture_data,
-                               int w, int h, int64_t timestamp)
-    : frame_type(VideoFrameType::D3D11_GPU)
-    , d3d11_data(texture_data)
-    , frame_handle(handle)
-    , width(w)
-    , height(h)
-    , timestamp_us(timestamp)
-{}
-
 VideoFrameData::~VideoFrameData() {
     if (frame_handle) {
         // 释放帧引用

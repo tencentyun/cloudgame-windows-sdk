@@ -265,11 +265,11 @@ public slots:
     void onVideoStreamSettingsClicked();
 
     // ==================== 摄像头设备管理 ====================
-    
+
     /**
      * @brief 获取本地摄像头设备列表
      * @return 返回摄像头设备ID列表
-     * 
+     *
      * 对应 SDK API：
      *   - tcr_session_get_camera_device_count()：获取设备数量
      *   - tcr_session_get_camera_device()：获取设备信息
@@ -279,11 +279,32 @@ public slots:
     /**
      * @brief 启用指定的摄像头设备
      * @param deviceId 摄像头设备ID
-     * 
+     *
      * 对应 SDK API：
      *   - tcr_session_enable_local_camera_with_config()：使用配置启用摄像头
      */
     Q_INVOKABLE void enableCameraWithDevice(const QString& deviceId);
+
+    // ==================== 麦克风设备管理 ====================
+
+    /**
+     * @brief 获取本地麦克风设备列表
+     * @return 返回麦克风设备ID列表
+     *
+     * 对应 SDK API：
+     *   - tcr_session_get_microphone_device_count()：获取设备数量
+     *   - tcr_session_get_microphone_device()：获取设备信息
+     */
+    Q_INVOKABLE QStringList getMicrophoneDeviceList();
+
+    /**
+     * @brief 启用指定的麦克风设备
+     * @param deviceId 麦克风设备ID
+     *
+     * 对应 SDK API：
+     *   - tcr_session_enable_microphone_with_config()：使用配置启用麦克风
+     */
+    Q_INVOKABLE void enableMicrophoneWithDevice(const QString& deviceId);
 
 private:
     // ==================== 成员变量 ====================
@@ -411,16 +432,6 @@ private:
      * @return VideoFrameData智能指针
      */
     VideoFrameDataPtr createI420FrameData(
-        TcrVideoFrameHandle frame_handle,
-        const TcrVideoFrameBuffer* frame_buffer);
-
-    /**
-     * @brief 创建D3D11格式的VideoFrameData对象
-     * @param frame_handle 视频帧句柄
-     * @param frame_buffer 视频帧缓冲区
-     * @return VideoFrameData智能指针
-     */
-    VideoFrameDataPtr createD3D11FrameData(
         TcrVideoFrameHandle frame_handle,
         const TcrVideoFrameBuffer* frame_buffer);
 

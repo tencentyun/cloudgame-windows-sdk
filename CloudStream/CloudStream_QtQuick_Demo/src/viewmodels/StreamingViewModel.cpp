@@ -8,6 +8,7 @@
 #include <QDebug>
 #include <QMetaType>
 #include <QGuiApplication>
+#include <cstring>
 
 // ==================== 常量定义 ====================
 
@@ -678,7 +679,7 @@ void StreamingViewModel::sendDataChannelTestMessage()
  * 
  * 处理流程：
  *   1. 增加帧引用计数（防止 SDK 提前释放）
- *   2. 获取帧数据（支持 I420 CPU 格式和 D3D11 GPU 格式）
+ *   2. 获取帧数据（支持 I420 CPU 格式）
  *   3. 封装为智能指针（自动管理生命周期）
  *   4. 通过信号发送到主线程
  * 
@@ -728,16 +729,12 @@ void StreamingViewModel::VideoFrameCallback(void* user_data, TcrVideoFrameHandle
 }
 
 VideoFrameDataPtr StreamingViewModel::createVideoFrameData(
-    TcrVideoFrameHandle frame_handle, 
+    TcrVideoFrameHandle frame_handle,
     const TcrVideoFrameBuffer* frame_buffer)
 {
     if (frame_buffer->type == TCR_VIDEO_BUFFER_TYPE_I420) {
         return createI420FrameData(frame_handle, frame_buffer);
-    } 
-    else if (frame_buffer->type == TCR_VIDEO_BUFFER_TYPE_D3D11) {
-        return createD3D11FrameData(frame_handle, frame_buffer);
-    }
-    else {
+    } else {
         Logger::warning(QString("[VideoFrameCallback] 未知的帧类型: %1").arg(frame_buffer->type));
         return nullptr;
     }
@@ -761,30 +758,6 @@ VideoFrameDataPtr StreamingViewModel::createI420FrameData(
         i420Buffer.stride_v,
         i420Buffer.width,
         i420Buffer.height,
-        frame_buffer->timestamp_us
-    ));
-}
-
-VideoFrameDataPtr StreamingViewModel::createD3D11FrameData(
-    TcrVideoFrameHandle frame_handle,
-    const TcrVideoFrameBuffer* frame_buffer)
-{
-    // D3D11格式：GPU纹理数据
-    const TcrD3D11Buffer& d3d11Buffer = frame_buffer->buffer.d3d11;
-    
-    // 构造D3D11TextureData结构
-    D3D11TextureData textureData;
-    textureData.texture = d3d11Buffer.texture;
-    textureData.device = d3d11Buffer.device;
-    textureData.array_index = d3d11Buffer.array_index;
-    textureData.format = d3d11Buffer.format;
-    
-    // 使用D3D11构造函数创建对象
-    return VideoFrameDataPtr(new VideoFrameData(
-        frame_handle,
-        textureData,
-        d3d11Buffer.width,
-        d3d11Buffer.height,
         frame_buffer->timestamp_us
     ));
 }
@@ -828,6 +801,63 @@ QStringList StreamingViewModel::getCameraDeviceList()
     }
     
     return deviceList;
+}
+
+// ==================== 麦克风设备管理 ====================
+
+QStringList StreamingViewModel::getMicrophoneDeviceList()
+{
+    QStringList deviceList;
+
+    if (!m_session) {
+        Logger::debug("[getMicrophoneDeviceList] session not ready");
+        return deviceList;
+    }
+
+    int32_t deviceCount = tcr_session_get_microphone_device_count(m_session);
+    Logger::info(QString("[getMicrophoneDeviceList] 检测到 %1 个麦克风设备").arg(deviceCount));
+
+    for (int32_t i = 0; i < deviceCount; ++i) {
+        TcrMicrophoneDeviceInfo deviceInfo;
+        if (tcr_session_get_microphone_device(m_session, i, &deviceInfo)) {
+            QString deviceId = QString::fromUtf8(deviceInfo.device_id);
+            QString deviceName = QString::fromUtf8(deviceInfo.device_name);
+            Logger::info(QString("[getMicrophoneDeviceList] 设备 %1: ID=%2, Name=%3")
+                             .arg(i)
+                             .arg(deviceId)
+                             .arg(deviceName));
+            deviceList << deviceId;
+        } else {
+            Logger::error(QString("[getMicrophoneDeviceList] 获取设备 %1 信息失败").arg(i));
+        }
+    }
+
+    return deviceList;
+}
+
+void StreamingViewModel::enableMicrophoneWithDevice(const QString& deviceId)
+{
+    if (!isSessionReady()) {
+        Logger::debug("[enableMicrophoneWithDevice] session not ready");
+        return;
+    }
+
+    if (deviceId.isEmpty()) {
+        Logger::warning("[enableMicrophoneWithDevice] deviceId is empty");
+        return;
+    }
+
+    Logger::info(QString("[enableMicrophoneWithDevice] 启用麦克风设备: %1").arg(deviceId));
+
+    TcrMicrophoneConfig config = {};
+    QByteArray deviceIdBytes = deviceId.toUtf8();
+    strncpy(config.device_id, deviceIdBytes.constData(), sizeof(config.device_id) - 1);
+
+    if (tcr_session_enable_microphone_with_config(m_session, &config)) {
+        Logger::info(QString("[enableMicrophoneWithDevice] 麦克风启用成功: %1").arg(deviceId));
+    } else {
+        Logger::error(QString("[enableMicrophoneWithDevice] 麦克风启用失败: deviceId=%1").arg(deviceId));
+    }
 }
 
 QString StreamingViewModel::getInstanceStats() const

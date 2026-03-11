@@ -70,6 +70,14 @@ ApplicationWindow {
                 isLandscape: false
                 showStatsOverlay: streamingWindow.showStatsOverlay
                 onShowStatsChanged: streamingWindow.showStatsOverlay = showStats
+                onCameraDeviceListRequested: function(devices) {
+                    cameraDeviceDialog.deviceList = devices
+                    cameraDeviceDialog.open()
+                }
+                onMicrophoneDeviceListRequested: function(devices) {
+                    microphoneDeviceDialog.deviceList = devices
+                    microphoneDeviceDialog.open()
+                }
             }
         }
     }
@@ -98,19 +106,39 @@ ApplicationWindow {
                 isLandscape: true
                 showStatsOverlay: streamingWindow.showStatsOverlay
                 onShowStatsChanged: streamingWindow.showStatsOverlay = showStats
+                onCameraDeviceListRequested: function(devices) {
+                    cameraDeviceDialog.deviceList = devices
+                    cameraDeviceDialog.open()
+                }
+                onMicrophoneDeviceListRequested: function(devices) {
+                    microphoneDeviceDialog.deviceList = devices
+                    microphoneDeviceDialog.open()
+                }
             }
         }
     }
-    
+
     // 摄像头设备列表对话框
     Components.CameraDeviceDialog {
         id: cameraDeviceDialog
         x: (parent.width - width) / 2
         y: (parent.height - height) / 2
-        
+
         onDeviceSelected: function(deviceId) {
             console.log("选中摄像头设备: " + deviceId)
             streamingViewModel.enableCameraWithDevice(deviceId)
+        }
+    }
+
+    // 麦克风设备列表对话框
+    Components.MicrophoneDeviceDialog {
+        id: microphoneDeviceDialog
+        x: (parent.width - width) / 2
+        y: (parent.height - height) / 2
+
+        onDeviceSelected: function(deviceId) {
+            console.log("选中麦克风设备: " + deviceId)
+            streamingViewModel.enableMicrophoneWithDevice(deviceId)
         }
     }
 }

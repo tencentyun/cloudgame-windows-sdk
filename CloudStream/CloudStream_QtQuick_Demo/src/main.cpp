@@ -4,14 +4,17 @@
 #include <QResource>
 #include "services/ApiService.h"
 #include "services/NetworkService.h"
-#include "utils/Logger.h" 
+#include "utils/Logger.h"
+#ifdef _WIN32
 #include "utils/CrashDumpHandler.h"
+#endif
 #include "core/video/VideoRenderItem.h"
 #include "core/video/VideoRenderPaintedItem.h"
 #include "viewmodels/StreamingViewModel.h"
 #include "viewmodels/MultiStreamViewModel.h"
 #include "viewmodels/InstanceTokenViewModel.h"
 #include "core/StreamConfig.h"
+#include "core/AppConfig.h"
 #include "tcr_c_api.h"
 
 /**
@@ -30,7 +33,9 @@ int main(int argc, char *argv[]) {
 
     // -------------------- 崩溃处理器初始化 --------------------
     /// 初始化崩溃转储处理器，程序崩溃时自动生成dump文件
+#ifdef _WIN32
     CrashDumpHandler::initialize();
+#endif
 
     // -------------------- 日志系统初始化 --------------------
     /// 初始化全局日志系统，确保日志功能在应用生命周期内可用
@@ -67,6 +72,14 @@ int main(int argc, char *argv[]) {
             return StreamConfig::instance();
         });
 
+    /// 注册AppConfig单例，供QML使用
+    qmlRegisterSingletonType<AppConfig>("CustomComponents", 1, 0, "AppConfig",
+        [](QQmlEngine *engine, QJSEngine *scriptEngine) -> QObject * {
+            Q_UNUSED(engine)
+            Q_UNUSED(scriptEngine)
+            return AppConfig::instance();
+        });
+
     engine.rootContext()->setContextProperty("instanceAccessViewModel", instanceAccessViewModel);
     engine.rootContext()->setContextProperty("apiService", apiService);
 
@@ -83,7 +96,7 @@ int main(int argc, char *argv[]) {
         Qt::QueuedConnection);
 
     // -------------------- 加载QML主界面 --------------------
-    engine.loadFromModule("CloudStream_QtQuick_Demo", "InstanceTokenWindow");
+    engine.loadFromModule("QtQuick_Demo", "InstanceTokenWindow");
 
 
     // 预加载, 降低TcrSdk首帧延迟
