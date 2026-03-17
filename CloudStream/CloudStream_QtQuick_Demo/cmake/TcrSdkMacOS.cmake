@@ -19,18 +19,6 @@ if(NOT TCRSDK_DYLIB_FILES)
     message(FATAL_ERROR "TcrSdk dynamic library not found in ${TCRSDK_DIR}/lib/")
 endif()
 
-# 优先选择版本化文件名（libTcrSdk.x.y.z.dylib），跳过符号链接
-foreach(dylib_file ${TCRSDK_DYLIB_FILES})
-    if(NOT IS_SYMLINK ${dylib_file})
-        get_filename_component(dylib_name ${dylib_file} NAME)
-        if(dylib_name MATCHES "libTcrSdk\\.[0-9]+\\.[0-9]+\\.[0-9]+\\.dylib")
-            set(TCRSDK_DYLIB ${dylib_file})
-            break()
-        endif()
-    endif()
-endforeach()
-
-# 回退：使用第一个非符号链接文件
 if(NOT TCRSDK_DYLIB)
     foreach(dylib_file ${TCRSDK_DYLIB_FILES})
         if(NOT IS_SYMLINK ${dylib_file})
