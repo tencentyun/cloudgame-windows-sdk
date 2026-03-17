@@ -5,236 +5,143 @@ project(QtQuick_Demo VERSION 0.1 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(QT_NO_PRIVATE_MODULE_WARNING ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Quick Network Concurrent ShaderTools GuiPrivate QuickControls2 QuickLayouts QuickDialogs2)
+# =============================================================
+# Qt 依赖
+# =============================================================
+find_package(Qt6 REQUIRED COMPONENTS
+    Quick Network Concurrent ShaderTools
+    GuiPrivate QuickControls2 QuickLayouts QuickDialogs2
+)
 
 qt_standard_project_setup(REQUIRES 6.8)
 
-# 获取src目录下的所有.cpp文件（包括子目录）
+# =============================================================
+# 源文件收集
+# =============================================================
 file(GLOB_RECURSE SRC_CPP_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "src/*.cpp")
 
 # 排除平台特定文件
 if(NOT WIN32)
-    # 在非 Windows 平台上排除 Windows 特定文件
     list(FILTER SRC_CPP_FILES EXCLUDE REGEX ".*CrashDumpHandler\\.cpp$")
 endif()
 
-qt_add_executable(QtQuick_Demo
+# =============================================================
+# 可执行目标
+# =============================================================
+qt_add_executable(${PROJECT_NAME}
     ${SRC_CPP_FILES}
 )
 
-# 基础 include 目录
-target_include_directories(QtQuick_Demo PRIVATE
+target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/src/utils
 )
 
-# 添加着色器文件到资源系统
-qt6_add_shaders(QtQuick_Demo "shaders"
+# =============================================================
+# 着色器资源
+# =============================================================
+qt6_add_shaders(${PROJECT_NAME} "shaders"
     BATCHABLE
     PRECOMPILE
     OPTIMIZED
-    PREFIX
-        "/shaders"
+    PREFIX "/shaders"
     FILES
         "shaders/yuv.vert"
         "shaders/yuv.frag"
 )
 
-# 获取qml目录下的所有QML文件（相对路径）
+# =============================================================
+# QML 模块
+# =============================================================
 file(GLOB_RECURSE QML_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "qml/*.qml")
-qt_add_qml_module(QtQuick_Demo
-    URI QtQuick_Demo
+
+qt_add_qml_module(${PROJECT_NAME}
+    URI ${PROJECT_NAME}
     VERSION 1.0
-    OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/QtQuick_Demo
-    QML_FILES
-        ${QML_FILES}
+    OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}
+    QML_FILES ${QML_FILES}
 )
 
-set_target_properties(QtQuick_Demo PROPERTIES
+# =============================================================
+# 目标属性（跨平台通用）
+# =============================================================
+set_target_properties(${PROJECT_NAME} PROPERTIES
     MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
     MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
     MACOSX_BUNDLE TRUE
     WIN32_EXECUTABLE TRUE
 )
 
-# macOS 隐私权限声明（TCC）
-# 访问摄像头和麦克风时 macOS 要求 Info.plist 中包含对应的 UsageDescription
+# Linux: 将可执行文件输出到 bin/ 子目录，避免与 QML 模块的同名目录冲突
+if(UNIX AND NOT APPLE)
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/bin"
+    )
+endif()
+
+# macOS: Info.plist 隐私权限声明（摄像头/麦克风 TCC）
 if(APPLE)
-    set_target_properties(QtQuick_Demo PROPERTIES
+    set_target_properties(${PROJECT_NAME} PROPERTIES
         MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/Info.plist.in"
     )
 endif()
 
+# =============================================================
 # Qt 模块链接
-target_link_libraries(QtQuick_Demo
-    PRIVATE Qt6::Quick
-            Qt6::Network
-            Qt6::Concurrent
-            Qt6::GuiPrivate
-            Qt6::QuickControls2
-            Qt6::QuickLayouts
-            Qt6::QuickDialogs2
+# =============================================================
+target_link_libraries(${PROJECT_NAME} PRIVATE
+    Qt6::Quick
+    Qt6::Network
+    Qt6::Concurrent
+    Qt6::GuiPrivate
+    Qt6::QuickControls2
+    Qt6::QuickLayouts
+    Qt6::QuickDialogs2
 )
 
-# ----------------- TcrSdk 动态库配置 -----------------
+# =============================================================
+# TcrSdk 动态库/静态库配置（按平台分文件）
+# =============================================================
 set(TCRSDK_BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/TcrSdk)
 
 if(WIN32)
-    # ============= Windows 配置 =============
-    target_link_libraries(QtQuick_Demo PRIVATE dbghelp)
-
-    # 检测架构
-    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-        set(TCRSDK_ARCH x64)
-    else()
-        set(TCRSDK_ARCH Win32)
-    endif()
-
-    # 根据构建类型选择路径
-    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        set(TCRSDK_DIR "${TCRSDK_BASE_DIR}/win/Debug/${TCRSDK_ARCH}")
-    else()
-        set(TCRSDK_DIR "${TCRSDK_BASE_DIR}/win/Release/${TCRSDK_ARCH}")
-    endif()
-
-    # 添加头文件目录
-    target_include_directories(QtQuick_Demo PRIVATE
-        ${TCRSDK_BASE_DIR}/include
-    )
-
-    # 链接导入库
-    target_link_libraries(QtQuick_Demo PRIVATE
-        ${TCRSDK_DIR}/TcrSdk.lib
-    )
-
-    # 复制 DLL 和 PDB 到构建目录
-    add_custom_command(TARGET QtQuick_Demo POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${TCRSDK_DIR}/TcrSdk.dll"
-            "$<TARGET_FILE_DIR:QtQuick_Demo>"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${TCRSDK_DIR}/TcrSdk.pdb"
-            "$<TARGET_FILE_DIR:QtQuick_Demo>"
-        COMMENT "Copying TcrSdk DLL and PDB to output directory"
-        VERBATIM
-    )
-
-    # 复制 config.json 到可执行文件目录
-    add_custom_command(TARGET QtQuick_Demo POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_CURRENT_SOURCE_DIR}/config.json"
-            "$<TARGET_FILE_DIR:QtQuick_Demo>/config.json"
-        COMMENT "Copying config.json to output directory"
-        VERBATIM
-    )
-
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/TcrSdkWindows.cmake)
 elseif(APPLE)
-    # ============= macOS 配置 =============
-    set(TCRSDK_DIR "${TCRSDK_BASE_DIR}/macos")
-
-    # 添加头文件目录
-    target_include_directories(QtQuick_Demo PRIVATE
-        ${TCRSDK_BASE_DIR}/include
-    )
-
-    # 查找 dylib 文件（支持版本化文件名）
-    file(GLOB TCRSDK_DYLIB_FILES "${TCRSDK_DIR}/lib/libTcrSdk*.dylib")
-
-    if(NOT TCRSDK_DYLIB_FILES)
-        message(FATAL_ERROR "TcrSdk dynamic library not found in ${TCRSDK_DIR}/lib/")
-    endif()
-
-    # 找到实际的库文件（非符号链接）
-    foreach(dylib_file ${TCRSDK_DYLIB_FILES})
-        if(NOT IS_SYMLINK ${dylib_file})
-            get_filename_component(dylib_name ${dylib_file} NAME)
-            # 匹配版本化文件名 libTcrSdk.x.y.z.dylib
-            if(dylib_name MATCHES "libTcrSdk\\.[0-9]+\\.[0-9]+\\.[0-9]+\\.dylib")
-                set(TCRSDK_DYLIB ${dylib_file})
-                break()
-            endif()
-        endif()
-    endforeach()
-
-    # 如果没找到版本化文件，使用第一个非符号链接文件
-    if(NOT TCRSDK_DYLIB)
-        foreach(dylib_file ${TCRSDK_DYLIB_FILES})
-            if(NOT IS_SYMLINK ${dylib_file})
-                set(TCRSDK_DYLIB ${dylib_file})
-                break()
-            endif()
-        endforeach()
-    endif()
-
-    if(NOT TCRSDK_DYLIB)
-        message(FATAL_ERROR "Could not find actual TcrSdk dylib file")
-    endif()
-
-    message(STATUS "Using TcrSdk dylib: ${TCRSDK_DYLIB}")
-
-    # 链接动态库
-    target_link_libraries(QtQuick_Demo PRIVATE
-        ${TCRSDK_DYLIB}
-    )
-
-    # 设置 rpath（让应用在运行时能找到 dylib）
-    set_target_properties(QtQuick_Demo PROPERTIES
-        INSTALL_RPATH "@executable_path/../Frameworks"
-        BUILD_WITH_INSTALL_RPATH TRUE
-    )
-
-    # 复制所有 dylib 文件（包括符号链接）到应用包
-    add_custom_command(TARGET QtQuick_Demo POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory
-            "$<TARGET_BUNDLE_DIR:QtQuick_Demo>/Contents/Frameworks"
-        COMMENT "Creating Frameworks directory in app bundle"
-        VERBATIM
-    )
-
-    # 复制所有 libTcrSdk*.dylib 文件
-    foreach(dylib_file ${TCRSDK_DYLIB_FILES})
-        get_filename_component(dylib_name ${dylib_file} NAME)
-        add_custom_command(TARGET QtQuick_Demo POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy
-                "${dylib_file}"
-                "$<TARGET_BUNDLE_DIR:QtQuick_Demo>/Contents/Frameworks/${dylib_name}"
-            COMMENT "Copying ${dylib_name} to app bundle"
-            VERBATIM
-        )
-    endforeach()
-
-    # 使用 macdeployqt 自动部署 Qt 依赖
-    find_program(MACDEPLOYQT_EXECUTABLE macdeployqt HINTS "${Qt6_DIR}/../../../bin")
-    if(MACDEPLOYQT_EXECUTABLE)
-        add_custom_command(TARGET QtQuick_Demo POST_BUILD
-            COMMAND "${MACDEPLOYQT_EXECUTABLE}"
-                "$<TARGET_BUNDLE_DIR:QtQuick_Demo>"
-                -qmldir=${CMAKE_CURRENT_SOURCE_DIR}/qml
-                -verbose=1
-            COMMENT "Running macdeployqt to bundle Qt frameworks and QML modules"
-            VERBATIM
-        )
-    else()
-        message(STATUS "macdeployqt not found. Qt frameworks must be deployed manually.")
-    endif()
-
-    # 复制 config.json 到 .app 包内的可执行文件目录
-    add_custom_command(TARGET QtQuick_Demo POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_CURRENT_SOURCE_DIR}/config.json"
-            "$<TARGET_FILE_DIR:QtQuick_Demo>/config.json"
-        COMMENT "Copying config.json into app bundle"
-        VERBATIM
-    )
-
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/TcrSdkMacOS.cmake)
 else()
-    message(FATAL_ERROR "Unsupported platform. Only Windows and macOS are supported.")
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/TcrSdkLinux.cmake)
 endif()
 
-# 安装配置
+# =============================================================
+# 复制 config.json 到可执行文件目录（所有平台通用）
+# =============================================================
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/config.json"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/config.json"
+    COMMENT "Copying config.json to output directory"
+    VERBATIM
+)
+
+# =============================================================
+# 安装与部署配置
+# =============================================================
 include(GNUInstallDirs)
-install(TARGETS QtQuick_Demo
+
+install(TARGETS ${PROJECT_NAME}
     BUNDLE DESTINATION .
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
+
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/config.json"
+    DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+qt_generate_deploy_qml_app_script(
+    TARGET ${PROJECT_NAME}
+    OUTPUT_SCRIPT deploy_script
+    MACOS_BUNDLE_POST_BUILD FALSE
+    NO_UNSUPPORTED_PLATFORM_ERROR
+)
+install(SCRIPT ${deploy_script})
