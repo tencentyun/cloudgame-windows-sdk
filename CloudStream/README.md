@@ -13,7 +13,7 @@
 1. 业务后台对接云 API。(开发团队会提供业务后台的源码)
 2. 业务客户端集成 SDK，完成实例展示、串流和触控、按键事件等交互。
 
-本指南面向需要在 **Windows / macOS C++ 项目**（如 Qt Quick 工程）中集成云手机 PaaS SDK 的开发者，如果您的客户端使用跨端的Web技术进行开发，请参考[前端JS-SDK接入文档](https://ex.cloud-gaming.myqcloud.com/cloud_gaming_web/docs/index.html)。
+本指南面向需要在 **Windows / macOS / Linux C++ 项目**（如 Qt Quick 工程）中集成云手机 PaaS SDK 的开发者，如果您的客户端使用跨端的Web技术进行开发，请参考[前端JS-SDK接入文档](https://ex.cloud-gaming.myqcloud.com/cloud_gaming_web/docs/index.html)。
 
 为了便于您快速接入 SDK，我们提供了一个基于 **QtQuick** 的 Demo 工程，可以通过[CloudStream_QtQuick_Demo](CloudStream_QtQuick_Demo/README.md)下载和了解 Demo 运行流程。
 
@@ -25,13 +25,17 @@
 ### 2.1 依赖环境
 
 #### Windows
-- 从[TcrSdk发布记录](https://github.com/tencentyun/cloudgame-windows-sdk/blob/main/Docs/Release_Note.md)下载最新版本 Windows SDK（含头文件、lib、dll），并拷贝到 `third_party/TcrSdk` 目录
+- 从[TcrSdk发布记录](https://github.com/tencentyun/cloudgame-windows-sdk/blob/main/Docs/Release_Note.md)下载最新版本 Windows SDK（含头文件、lib、dll），并拷贝到 `third_party/TcrSdk/win` 目录
 - 若您的工程使用 Visual Studio 开发可以直接集成，若您的客户端是 Qt 工程，您需要确认编译器使用的是 `MSVC 2022 64-bit`
 
 #### macOS
-- 从[TcrSdk发布记录](https://github.com/tencentyun/cloudgame-windows-sdk/blob/main/Docs/Release_Note.md)下载最新版本 macOS SDK（Universal Binary，支持 Apple Silicon 与 Intel），并拷贝到 `third_party/TcrSdk` 目录
+- 从[TcrSdk发布记录](https://github.com/tencentyun/cloudgame-windows-sdk/blob/main/Docs/Release_Note.md)下载最新版本 macOS SDK（Universal Binary，支持 Apple Silicon 与 Intel），并拷贝到 `third_party/TcrSdk/macos` 目录
 - 需要 **Xcode 14.0+**、**CMake 3.16+**、**Qt 6.8+**（macOS Kit）
 - 应用访问摄像头/麦克风时需在 `Info.plist` 中声明 `NSCameraUsageDescription` / `NSMicrophoneUsageDescription`
+
+#### Linux
+- 从[TcrSdk发布记录](https://github.com/tencentyun/cloudgame-windows-sdk/blob/main/Docs/Release_Note.md)下载最新版本 Linux SDK，并拷贝到 `third_party/TcrSdk/linux` 目录
+- 前提条件: 当前支持 x86 架构硬件上的 Linux 系统，其中 glibc 2.28+
 
 ### 2.2 目录结构建议
 
@@ -40,6 +44,10 @@ CloudPhone_QtQuick/
 ├── src/                   # 业务代码
 ├── qml/                   # QML 资源
 ├── shaders/               # 着色器
+├── cmake/                 # 平台特定 CMake 配置
+│   ├── TcrSdkWindows.cmake
+│   ├── TcrSdkMacOS.cmake
+│   └── TcrSdkLinux.cmake
 ├── third_party/
 │   └── TcrSdk/
 │       ├── include/           # 公共头文件（跨平台）
@@ -53,9 +61,12 @@ CloudPhone_QtQuick/
 │       │   └── Debug/
 │       │       ├── x64/       # TcrSdk.dll / TcrSdk.lib / TcrSdk.pdb
 │       │       └── Win32/
+│       │
+│       ├── linux/             # Linux 平台
+│       │   └── lib/           # libTcrSdk.so
+│       │
 │       └── macos/             # macOS 平台
-│           └── lib/
-│               └── libTcrSdk.dylib
+│           └── lib/           # libTcrSdk.dylib
 └── CMakeLists.txt
 ```
 
@@ -63,60 +74,95 @@ CloudPhone_QtQuick/
 
 ## 3. CMake 工程配置
 
-参考如下 CMake 配置片段，确保 SDK 头文件、lib/dylib 正确集成:
+推荐将各平台的 SDK 配置拆分到独立的 cmake 文件中，通过主 `CMakeLists.txt` 按平台引入：
 
 ```cmake
 set(TCRSDK_BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/TcrSdk)
 
-# 添加头文件目录（Windows/macOS 共用）
+# 添加头文件目录（跨平台共用）
 target_include_directories(CloudPhone_QtQuick PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${TCRSDK_BASE_DIR}/include
 )
 
 if(WIN32)
-    # ===== Windows =====
-    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-        set(TCRSDK_ARCH x64)
-    else()
-        set(TCRSDK_ARCH Win32)
-    endif()
-
-    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        set(TCRSDK_DIR "${TCRSDK_BASE_DIR}/win/Debug/${TCRSDK_ARCH}")
-    else()
-        set(TCRSDK_DIR "${TCRSDK_BASE_DIR}/win/Release/${TCRSDK_ARCH}")
-    endif()
-
-    target_link_libraries(CloudPhone_QtQuick PRIVATE ${TCRSDK_DIR}/TcrSdk.lib)
-
-    # 拷贝 DLL 到输出目录
-    add_custom_command(TARGET CloudPhone_QtQuick POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${TCRSDK_DIR}/TcrSdk.dll"
-            "$<TARGET_FILE_DIR:CloudPhone_QtQuick>"
-    )
-
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/TcrSdkWindows.cmake)
 elseif(APPLE)
-    # ===== macOS =====
-    set(TCRSDK_DYLIB "${TCRSDK_BASE_DIR}/macos/lib/libTcrSdk.dylib")
-    target_link_libraries(CloudPhone_QtQuick PRIVATE ${TCRSDK_DYLIB})
-
-    # 设置 rpath，让应用在运行时能找到 dylib
-    set_target_properties(CloudPhone_QtQuick PROPERTIES
-        INSTALL_RPATH "@executable_path/../Frameworks"
-        BUILD_WITH_INSTALL_RPATH TRUE
-    )
-
-    # 将 dylib 拷贝进 .app 包
-    add_custom_command(TARGET CloudPhone_QtQuick POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory
-            "$<TARGET_BUNDLE_DIR:CloudPhone_QtQuick>/Contents/Frameworks"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${TCRSDK_DYLIB}"
-            "$<TARGET_BUNDLE_DIR:CloudPhone_QtQuick>/Contents/Frameworks/"
-    )
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/TcrSdkMacOS.cmake)
+else()
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/TcrSdkLinux.cmake)
 endif()
+```
+
+各平台 cmake 文件示例如下：
+
+### Windows（cmake/TcrSdkWindows.cmake）
+
+```cmake
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    set(TCRSDK_ARCH x64)
+else()
+    set(TCRSDK_ARCH Win32)
+endif()
+
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(TCRSDK_DIR "${TCRSDK_BASE_DIR}/win/Debug/${TCRSDK_ARCH}")
+else()
+    set(TCRSDK_DIR "${TCRSDK_BASE_DIR}/win/Release/${TCRSDK_ARCH}")
+endif()
+
+target_link_libraries(CloudPhone_QtQuick PRIVATE ${TCRSDK_DIR}/TcrSdk.lib)
+
+# 拷贝 DLL 到输出目录
+add_custom_command(TARGET CloudPhone_QtQuick POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${TCRSDK_DIR}/TcrSdk.dll"
+        "$<TARGET_FILE_DIR:CloudPhone_QtQuick>"
+)
+```
+
+### macOS（cmake/TcrSdkMacOS.cmake）
+
+```cmake
+set(TCRSDK_DYLIB "${TCRSDK_BASE_DIR}/macos/lib/libTcrSdk.dylib")
+target_link_libraries(CloudPhone_QtQuick PRIVATE ${TCRSDK_DYLIB})
+
+# 设置 rpath，让应用在运行时能找到 dylib
+set_target_properties(CloudPhone_QtQuick PROPERTIES
+    INSTALL_RPATH "@executable_path/../Frameworks"
+    BUILD_WITH_INSTALL_RPATH TRUE
+)
+
+# 将 dylib 拷贝进 .app 包
+add_custom_command(TARGET CloudPhone_QtQuick POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+        "$<TARGET_BUNDLE_DIR:CloudPhone_QtQuick>/Contents/Frameworks"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${TCRSDK_DYLIB}"
+        "$<TARGET_BUNDLE_DIR:CloudPhone_QtQuick>/Contents/Frameworks/"
+)
+```
+
+### Linux（cmake/TcrSdkLinux.cmake）
+
+```cmake
+set(TCRSDK_DIR "${TCRSDK_BASE_DIR}/linux")
+find_library(TCRSDK_LIB TcrSdk PATHS "${TCRSDK_DIR}/lib" NO_DEFAULT_PATH)
+
+target_link_libraries(CloudPhone_QtQuick PRIVATE ${TCRSDK_LIB})
+
+# 设置 rpath，确保运行时能找到 .so
+set_target_properties(CloudPhone_QtQuick PROPERTIES
+    INSTALL_RPATH "$ORIGIN;$ORIGIN/../lib"
+    BUILD_WITH_INSTALL_RPATH TRUE
+)
+
+# 拷贝 .so 到输出目录
+add_custom_command(TARGET CloudPhone_QtQuick POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${TCRSDK_DIR}/lib/libTcrSdk.so"
+        "$<TARGET_FILE_DIR:CloudPhone_QtQuick>"
+)
 ```
 
 ---
@@ -228,7 +274,7 @@ static void VideoFrameCallback(void* user_data, TcrVideoFrameHandle frame_handle
             render_d3d11_rgba_texture(&buffer->buffer.d3d11);
             break;
         case TCR_VIDEO_BUFFER_TYPE_I420:
-            // 软件解码（Windows/macOS）：使用 I420 数据渲染
+            // 软件解码（Windows/macOS/Linux）：使用 I420 数据渲染
             // 需要在 shader 中进行 YUV 到 RGB 的颜色空间转换
             render_i420_buffer(&buffer->buffer.i420);
             break;
@@ -341,9 +387,10 @@ tcr_client_release(tcrClient);
 - **会话管理**：每一个 `TcrSessionHandle` 只能调用一次 `tcr_session_access` 或 `tcr_session_access_multi_stream`，如需多个会话请创建多个实例并释放使用过的实例。
 - **日志调试**：您需要通过 `tcr_set_log_callback`、`tcr_set_log_level` 配置日志，以便在出现问题之后将日志反馈给开发团队定位问题。
 - **Observer 生命周期**：Observer 结构体需在整个 session 生命周期内保持有效。销毁 session 前必须先通过传入 `nullptr` 将 observer 置空。
-- **硬件解码**：硬件解码（`enable_hardware_decode = true`）仅在 Windows D3D11 平台生效，macOS 始终使用软件解码，视频帧回调类型为 `TCR_VIDEO_BUFFER_TYPE_I420`。
+- **硬件解码**：硬件解码（`enable_hardware_decode = true`）仅在 Windows D3D11 平台生效，macOS 和 Linux 始终使用软件解码，视频帧回调类型为 `TCR_VIDEO_BUFFER_TYPE_I420`。
 - **macOS 权限声明**：应用访问摄像头/麦克风时，需在 `Info.plist` 中声明 `NSCameraUsageDescription` 和 `NSMicrophoneUsageDescription`，否则系统将拒绝访问。
 - **macOS dylib rpath**：需将 `libTcrSdk.dylib` 拷贝至 `.app/Contents/Frameworks/` 目录，并配置 `@executable_path/../Frameworks` rpath，否则运行时将无法加载库。
+- **Linux 可执行文件输出目录**：Linux 平台下可执行文件输出到 `bin/` 子目录，以避免与 QML 模块的同名目录冲突。
 - Demo [CloudStream_QtQuick_Demo](CloudStream_QtQuick_Demo/README.md) 演示了串流场景下SDK能力（截图展示及串流交互等），[SDK接口](https://cloud.tencent.com/document/product/1162/122588) 支持的其他功能为云手机PaaS功能。
 
 ---

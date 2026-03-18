@@ -4,78 +4,92 @@
 
 ## 项目简介
 
-CloudStream_QtQuick_Demo 是一个基于 Qt 6/QML 的云手机串流客户端演示工程，集成了 [TcrSdk](https://cg-sdk-1258344699.cos.ap-nanjing.myqcloud.com/CloudDeviceWinSDK/docs/release_note.html) 云手机 SDK，支持多视频流渲染、触摸/按键控制等功能。支持 **Windows** 和 **macOS** 平台，便于企业或开发者参考如何使用 TcrSdk 以及与业务后台进行交互。
+CloudStream_QtQuick_Demo 是一个基于 Qt 6/QML 的云手机串流客户端演示工程，集成了 [TcrSdk](https://cg-sdk-1258344699.cos.ap-nanjing.myqcloud.com/CloudDeviceWinSDK/docs/release_note.html) 云手机 SDK，支持多视频流渲染、触摸/按键控制等功能。支持 **Windows**、**macOS** 和 **Linux** 平台，便于企业或开发者参考如何使用 TcrSdk 以及与业务后台进行交互。
 
 ## 主要功能
 
 - **实例展示**：卡片展示云手机实例画面
 - **视频串流**：支持单实例和多实例同步视频流渲染与交互
 - **自定义渲染**：基于 OpenGL Shader 的 YUV 视频渲染
-- **跨平台支持**：Windows（MSVC）与 macOS（Apple Silicon / Intel）
+- **麦克风/摄像头**：支持本地麦克风和摄像头设备的枚举与切换
+- **性能统计**：实时显示串流性能数据（FPS、延迟、码率等）
+- **跨平台支持**：Windows（MSVC）、macOS（Apple Silicon / Intel）与 Linux（x86_64）
 
 ## 目录结构
 
 ```
 .
-├── CMakeLists.txt                # CMake 构建脚本（支持 Windows/macOS）
-├── Info.plist.in                 # macOS 隐私权限声明模板（摄像头/麦克风）
-├── config.json                   # 业务配置文件
-├── docs/                         # 文档图片
+├── CMakeLists.txt                    # CMake 构建脚本（支持 Windows/macOS/Linux）
+├── cmake/                            # 平台特定 CMake 配置
+│   ├── TcrSdkWindows.cmake           # Windows SDK 链接配置
+│   ├── TcrSdkMacOS.cmake             # macOS SDK 链接配置
+│   └── TcrSdkLinux.cmake             # Linux SDK 链接配置
+├── Info.plist.in                     # macOS 隐私权限声明模板（摄像头/麦克风）
+├── config.json                       # 业务配置文件（baseUrl、instanceIds 等）
+├── docs/                             # 文档图片
 │   └── images/
-├── qml/                          # QML 界面文件
-│   ├── InstanceTokenWindow.qml   # 启动页，演示如何通过实例ID获取AccessToken
-│   ├── MainWindow.qml            # 主界面（云手机实例画面展示）
-│   ├── StreamingWindow.qml       # 串流窗口（演示如何连接到云机实例并进行交互）
-│   └── components/               # QML 复用组件
-│       └── Dialogs.qml           # 对话框
-├── README.md                     # 本文档
-├── shaders/                      # OpenGL 着色器
-│   ├── yuv.frag                  # YUV 片段着色器
-│   └── yuv.vert                  # YUV 顶点着色器
-├── src/                          # C++ 源码
-│   ├── main.cpp                  # 程序入口
-│   ├── core/                     # 业务核心与渲染
-│   │   └── video/                # 视频渲染相关
-│   │       ├── Frame.h           # 视频帧数据结构
-│   │       ├── VideoRenderItem.h # QQuickItem 视频渲染组件
-│   │       ├── VideoRenderItem.cpp
-│   │       ├── YuvMaterial.h     # OpenGL YUV 着色材质
-│   │       ├── YuvMaterial.cpp
-│   │       ├── YuvNode.h         # 场景图 YUV 渲染节点
-│   │       ├── YuvNode.cpp
-│   │       ├── YuvTestPattern.h  # YUV 测试模式工具
-│   │       └── YuvTestPattern.cpp
-│   ├── services/                 # 网络与 API 服务
-│   │   ├── ApiService.h          # 云手机 API 服务接口
-│   │   ├── ApiService.cpp
-│   │   └── NetworkService.h      # 网络请求服务接口
-│   │   ├── NetworkService.cpp
-│   ├── utils/                    # 工具类
-│   │   ├── Logger.h              # 日志工具
-│   │   ├── Logger.cpp
-│   │   ├── VariantListConverter.h
-│   │   └── VariantListConverter.cpp
-│   └── viewmodels/               # QML 绑定的 ViewModel
-│       ├── InstanceTokenViewModel.h   # 演示如何请求业务后台接口拿到 AccessToken
-│       ├── InstanceTokenViewModel.cpp
-│       ├── StreamingViewModel.h   # 串流交互控制管理
-│       └── StreamingViewModel.cpp
+├── qml/                              # QML 界面文件
+│   ├── InstanceTokenWindow.qml       # 启动页，演示如何通过实例ID获取AccessToken
+│   ├── MainWindow.qml                # 主界面（云手机实例卡片展示）
+│   ├── StreamingWindow.qml           # 串流窗口（连接云机实例并进行交互）
+│   └── components/                   # QML 复用组件
+│       ├── CameraDeviceDialog.qml    # 摄像头设备选择对话框
+│       ├── ControlButtonArea.qml     # 串流控制按钮区域
+│       ├── Dialogs.qml               # 通用对话框
+│       ├── MicrophoneDeviceDialog.qml# 麦克风设备选择对话框
+│       ├── StatsOverlay.qml          # 性能统计浮层
+│       ├── StreamSettingsDialog.qml  # 串流参数设置对话框
+│       └── VideoRenderArea.qml       # 视频渲染区域组件
+├── README.md                         # 本文档
+├── shaders/                          # OpenGL 着色器
+│   ├── yuv.frag                      # YUV 片段着色器
+│   └── yuv.vert                      # YUV 顶点着色器
+├── src/                              # C++ 源码
+│   ├── main.cpp                      # 程序入口
+│   ├── core/                         # 业务核心
+│   │   ├── AppConfig.h/cpp           # 应用配置（读取 config.json）
+│   │   ├── StreamConfig.h/cpp        # 串流参数配置
+│   │   └── video/                    # 视频渲染相关
+│   │       ├── Frame.h/cpp           # 视频帧数据结构
+│   │       ├── VideoRenderItem.h/cpp # QQuickItem 视频渲染组件（SceneGraph）
+│   │       ├── VideoRenderPaintedItem.h/cpp # QPainter 软件渲染备选
+│   │       ├── VideoTransformHelper.h/cpp   # 视频变换辅助
+│   │       ├── YuvDynamicTexture.h/cpp      # YUV 动态纹理更新
+│   │       ├── YuvMaterial.h/cpp     # OpenGL YUV 着色材质
+│   │       ├── YuvNode.h/cpp         # 场景图 YUV 渲染节点
+│   │       └── YuvTestPattern.h/cpp  # YUV 测试图案生成工具
+│   ├── services/                     # 网络与 API 服务
+│   │   ├── ApiService.h/cpp          # 云手机 API 服务（AccessToken 获取等）
+│   │   └── NetworkService.h/cpp      # 网络请求封装
+│   ├── utils/                        # 工具类
+│   │   ├── CrashDumpHandler.h/cpp    # 崩溃转储处理（仅 Windows）
+│   │   ├── EnvInfoPrinter.h          # 环境信息打印
+│   │   ├── Logger.h/cpp              # 日志工具
+│   │   ├── VariantListConverter.h/cpp# QVariant 列表转换工具
+│   │   └── YuvFrameDumper.h/cpp      # YUV 帧导出调试工具
+│   └── viewmodels/                   # QML 绑定的 ViewModel
+│       ├── InstanceTokenViewModel.h/cpp  # 获取 AccessToken，驱动启动页
+│       ├── MultiStreamViewModel.h/cpp    # 多实例串流管理
+│       └── StreamingViewModel.h/cpp      # 单实例串流交互控制
 └── third_party/
-    └── TcrSdk/                   # 云手机 SDK（含头文件及各平台库）
-        ├── include/              # 公共头文件（跨平台）
+    └── TcrSdk/                       # 云手机 SDK（含头文件及各平台库）
+        ├── include/                  # 公共头文件（跨平台）
         │   ├── tcr_c_api.h
         │   ├── tcr_types.h
         │   └── tcr_export.h
-        ├── win/                  # Windows 平台
+        ├── win/                      # Windows 平台
         │   ├── Release/
-        │   │   ├── x64/          # TcrSdk.dll / TcrSdk.lib / TcrSdk.pdb
+        │   │   ├── x64/              # TcrSdk.dll / TcrSdk.lib / TcrSdk.pdb
         │   │   └── Win32/
         │   └── Debug/
         │       ├── x64/
         │       └── Win32/
-        └── macos/                # macOS 平台（Universal Binary）
+        ├── macos/                    # macOS 平台（Universal Binary）
+        │   └── lib/
+        │       └── libTcrSdk.dylib
+        └── linux/                    # Linux 平台（x86_64）
             └── lib/
-                └── libTcrSdk.dylib
+                └── libTcrSdk.so
 ```
 
 ## 依赖环境
@@ -93,6 +107,13 @@ CloudStream_QtQuick_Demo 是一个基于 Qt 6/QML 的云手机串流客户端演
 - **Qt 6.8+**（需包含 macOS Kit，支持 Apple Silicon 或 Intel）
 - **CMake 3.16+**
 - **TcrSdk**：请从[TcrSdk发布记录](https://github.com/tencentyun/cloudgame-windows-sdk/blob/main/Docs/Release_Note.md)下载 macOS Universal SDK，解压后将 `macos/` 目录和 `include/` 目录拷贝到 `third_party/TcrSdk/` 下
+
+### Linux
+
+- **glibc 2.28+**，x86_64 架构
+- **Qt 6.8+**（需包含 Quick、Network、Concurrent、ShaderTools 模块）
+- **CMake 3.16+**
+- **TcrSdk**：请从[TcrSdk发布记录](https://github.com/tencentyun/cloudgame-windows-sdk/blob/main/Docs/Release_Note.md)下载 Linux SDK，解压后将 `linux/` 目录和 `include/` 目录拷贝到 `third_party/TcrSdk/` 下
 
 ## 构建方法
 
@@ -184,7 +205,7 @@ xcode-select --install
 
 ## 常见问题
 
-- **Q: 运行时提示找不到 `TcrSdk.dll` / `libTcrSdk.dylib`？**
+- **Q: 运行时提示找不到 `TcrSdk.dll` / `libTcrSdk.dylib` / `libTcrSdk.so`？**
   A: 请确认 SDK 文件已正确拷贝到 `third_party/TcrSdk/` 对应平台子目录下，并重新编译。
 
 - **Q: macOS 访问摄像头/麦克风时提示权限被拒绝？**
