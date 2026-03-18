@@ -3,6 +3,25 @@
 <!-- FORMAT_VERSION: 1.0 -->
 
 ---
+## [1.22.5] - 2026-03-18
+
+### Features
+- 支持Linux平台
+
+### Bugfix
+- 修复一些bug
+
+
+### Download
+
+| Platform | Arch | Package |
+|----------|------|---------|
+| Windows | x86 & x64 | [TcrSdk-Windows-Debug-1.22.5-20260318-d23cc604.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Windows-Debug-1.22.5-20260318-d23cc604.zip) |
+| Windows | x86 & x64 | [TcrSdk-Windows-Release-1.22.5-20260318-d23cc604.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Windows-Release-1.22.5-20260318-d23cc604.zip) |
+| Macos | universal | [TcrSdk-Macos-universal-1.22.5-20260318-d23cc604.zip](https://cg-sdk-1258344699.cos.ap-nanjing.myqcloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Macos-universal-1.22.5-20260318-d23cc604.zip) |
+| Linux | x86_64 | [TcrSdk-Linux-x86_64-1.22.5-20260318-d23cc604.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Linux-x86_64-1.22.5-20260318-d23cc604.zip) |
+
+---
 ## [1.22.4] - 2026-03-12
 
 ### Features
