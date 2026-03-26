@@ -3,6 +3,22 @@
 <!-- FORMAT_VERSION: 1.0 -->
 
 ---
+## [1.22.10] - 2026-03-26
+
+### Bugfix
+- fix: 修复个别机型音频设备初始化失败问题
+
+
+### Download
+
+| Platform | Arch | Package |
+|----------|------|---------|
+| Windows | x86 & x64 | [TcrSdk-Windows-Debug-1.22.10-20260326-dfd6050d.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Windows-Debug-1.22.10-20260326-dfd6050d.zip) |
+| Windows | x86 & x64 | [TcrSdk-Windows-Release-1.22.10-20260326-dfd6050d.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Windows-Release-1.22.10-20260326-dfd6050d.zip) |
+| Macos | universal | [TcrSdk-Macos-universal-1.22.10-20260326-dfd6050d.zip](https://cg-sdk-1258344699.cos.ap-nanjing.myqcloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Macos-universal-1.22.10-20260326-dfd6050d.zip) |
+| Linux | x86_64 | [TcrSdk-Linux-x86_64-1.22.10-20260326-dfd6050d.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Linux-x86_64-1.22.10-20260326-dfd6050d.zip) |
+
+---
 ## [1.22.9] - 2026-03-25
 
 ### Bugfix
