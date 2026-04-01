@@ -3,6 +3,23 @@
 <!-- FORMAT_VERSION: 1.0 -->
 
 ---
+## [1.22.11] - 2026-04-01
+
+### Bugfix
+- 1.解决Windows上大流拉流时其他应用的声音变小的问题
+- 2.解决MacOS上fd泄露导致的崩溃问题
+
+
+### Download
+
+| Platform | Arch | Package |
+|----------|------|---------|
+| Windows | x86 & x64 | [TcrSdk-Windows-Debug-1.22.11-20260401-ecdcd08c.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Windows-Debug-1.22.11-20260401-ecdcd08c.zip) |
+| Windows | x86 & x64 | [TcrSdk-Windows-Release-1.22.11-20260401-ecdcd08c.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Windows-Release-1.22.11-20260401-ecdcd08c.zip) |
+| Macos | universal | [TcrSdk-Macos-universal-1.22.11-20260401-ecdcd08c.zip](https://cg-sdk-1258344699.cos.ap-nanjing.myqcloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Macos-universal-1.22.11-20260401-ecdcd08c.zip) |
+| Linux | x86_64 | [TcrSdk-Linux-x86_64-1.22.11-20260401-ecdcd08c.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Linux-x86_64-1.22.11-20260401-ecdcd08c.zip) |
+
+---
 ## [1.22.10] - 2026-03-26
 
 ### Bugfix
