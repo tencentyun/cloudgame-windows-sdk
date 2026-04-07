@@ -290,6 +290,17 @@ void StreamingViewModel::sendTouchEvent(int x, int y, int width, int height,
     }
 }
 
+// ==================== 鼠标输入 ====================
+
+void StreamingViewModel::sendMouseScrollEvent(float delta)
+{
+    if (m_session && m_sessionConnected) {
+        // SDK API: tcr_session_send_mouse_scroll(session, delta)
+        // delta 取值范围 -1.0~1.0，正值向上滚动，负值向下滚动
+        tcr_session_send_mouse_scroll(m_session, delta);
+    }
+}
+
 // ==================== 系统按键 ====================
 
 // 辅助函数：发送按键事件（按下+抬起）

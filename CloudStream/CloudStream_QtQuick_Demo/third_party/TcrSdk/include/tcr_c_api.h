@@ -1195,6 +1195,62 @@ TCRSDK_API void tcr_session_switch_mic(TcrSessionHandle session, const char* sta
  */
 TCRSDK_API void tcr_session_send_keyboard_event(TcrSessionHandle session, int32_t keycode, bool down);
 
+// ======================= Mouse 鼠标接口 =======================
+
+/**
+ * @brief 发送鼠标按键事件（按下/释放）
+ *
+ * @param session 会话句柄
+ * @param key     鼠标按键类型，参见 TcrMouseKeyType
+ * @param down    true 表示按下，false 表示释放
+ */
+TCRSDK_API void tcr_session_send_mouse_key(TcrSessionHandle session, TcrMouseKeyType key, bool down);
+
+/**
+ * @brief 发送鼠标垂直滚轮事件
+ *
+ * @param session 会话句柄
+ * @param delta   滚轮增量，取值范围 -1.0~1.0
+ */
+TCRSDK_API void tcr_session_send_mouse_scroll(TcrSessionHandle session, float delta);
+
+/**
+ * @brief 发送鼠标水平滚轮事件
+ *
+ * @param session 会话句柄
+ * @param delta   滚轮增量，取值范围 -1.0~1.0
+ */
+TCRSDK_API void tcr_session_send_mouse_horizontal_scroll(TcrSessionHandle session, float delta);
+
+/**
+ * @brief 发送鼠标绝对坐标移动事件
+ *
+ * 需要先将本地坐标转换为远端坐标，转换方法与 Mouse::OnMouseMoveTo 一致。
+ *
+ * @param session 会话句柄
+ * @param x       远端设备的 X 坐标
+ * @param y       远端设备的 Y 坐标
+ */
+TCRSDK_API void tcr_session_send_mouse_move_to(TcrSessionHandle session, int32_t x, int32_t y);
+
+/**
+ * @brief 发送鼠标相对位移移动事件
+ *
+ * 适用于 FPS 游戏等指针锁定场景，只需要传入位移量。
+ *
+ * @param session 会话句柄
+ * @param delta_x 水平位移（正值 = 向右）
+ * @param delta_y 垂直位移（正值 = 向下）
+ */
+TCRSDK_API void tcr_session_send_mouse_delta_move(TcrSessionHandle session, int32_t delta_x, int32_t delta_y);
+
+/**
+ * @brief 设置云端鼠标光标样式
+ *
+ * @param session 会话句柄
+ * @param style   光标样式，参见 TcrCursorStyle
+ */
+TCRSDK_API void tcr_session_set_mouse_cursor_style(TcrSessionHandle session, TcrCursorStyle style);
 
 /**
  * @brief 发送触摸屏触摸事件

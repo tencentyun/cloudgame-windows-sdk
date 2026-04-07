@@ -93,6 +93,25 @@ typedef enum {
 } TcrSdkType;
 
 /**
+ * @brief 鼠标按键类型枚举
+ */
+typedef enum {
+    TCR_MOUSE_KEY_LEFT = 0,       ///< 左键
+    TCR_MOUSE_KEY_RIGHT = 1,      ///< 右键
+    TCR_MOUSE_KEY_MIDDLE = 2,     ///< 中键（滚轮）
+    TCR_MOUSE_KEY_FORWARD = 3,    ///< 前进侧键
+    TCR_MOUSE_KEY_BACKWARD = 4    ///< 后退侧键
+} TcrMouseKeyType;
+
+/**
+ * @brief 鼠标光标样式枚举
+ */
+typedef enum {
+    TCR_CURSOR_STYLE_NORMAL = 0,  ///< 默认光标样式
+    TCR_CURSOR_STYLE_HUGE = 1     ///< 大光标样式
+} TcrCursorStyle;
+
+/**
  * @brief 会话配置信息, 该信息由业务后台调用云API CreateAndroidInstancesAccessToken 获取
  */
 typedef struct {

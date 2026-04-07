@@ -7,6 +7,9 @@
 VideoRenderPaintedItem::VideoRenderPaintedItem(QQuickItem* parent)
     : QQuickPaintedItem(parent)
 {
+    // 启用鼠标滚轮事件接收
+    setAcceptedMouseButtons(Qt::AllButtons);
+    setAcceptHoverEvents(true);
 }
 
 VideoRenderPaintedItem::~VideoRenderPaintedItem()
@@ -84,6 +87,36 @@ void VideoRenderPaintedItem::paint(QPainter* painter)
     }
 }
 
+void VideoRenderPaintedItem::wheelEvent(QWheelEvent* event)
+{
+    if (!event) {
+        return;
+    }
+    
+    // 获取垂直滚轮增量，Qt 中 angleDelta().y() 每格为 120
+    // 将其归一化到 -1.0~1.0 范围
+    int angleDeltaY = event->angleDelta().y();
+    if (angleDeltaY != 0) {
+        // 每格滚轮为 120 度，归一化为 [-1.0, 1.0]
+        float delta = static_cast<float>(angleDeltaY) / 120.0f;
+        // 限制在 [-1.0, 1.0] 范围内
+        delta = qBound(-1.0f, delta, 1.0f);
+        handleMouseWheelEvent(delta);
+    }
+    
+    event->accept();
+}
+
+void VideoRenderPaintedItem::handleMouseWheelEvent(float delta)
+{
+    if (m_streamingViewModel.isNull()) {
+        Logger::warning("[VideoRenderPaintedItem] handleMouseWheelEvent: 未连接到 StreamingViewModel");
+        return;
+    }
+    
+    emit mouseWheelOccurred(delta);
+}
+
 void VideoRenderPaintedItem::convertI420ToRGB(const VideoFrameData* frame)
 {
     if (!frame || frame->frame_type != VideoFrameType::I420_CPU) {
@@ -144,6 +177,8 @@ void VideoRenderPaintedItem::setStreamingViewModel(QObject* viewModel)
     if (!m_streamingViewModel.isNull()) {
         disconnect(this, SIGNAL(touchEventOccurred(int,int,int,int,int,qint64)),
                    m_streamingViewModel.data(), SLOT(sendTouchEvent(int,int,int,int,int,qint64)));
+        disconnect(this, SIGNAL(mouseWheelOccurred(float)),
+                   m_streamingViewModel.data(), SLOT(sendMouseScrollEvent(float)));
     }
     
     StreamingViewModel* streamingVM = qobject_cast<StreamingViewModel*>(viewModel);
@@ -160,8 +195,17 @@ void VideoRenderPaintedItem::setStreamingViewModel(QObject* viewModel)
                              Qt::QueuedConnection);
     
     if (!connected) {
-        Logger::error("[VideoRenderPaintedItem] 信号槽连接失败");
+        Logger::error("[VideoRenderPaintedItem] 触摸信号槽连接失败");
         m_streamingViewModel = nullptr;
+        return;
+    }
+    
+    bool wheelConnected = connect(this, &VideoRenderPaintedItem::mouseWheelOccurred,
+                                  streamingVM, &StreamingViewModel::sendMouseScrollEvent,
+                                  Qt::QueuedConnection);
+    
+    if (!wheelConnected) {
+        Logger::error("[VideoRenderPaintedItem] 滚轮信号槽连接失败");
     }
 }
 

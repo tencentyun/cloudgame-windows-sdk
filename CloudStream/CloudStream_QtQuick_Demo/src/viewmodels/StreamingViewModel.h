@@ -177,6 +177,16 @@ public slots:
     void sendTouchEvent(int x, int y, int width, int height,
                           int eventType, qint64 timestamp);
 
+    // ==================== 鼠标输入 ====================
+
+    /**
+     * @brief 发送鼠标滚轮事件到云端
+     * @param delta 滚轮增量，取值范围 -1.0~1.0，正值向上滚动，负值向下滚动
+     * 
+     * 对应 SDK API：tcr_session_send_mouse_scroll()
+     */
+    void sendMouseScrollEvent(float delta);
+
     // ==================== 系统按键 ====================
     
     /**

@@ -3,6 +3,7 @@
 #include <QQuickPaintedItem>
 #include <QImage>
 #include <QPointer>
+#include <QWheelEvent>
 #include "Frame.h"
 #include "VideoTransformHelper.h"
 
@@ -13,6 +14,7 @@
  * 1. 接收I420格式视频帧，转换为RGB并绘制到屏幕
  * 2. 支持0/90/180/270度旋转（用于适配云端手机屏幕旋转）
  * 3. 处理触摸事件并转换坐标（从客户端视图坐标系转换到云端屏幕坐标系）
+ * 4. 处理鼠标滚轮事件并转发到云端
  * 
  * 工作流程：
  * 1. 接收视频帧 → setFrame()
@@ -20,6 +22,7 @@
  * 3. 应用旋转 → setRotationAngle()
  * 4. 绘制画面 → paint()
  * 5. 处理触摸 → handleTouchEvent() → 坐标转换 → 发送到云端
+ * 6. 处理滚轮 → wheelEvent() → handleMouseWheelEvent() → 发送到云端
  * 
  * 旋转处理：
  * - 当云端手机屏幕旋转时，通过 setRotationAngle() 设置客户端旋转角度
@@ -75,6 +78,14 @@ public slots:
      */
     void handleTouchEvent(int x, int y, int width, int height, int eventType, qint64 timestamp);
 
+    /**
+     * @brief 处理鼠标滚轮事件
+     * @param delta 滚轮增量，取值范围 -1.0~1.0，正值向上滚动，负值向下滚动
+     * 
+     * 此方法将滚轮增量转发给 StreamingViewModel，最终调用 tcr_session_send_mouse_scroll
+     */
+    void handleMouseWheelEvent(float delta);
+
 signals:
     /**
      * @brief 触摸事件信号（转发给 StreamingViewModel 处理）
@@ -87,12 +98,24 @@ signals:
      */
     void touchEventOccurred(int x, int y, int width, int height, int eventType, qint64 timestamp);
 
+    /**
+     * @brief 鼠标滚轮事件信号（转发给 StreamingViewModel 处理）
+     * @param delta 滚轮增量，取值范围 -1.0~1.0
+     */
+    void mouseWheelOccurred(float delta);
+
 protected:
     /**
      * @brief 绘制视频帧（QPainter渲染）
      * @param painter QPainter对象
      */
     void paint(QPainter* painter) override;
+
+    /**
+     * @brief 捕获鼠标滚轮事件
+     * @param event QWheelEvent对象
+     */
+    void wheelEvent(QWheelEvent* event) override;
 
 private:
     /**
