@@ -865,44 +865,11 @@ QString StreamingViewModel::getInstanceStats() const
     if (m_clientStats.isEmpty()) {
         return QString();
     }
-    
+
     QJsonDocument doc = QJsonDocument::fromJson(m_clientStats.toUtf8());
     if (!doc.isObject()) {
         return QString();
     }
-    
-    QJsonObject root = doc.object();
-    
-    if (!root.contains("video_streams") || !root["video_streams"].isObject()) {
-        return QString();
-    }
-    
-    QJsonObject videoStreams = root["video_streams"].toObject();
-    
-    if (videoStreams.isEmpty()) {
-        return QString();
-    }
-    
-    // 获取第一个实例的统计数据
-    QString firstInstanceId = videoStreams.keys().first();
-    QJsonObject streamObj = videoStreams[firstInstanceId].toObject();
-    
-    // 构建返回的 JSON 对象：包含全局统计 + 该实例的视频流统计
-    QJsonObject result;
-    
-    // 复制全局统计数据（排除 video_streams）
-    result["request_id"] = root["request_id"];
-    result["session_id"] = root["session_id"];
-    result["instance_id"] = firstInstanceId;
-    result["rtt"] = root["rtt"];
-    result["raw_rtt"] = root["raw_rtt"];
-    result["edge_rtt"] = root["edge_rtt"];
-    
-    // 直接复制该实例的完整视频流统计对象
-    for (auto it = streamObj.begin(); it != streamObj.end(); ++it) {
-        result[it.key()] = it.value();
-    }
-    
-    QJsonDocument resultDoc(result);
-    return QString::fromUtf8(resultDoc.toJson(QJsonDocument::Indented));
+
+    return QString::fromUtf8(doc.toJson(QJsonDocument::Indented));
 }
