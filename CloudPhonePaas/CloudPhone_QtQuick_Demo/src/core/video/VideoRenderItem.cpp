@@ -33,7 +33,7 @@ void VideoRenderItem::setFrame(VideoFrameDataPtr frame)
 bool VideoRenderItem::hasFrame() const
 {
     return m_frame && m_frame->width > 0 && m_frame->height > 0 &&
-           !m_frame->y.empty() && !m_frame->u.empty() && !m_frame->v.empty();
+           m_frame->data_y != nullptr && m_frame->data_u != nullptr && m_frame->data_v != nullptr;
 }
 
 QSGNode* VideoRenderItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData*)

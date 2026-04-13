@@ -1,15 +1,22 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QQmlEngine>
 #include <QResource>
 #include "services/ApiService.h"
 #include "services/NetworkService.h"
 #include "viewmodels/LoginViewModel.h"
 #include "viewmodels/AndroidInstanceModel.h"
 #include "viewmodels/BatchTaskOperatorModel.h"
-#include "utils/Logger.h" 
+#include "utils/Logger.h"
 #include "core/video/VideoRenderItem.h"
+#include "core/video/VideoRenderPaintedItem.h"
 #include "viewmodels/StreamingViewModel.h"
+#include "core/StreamConfig.h"
+#ifdef _WIN32
+#include "utils/CrashDumpHandler.h"
+#endif
+#include "tcr_c_api.h"
 
 /**
  * @brief 应用程序入口函数
@@ -24,6 +31,12 @@
 int main(int argc, char *argv[]) {
     // 创建Qt GUI应用程序对象
     QGuiApplication app(argc, argv);
+
+    // -------------------- 崩溃处理器初始化 --------------------
+    /// 初始化崩溃转储处理器，程序崩溃时自动生成dump文件
+#ifdef _WIN32
+    CrashDumpHandler::initialize();
+#endif
 
     // -------------------- 日志系统初始化 --------------------
     /// 初始化全局日志系统，确保日志功能在应用生命周期内可用
@@ -63,9 +76,18 @@ int main(int argc, char *argv[]) {
 
     /// 注册自定义视频渲染组件，供QML使用
     qmlRegisterType<VideoRenderItem>("CustomComponents", 1, 0, "VideoRenderItem");
+    qmlRegisterType<VideoRenderPaintedItem>("CustomComponents", 1, 0, "VideoRenderPaintedItem");
 
     /// 注册流媒体视图模型，供QML使用
     qmlRegisterType<StreamingViewModel>("CustomComponents", 1, 0, "StreamingViewModel");
+
+    /// 注册 StreamConfig 单例，供QML使用
+    qmlRegisterSingletonType<StreamConfig>("CustomComponents", 1, 0, "StreamConfig",
+        [](QQmlEngine *engine, QJSEngine *scriptEngine) -> QObject * {
+            Q_UNUSED(engine)
+            Q_UNUSED(scriptEngine)
+            return StreamConfig::instance();
+        });
 
     // -------------------- QML对象创建失败处理 --------------------
     /**
@@ -82,6 +104,10 @@ int main(int argc, char *argv[]) {
     // -------------------- 加载QML主界面 --------------------
     /// 加载QML主窗口（模块名: CloudPhone_QtQuick，主窗口: LoginWindow）
     engine.loadFromModule("CloudPhone_QtQuick", "LoginWindow");
+
+    // 预加载 TcrSdk，降低首帧延迟
+    TcrClientHandle client = tcr_client_get_instance();
+    tcr_client_prepare(client);
 
     // -------------------- 进入主事件循环 --------------------
     return app.exec();
