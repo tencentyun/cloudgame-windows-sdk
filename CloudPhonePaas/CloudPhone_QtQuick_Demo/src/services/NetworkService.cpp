@@ -6,13 +6,13 @@
 NetworkService::NetworkService(QObject *parent) 
     : QObject(parent) {
     // 默认使用测试环境
-    setEnvironment(false);
+    setEnvironment(true);
 }
 
 void NetworkService::setEnvironment(bool isProduction) {
     m_baseUrl = isProduction 
         ? "https://cai-server.cloud-device.crtrcloud.com" 
-        : "https://test-cai-server.cloud-device.crtrcloud.com";
+        : "http://test-cai-experience-server.crtrcloud.com/external";
 }
 
 QNetworkReply* NetworkService::postRequest(const QString& endpoint, const QJsonObject& data) {
@@ -28,6 +28,12 @@ QNetworkReply* NetworkService::postRequest(const QString& endpoint, const QJsonO
     if (!m_token.isEmpty()) {
         request.setRawHeader("Authorization", "Bearer " + m_token);
     }
+    // if (!m_requestHost.isEmpty()) {
+    //     request.setRawHeader("Request-Host", m_requestHost.toUtf8());
+    // }
+    // if (!m_origin.isEmpty()) {
+    //     request.setRawHeader("Origin", m_origin.toUtf8());
+    // }
     
     // 发送请求
     QJsonDocument doc(data);
@@ -43,4 +49,12 @@ QByteArray NetworkService::getToken() const {
 
 void NetworkService::setToken(const QByteArray& token) {
     m_token = token;
+}
+
+void NetworkService::setRequestHost(const QString& requestHost) {
+    m_requestHost = requestHost;
+}
+
+void NetworkService::setOrigin(const QString& origin) {
+    m_origin = origin;
 }

@@ -60,7 +60,7 @@ Window {
                         return;
                     }
                     var vm = Qt.createQmlObject('import CustomComponents 1.0; StreamingViewModel {}', mainWindow);
-                    vm.connectGroupSession(mainWindow.checkedInstanceIds);
+                    vm.connectSession(mainWindow.checkedInstanceIds, true);
                     if (mainWindow.groupStreamingViewModels.indexOf(vm) === -1)
                         mainWindow.groupStreamingViewModels.push(vm);
 
@@ -219,7 +219,7 @@ Window {
                         return;
                     }
                     var vm = Qt.createQmlObject('import CustomComponents 1.0; StreamingViewModel {}', mainWindow);
-                    vm.connectSession(instanceId);
+                    vm.connectSession([instanceId], false);
                     var component = Qt.createComponent("StreamingWindow.qml");
                     if (component.status === Component.Ready) {
                         var win = component.createObject(mainWindow, {

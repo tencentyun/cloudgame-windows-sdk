@@ -21,8 +21,8 @@ YuvNode::~YuvNode(){}
 void YuvNode::setFrame(QQuickWindow* window, const VideoFrameData* frame, const QSizeF& itemSize, bool frameDirty)
 {
     if (frame && frame->width > 0 && frame->height > 0 &&
-        !frame->y.empty() && !frame->u.empty() && !frame->v.empty()) {
-        updateMaterial(window, frame->y.data(), frame->u.data(), frame->v.data(),
+        frame->data_y != nullptr && frame->data_u != nullptr && frame->data_v != nullptr) {
+        updateMaterial(window, frame->data_y, frame->data_u, frame->data_v,
                        frame->strideY, frame->strideU, frame->strideV,
                        frame->width, frame->height, frameDirty);
     } else {

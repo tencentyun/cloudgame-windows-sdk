@@ -65,7 +65,7 @@ ApplicationWindow {
                         var relativeX = mouse.x / videoRenderItem.width * videoRenderItem.width
                         var relativeY = mouse.y / videoRenderItem.height * videoRenderItem.height
                         var timestamp = Date.now()
-                        streamingViewModel.handleMouseEvent(
+                        streamingViewModel.sendTouchEvent(
                             relativeX, relativeY,
                             videoRenderItem.width, videoRenderItem.height,
                             eventType, timestamp

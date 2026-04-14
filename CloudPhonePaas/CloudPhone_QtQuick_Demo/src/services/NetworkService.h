@@ -38,6 +38,18 @@ public:
      */
     QByteArray getToken() const;
     
+    /**
+     * @brief 设置Request-Host请求头
+     * @param requestHost Request-Host值
+     */
+    void setRequestHost(const QString& requestHost);
+    
+    /**
+     * @brief 设置Origin请求头
+     * @param origin Origin值
+     */
+    void setOrigin(const QString& origin);
+    
 signals:
     /**
      * @brief 请求完成信号
@@ -54,5 +66,7 @@ signals:
 private:
     QNetworkAccessManager m_manager;
     QByteArray m_token;
-    QString m_baseUrl; // 基础URL
+    QString m_baseUrl;       // 基础URL
+    QString m_requestHost;   // Request-Host请求头
+    QString m_origin;        // Origin请求头
 };

@@ -608,16 +608,16 @@ Item {
                                 spacing: 5
                                 
                                 TextField {
-                                    text: model.key
                                     placeholderText: "键名"
                                     Layout.fillWidth: true
+                                    Component.onCompleted: text = model.key
                                     onTextChanged: model.key = text
                                 }
                                 
                                 TextField {
-                                    text: model.value
                                     placeholderText: "键值"
                                     Layout.fillWidth: true
+                                    Component.onCompleted: text = model.value
                                     onTextChanged: model.value = text
                                 }
                                 
