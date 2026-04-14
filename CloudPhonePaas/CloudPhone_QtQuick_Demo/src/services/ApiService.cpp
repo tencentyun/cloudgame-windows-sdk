@@ -135,7 +135,6 @@ void ApiService::describeAndroidInstances(int offset, int limit,
     QJsonObject data;
     data["Offset"] = offset;
     data["Limit"] = limit;
-    data["AndroidInstanceZone"] = "ap-hangzhou-ec-1";;
     
     if (!instanceIds.isEmpty()) {
         QJsonArray idsArray;
@@ -201,6 +200,8 @@ void ApiService::createAndroidInstancesAccessToken(const QStringList& androidIns
         idsArray.append(id);
     }
     data["AndroidInstanceIds"] = idsArray;
+    data["ExpirationDuration"] = "24h";
+    data["Mode"] = "STANDARD";
 
     sendRequest("/CreateAndroidInstancesAccessToken", data, [this](const QJsonObject& response) {
         QString accessInfo = response["AccessInfo"].toString();

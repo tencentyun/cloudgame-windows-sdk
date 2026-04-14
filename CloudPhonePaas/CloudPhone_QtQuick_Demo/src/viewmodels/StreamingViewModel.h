@@ -10,6 +10,7 @@
 #include <atomic>
 #include "core/video/Frame.h"
 #include "core/video/VideoRenderPaintedItem.h"
+#include "core/video/VideoRenderItem.h"
 #include "tcr_c_api.h"
 
 // 前置声明
@@ -72,7 +73,7 @@ public:
     // ==================== 视频渲染相关 ====================
     
     /**
-     * @brief 设置视频渲染组件（C++ 版本）
+     * @brief 设置视频渲染组件（VideoRenderPaintedItem 版本）
      * @param item VideoRenderPaintedItem 指针
      * 
      * 内部会连接 newVideoFrame 信号到 VideoRenderPaintedItem::setFrame 槽
@@ -80,8 +81,18 @@ public:
     void setVideoRenderItem(VideoRenderPaintedItem* item);
 
     /**
+     * @brief 设置视频渲染组件（VideoRenderItem 版本）
+     * @param item VideoRenderItem 指针
+     * 
+     * 内部会连接 newVideoFrame 信号到 VideoRenderItem::setFrame 槽
+     */
+    void setVideoRenderItem(VideoRenderItem* item);
+
+    /**
      * @brief 设置视频渲染组件（QML 版本）
-     * @param item QObject 指针，会自动转换为 VideoRenderPaintedItem*
+     * @param item QObject 指针，会自动转换为 VideoRenderPaintedItem* 或 VideoRenderItem*
+     * 
+     * 支持同时处理两种渲染组件类型
      */
     Q_INVOKABLE void setVideoRenderItem(QObject* item);
 
@@ -327,8 +338,9 @@ private:
     // ==================== 成员变量 ====================
     
     // 渲染相关
-    QPointer<VideoRenderPaintedItem> m_videoRenderItem;  ///< 视频渲染组件（使用QPointer自动管理生命周期）
-    std::atomic<bool> m_isDestroying{false};              ///< 对象是否正在销毁（用于回调中的安全检查）
+    QPointer<VideoRenderPaintedItem> m_videoRenderPaintedItem;  ///< VideoRenderPaintedItem 渲染组件（使用QPointer自动管理生命周期）
+    QPointer<VideoRenderItem> m_videoRenderItem;                ///< VideoRenderItem 渲染组件（使用QPointer自动管理生命周期）
+    std::atomic<bool> m_isDestroying{false};                    ///< 对象是否正在销毁（用于回调中的安全检查）
     
     // SDK 句柄
     TcrClientHandle      m_tcrClient   = nullptr;  ///< TcrSdk 客户端句柄（单例）

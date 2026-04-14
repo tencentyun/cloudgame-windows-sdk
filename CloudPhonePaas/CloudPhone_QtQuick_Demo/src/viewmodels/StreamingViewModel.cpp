@@ -65,10 +65,17 @@ StreamingViewModel::~StreamingViewModel()
     m_isDestroying.store(true, std::memory_order_release);
     
     // 【步骤2】断开信号连接，防止悬空指针
+    if (m_videoRenderPaintedItem) {
+        disconnect(this, &StreamingViewModel::newVideoFrame,
+                   m_videoRenderPaintedItem, &VideoRenderPaintedItem::setFrame);
+        Logger::info(QString("[~StreamingViewModel] 已断开 VideoRenderPaintedItem 连接: %1")
+                         .arg(m_videoRenderPaintedItem->objectName()));
+    }
+    
     if (m_videoRenderItem) {
         disconnect(this, &StreamingViewModel::newVideoFrame,
-                   m_videoRenderItem, &VideoRenderPaintedItem::setFrame);
-        Logger::info(QString("[~StreamingViewModel] 已断开渲染组件连接: %1")
+                   m_videoRenderItem, &VideoRenderItem::setFrame);
+        Logger::info(QString("[~StreamingViewModel] 已断开 VideoRenderItem 连接: %1")
                          .arg(m_videoRenderItem->objectName()));
     }
     
@@ -83,11 +90,56 @@ StreamingViewModel::~StreamingViewModel()
 void StreamingViewModel::setVideoRenderItem(VideoRenderPaintedItem* item)
 {
     // 【步骤1】断开旧连接，防止悬空指针
+    if (m_videoRenderPaintedItem) {
+        disconnect(this, &StreamingViewModel::newVideoFrame,
+                   m_videoRenderPaintedItem, &VideoRenderPaintedItem::setFrame);
+        Logger::info(QString("[setVideoRenderItem] 断开旧 VideoRenderPaintedItem: %1")
+                         .arg(m_videoRenderPaintedItem->objectName()));
+    }
+    
+    // 清除 VideoRenderItem
     if (m_videoRenderItem) {
         disconnect(this, &StreamingViewModel::newVideoFrame,
-                   m_videoRenderItem, &VideoRenderPaintedItem::setFrame);
-        Logger::info(QString("[setVideoRenderItem] 断开旧渲染组件: %1")
+                   m_videoRenderItem, &VideoRenderItem::setFrame);
+        m_videoRenderItem = nullptr;
+    }
+    
+    // 【步骤2】设置新的渲染组件
+    m_videoRenderPaintedItem = item;
+    
+    if (m_videoRenderPaintedItem) {
+        // 使用 QueuedConnection | UniqueConnection 确保线程安全且防止重复连接
+        // 视频帧从解码线程 -> 主线程 -> 渲染线程
+        connect(this, &StreamingViewModel::newVideoFrame,
+                m_videoRenderPaintedItem, &VideoRenderPaintedItem::setFrame,
+                static_cast<Qt::ConnectionType>(Qt::QueuedConnection | Qt::UniqueConnection));
+        
+        m_videoRenderPaintedItem->setRotationAngle(m_currentRotationAngle, m_currentVideoWidth, m_currentVideoHeight);
+        Logger::info(QString("[setVideoRenderItem] 已连接 VideoRenderPaintedItem: %1, 旋转角度: %2°, 视频尺寸: %3x%4")
+                         .arg(m_videoRenderPaintedItem->objectName())
+                         .arg(m_currentRotationAngle)
+                         .arg(m_currentVideoWidth)
+                         .arg(m_currentVideoHeight));
+    } else {
+        Logger::info("[setVideoRenderItem] VideoRenderPaintedItem 已置空");
+    }
+}
+
+void StreamingViewModel::setVideoRenderItem(VideoRenderItem* item)
+{
+    // 【步骤1】断开旧连接，防止悬空指针
+    if (m_videoRenderItem) {
+        disconnect(this, &StreamingViewModel::newVideoFrame,
+                   m_videoRenderItem, &VideoRenderItem::setFrame);
+        Logger::info(QString("[setVideoRenderItem] 断开旧 VideoRenderItem: %1")
                          .arg(m_videoRenderItem->objectName()));
+    }
+    
+    // 清除 VideoRenderPaintedItem
+    if (m_videoRenderPaintedItem) {
+        disconnect(this, &StreamingViewModel::newVideoFrame,
+                   m_videoRenderPaintedItem, &VideoRenderPaintedItem::setFrame);
+        m_videoRenderPaintedItem = nullptr;
     }
     
     // 【步骤2】设置新的渲染组件
@@ -95,30 +147,34 @@ void StreamingViewModel::setVideoRenderItem(VideoRenderPaintedItem* item)
     
     if (m_videoRenderItem) {
         // 使用 QueuedConnection | UniqueConnection 确保线程安全且防止重复连接
-        // 视频帧从解码线程 -> 主线程 -> 渲染线程
         connect(this, &StreamingViewModel::newVideoFrame,
-                m_videoRenderItem, &VideoRenderPaintedItem::setFrame,
+                m_videoRenderItem, &VideoRenderItem::setFrame,
                 static_cast<Qt::ConnectionType>(Qt::QueuedConnection | Qt::UniqueConnection));
         
-        m_videoRenderItem->setRotationAngle(m_currentRotationAngle, m_currentVideoWidth, m_currentVideoHeight);
-        Logger::info(QString("[setVideoRenderItem] 已连接新渲染组件: %1, 旋转角度: %2°, 视频尺寸: %3x%4")
-                         .arg(m_videoRenderItem->objectName())
-                         .arg(m_currentRotationAngle)
-                         .arg(m_currentVideoWidth)
-                         .arg(m_currentVideoHeight));
+        Logger::info(QString("[setVideoRenderItem] 已连接 VideoRenderItem: %1")
+                         .arg(m_videoRenderItem->objectName()));
     } else {
-        Logger::info("[setVideoRenderItem] 渲染组件已置空");
+        Logger::info("[setVideoRenderItem] VideoRenderItem 已置空");
     }
 }
 
 void StreamingViewModel::setVideoRenderItem(QObject* item)
 {
-    auto vrItem = qobject_cast<VideoRenderPaintedItem*>(item);
+    // 首先尝试转换为 VideoRenderItem（新的渲染方式）
+    auto vrItem = qobject_cast<VideoRenderItem*>(item);
     if (vrItem) {
         setVideoRenderItem(vrItem);
-    } else {
-        Logger::info("setVideoRenderItem: cast to VideoRenderPaintedItem* failed");
+        return;
     }
+    
+    // 其次尝试转换为 VideoRenderPaintedItem（旧的渲染方式）
+    auto vrPaintedItem = qobject_cast<VideoRenderPaintedItem*>(item);
+    if (vrPaintedItem) {
+        setVideoRenderItem(vrPaintedItem);
+        return;
+    }
+    
+    Logger::warning("[setVideoRenderItem] 无法转换为 VideoRenderItem 或 VideoRenderPaintedItem");
 }
 
 void StreamingViewModel::setTcrOperator(BatchTaskOperator* tcrOperator)
@@ -589,16 +645,19 @@ void StreamingViewModel::handleScreenConfigChange(const QString& eventData)
     m_currentVideoWidth = width;
     m_currentVideoHeight = height;
     
-    // 设置视频渲染组件的旋转角度
-    if (m_videoRenderItem) {
-        m_videoRenderItem->setRotationAngle(rotationAngle, width, height);
+    // 设置视频渲染组件的旋转角度（仅 VideoRenderPaintedItem 支持旋转）
+    if (m_videoRenderPaintedItem) {
+        m_videoRenderPaintedItem->setRotationAngle(rotationAngle, width, height);
         Logger::info(QString("[handleScreenConfigChange] 已设置视频旋转角度: %1 到实例: %2, 视频尺寸: %3x%4")
                             .arg(rotationAngle)
-                            .arg(m_videoRenderItem->objectName())
+                            .arg(m_videoRenderPaintedItem->objectName())
                             .arg(width)
                             .arg(height));
+    } else if (m_videoRenderItem) {
+        Logger::info(QString("[handleScreenConfigChange] VideoRenderItem 不支持 setRotationAngle, 旋转角度: %1")
+                            .arg(rotationAngle));
     } else {
-        Logger::warning("[handleScreenConfigChange] m_videoRenderItem 为空，无法设置旋转角度");
+        Logger::warning("[handleScreenConfigChange] 渲染组件为空，无法设置旋转角度");
     }
     
     // 发射信号通知 QML 层屏幕方向变化
