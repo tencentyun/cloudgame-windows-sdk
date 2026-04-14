@@ -104,8 +104,8 @@ int main(int argc, char *argv[]) {
         Qt::QueuedConnection);
 
     // -------------------- 加载QML主界面 --------------------
-    /// 加载QML主窗口（模块名: CloudPhone_QtQuick，主窗口: LoginWindow）
-    engine.loadFromModule("CloudPhone_QtQuick", "LoginWindow");
+    /// 加载QML主窗口（模块名: QtQuick_Demo，主窗口: LoginWindow）
+    engine.loadFromModule("QtQuick_Demo", "LoginWindow");
 
     // -------------------- 进入主事件循环 --------------------
     return app.exec();
