@@ -1,284 +1,382 @@
 ## 接口概览
 
-### 生命周期接口
+### 生命周期与客户端接口
 
 | 函数名 | 说明 |
 | ------ | ---- |
-| [tcr_client_get_instance](#获取tcrclienthandle实例) | 获取 TcrClientHandle 实例 |
-| [tcr_client_init](#初始化tcrclienthandle) | 初始化 TcrClientHandle |
-| [tcr_client_create_session](#创建会话对象) | 创建会话对象 |
-| [tcr_client_destroy_session](#销毁会话对象) | 销毁会话对象 |
-| [tcr_session_set_observer](#设置会话事件观察者) | 设置会话事件观察者 |
-| [tcr_set_log_callback](#设置日志回调函数) | 设置日志回调函数 |
-| [tcr_set_log_level](#设置日志输出级别) | 设置日志输出级别 |
-| [tcr_get_log_level](#获取当前日志输出级别) | 获取当前日志输出级别 |
+| [tcr_client_get_instance](#tcr_client_get_instance) | 获取客户端句柄 |
+| [tcr_client_prepare](#tcr_client_prepare) | 预初始化客户端并提前建立网络连接 |
+| [tcr_client_init](#tcr_client_init) | 初始化客户端 |
+| [tcr_client_release](#tcr_client_release) | 释放客户端资源 |
+| [tcr_client_create_session](#tcr_client_create_session) | 创建会话对象 |
+| [tcr_client_destroy_session](#tcr_client_destroy_session) | 销毁会话对象 |
+| [tcr_client_get_android_instance](#tcr_client_get_android_instance) | 获取安卓实例操作句柄 |
+| [tcr_session_set_observer](#tcr_session_set_observer) | 设置会话事件观察者 |
+| [tcr_session_set_video_frame_observer](#tcr_session_set_video_frame_observer) | 设置视频帧观察者 |
 
 ### 安卓实例操作接口
 
 | 函数名 | 说明 |
 | ------ | ---- |
-| [tcr_client_get_android_instance](#获取tcrandroidinstance操作对象) | 获取 TcrAndroidInstance 操作对象 |
-| [tcr_instance_join_group](#将多个实例加入当前群组会话) | 多实例同步控制 |
-| [tcr_instance_request_stream](#请求打开或关闭指定实例的视频流) | 控制实例视频流开关及质量 |
-| [tcr_instance_set_master](#设置或取消主控实例) | 设置/取消主控实例 |
-| [tcr_instance_set_sync_list](#设置群组会话同步实例列表) | 设置群控同步列表 |
-| [tcr_instance_get_image](#获取指定实例的截图图片url) | 获取实例截图图片 URL |
-| [tcr_instance_get_download_address](#获取文件下载url) | 获取文件下载 URL |
-| [tcr_instance_get_download_logcat_address](#获取logcat日志下载地址) | 获取 logcat 日志下载地址 |
-| [tcr_instance_upload_media](#上传文件到云实例相册) | 上传文件到云实例相册 |
-| [tcr_instance_upload_files](#上传本地文件到云手机实例) | 上传本地文件到云手机 |
-| [tcr_instance_request](#批量请求云端任务) | 批量请求云端任务 |
-| [tcr_instance_free_result](#释放由tcr_instance_request分配的结果内存) | 释放结果内存 |
+| [tcr_instance_join_group](#tcr_instance_join_group) | 将实例加入当前群组会话 |
+| [tcr_instance_request_stream](#tcr_instance_request_stream) | 请求打开或关闭指定实例视频流 |
+| [tcr_instance_set_master](#tcr_instance_set_master) | 设置或取消主控实例 |
+| [tcr_instance_set_sync_list](#tcr_instance_set_sync_list) | 设置群控同步实例列表 |
+| [tcr_instance_get_image](#tcr_instance_get_image) | 获取实例截图 URL |
+| [tcr_instance_get_download_address](#tcr_instance_get_download_address) | 获取文件下载 URL |
+| [tcr_instance_get_download_logcat_address](#tcr_instance_get_download_logcat_address) | 获取 logcat 日志下载地址 |
+| [tcr_instance_upload_media](#tcr_instance_upload_media) | 上传媒体文件到实例相册 |
+| [tcr_instance_upload_files](#tcr_instance_upload_files) | 上传本地文件到实例指定路径 |
+| [tcr_instance_request](#tcr_instance_request) | 批量请求云端任务 |
+| [tcr_instance_free_result](#tcr_instance_free_result) | 释放任务返回结果内存 |
 
-### 音视频控制接口
-
-| 函数名 | 说明 |
-| ------ | ---- |
-| [tcr_session_set_video_frame_observer](#设置远端视频帧观察者) | 设置视频帧回调 |
-| [tcr_session_connect](#连接到指定云端实例) | 连接单实例 |
-| [tcr_session_access](#启动会话并连接云手机) | 启动/群控会话 |
-| [tcr_session_pause_streaming](#暂停媒体流) | 暂停媒体流 |
-| [tcr_session_resume_streaming](#恢复媒体流) | 恢复媒体流 |
-| [tcr_session_set_remote_video_profile](#设置远端视频流参数) | 设置远端视频流参数 |
-| [tcr_session_send_trans_message](#向云端应用发送透传消息) | 发送透传消息 |
-| [tcr_session_paste_text](#将文本写入剪贴板并粘贴到输入框) | 粘贴文本到输入框 |
-| [tcr_session_input_text](#将文本直接输入到输入框) | 直接输入文本 |
-| [tcr_session_switch_ime](#切换输入法) | 切换输入法 |
-
-### 外设控制接口
+### 会话与串流接口
 
 | 函数名 | 说明 |
 | ------ | ---- |
-| [tcr_session_switch_camera](#开关摄像头) | 开关摄像头 |
-| [tcr_session_switch_mic](#开关麦克风) | 开关麦克风 |
-| [tcr_session_send_keyboard_event](#发送键盘事件) | 发送云端键盘事件 |
-| [tcr_session_touchscreen_touch](#发送触摸屏触摸事件) | 发送触摸事件 |
+| [tcr_session_init](#tcr_session_init) | 初始化会话 |
+| [tcr_session_start](#tcr_session_start) | 使用服务端 session 字符串启动会话 |
+| [tcr_session_get_request_id](#tcr_session_get_request_id) | 获取当前会话 RequestId |
+| [tcr_session_access](#tcr_session_access) | 单实例/群控接入 |
+| [tcr_session_access_multi_stream](#tcr_session_access_multi_stream) | 多实例独立多流接入 |
+| [tcr_session_switch_streaming_instances](#tcr_session_switch_streaming_instances) | 动态切换多流场景拉流实例列表 |
+| [tcr_session_pause_streaming](#tcr_session_pause_streaming) | 暂停指定媒体流 |
+| [tcr_session_resume_streaming](#tcr_session_resume_streaming) | 恢复指定媒体流 |
+| [tcr_session_set_remote_video_profile](#tcr_session_set_remote_video_profile) | 配置远端视频流参数 |
 
-## 详细说明
+### 视频帧访问接口
 
-#### 获取TcrClientHandle实例
+| 函数名 | 说明 |
+| ------ | ---- |
+| [tcr_video_frame_get_buffer](#tcr_video_frame_get_buffer) | 获取视频帧缓冲区信息 |
+| [tcr_video_frame_add_ref](#tcr_video_frame_add_ref) | 增加视频帧引用计数 |
+| [tcr_video_frame_release](#tcr_video_frame_release) | 释放视频帧引用 |
+| [tcr_video_frame_buffer_is_d3d11](#tcr_video_frame_buffer_is_d3d11) | 判断缓冲区是否为 D3D11 类型 |
+| [tcr_video_frame_buffer_get_d3d11_texture](#tcr_video_frame_buffer_get_d3d11_texture) | 获取 D3D11 纹理指针 |
 
-获取 TcrClientHandle 实例，用于后续所有客户端相关操作。
+### 数据通道接口
 
-```c
+| 函数名 | 说明 |
+| ------ | ---- |
+| [tcr_session_create_data_channel](#tcr_session_create_data_channel) | 创建自定义数据通道 |
+| [tcr_data_channel_send](#tcr_data_channel_send) | 发送数据通道消息 |
+| [tcr_data_channel_close](#tcr_data_channel_close) | 关闭数据通道 |
+
+### 本地音视频设备接口
+
+| 函数名 | 说明 |
+| ------ | ---- |
+| [tcr_session_enable_local_camera_with_config](#tcr_session_enable_local_camera_with_config) | 按指定配置启用本地摄像头 |
+| [tcr_session_enable_local_camera](#tcr_session_enable_local_camera) | 启用/禁用本地摄像头 |
+| [tcr_session_disable_local_camera](#tcr_session_disable_local_camera) | 禁用本地摄像头 |
+| [tcr_session_is_local_camera_enabled](#tcr_session_is_local_camera_enabled) | 查询本地摄像头是否启用 |
+| [tcr_session_local_camera_config](#tcr_session_local_camera_config) | 配置本地摄像头码率与帧率 |
+| [tcr_session_get_camera_device_count](#tcr_session_get_camera_device_count) | 获取摄像头设备数量 |
+| [tcr_session_get_camera_device](#tcr_session_get_camera_device) | 获取摄像头设备信息 |
+| [tcr_session_enable_local_microphone](#tcr_session_enable_local_microphone) | 启用/禁用本地麦克风 |
+| [tcr_session_is_local_microphone_enabled](#tcr_session_is_local_microphone_enabled) | 查询本地麦克风是否启用 |
+| [tcr_session_get_microphone_device_count](#tcr_session_get_microphone_device_count) | 获取麦克风设备数量 |
+| [tcr_session_get_microphone_device](#tcr_session_get_microphone_device) | 获取麦克风设备信息 |
+| [tcr_session_enable_microphone_with_config](#tcr_session_enable_microphone_with_config) | 按指定设备配置启用麦克风 |
+
+### 输入与控制接口
+
+| 函数名 | 说明 |
+| ------ | ---- |
+| [tcr_session_send_trans_message](#tcr_session_send_trans_message) | 发送透传消息 |
+| [tcr_session_paste_text](#tcr_session_paste_text) | 通过剪贴板粘贴文本 |
+| [tcr_session_input_text](#tcr_session_input_text) | 直接输入文本 |
+| [tcr_session_switch_ime](#tcr_session_switch_ime) | 切换输入法 |
+| [tcr_session_switch_camera](#tcr_session_switch_camera) | 切换云端摄像头开关状态 |
+| [tcr_session_switch_mic](#tcr_session_switch_mic) | 切换云端麦克风开关状态 |
+| [tcr_session_send_keyboard_event](#tcr_session_send_keyboard_event) | 发送键盘按键事件 |
+| [tcr_session_send_mouse_key](#tcr_session_send_mouse_key) | 发送鼠标按键事件 |
+| [tcr_session_send_mouse_scroll](#tcr_session_send_mouse_scroll) | 发送鼠标垂直滚轮事件 |
+| [tcr_session_send_mouse_horizontal_scroll](#tcr_session_send_mouse_horizontal_scroll) | 发送鼠标水平滚轮事件 |
+| [tcr_session_send_mouse_move_to](#tcr_session_send_mouse_move_to) | 发送鼠标绝对坐标移动 |
+| [tcr_session_send_mouse_delta_move](#tcr_session_send_mouse_delta_move) | 发送鼠标相对位移移动 |
+| [tcr_session_set_mouse_cursor_style](#tcr_session_set_mouse_cursor_style) | 设置云端鼠标光标样式 |
+| [tcr_session_touchscreen_touch](#tcr_session_touchscreen_touch) | 发送基础触摸事件 |
+| [tcr_session_touchscreen_touch_ex](#tcr_session_touchscreen_touch_ex) | 发送扩展多点触摸事件 |
+
+### 日志与工具接口
+
+| 函数名 | 说明 |
+| ------ | ---- |
+| [tcr_set_log_callback](#tcr_set_log_callback) | 设置日志回调 |
+| [tcr_set_log_level](#tcr_set_log_level) | 设置日志级别 |
+| [tcr_get_log_level](#tcr_get_log_level) | 获取日志级别 |
+| [tcr_session_event_to_string](#tcr_session_event_to_string) | 将事件枚举转为字符串 |
+
+## 使用约束与注意事项
+
+### 观察者生命周期
+
+- `TcrSessionObserver`、`TcrVideoFrameObserver`、`TcrDataChannelObserver` **不会被 SDK 复制或托管释放**。
+- 传入观察者后，调用方必须保证对应结构体在整个使用期间持续有效。
+- 在销毁 `session` 前，应显式传 `NULL` 取消 `tcr_session_set_observer` / `tcr_session_set_video_frame_observer`。
+- 数据通道使用完成后应调用 `tcr_data_channel_close`。
+
+### 视频帧生命周期
+
+- 回调收到的 `TcrVideoFrameHandle` 默认仅在回调期间有效。
+- 如需跨线程或异步使用，必须先调用 `tcr_video_frame_add_ref`。
+- 每次 `add_ref` 后都必须配对调用 `tcr_video_frame_release`。
+
+### 多流与群控互斥
+
+- `tcr_session_access` 用于单实例接入或群控接入。
+- `tcr_session_access_multi_stream` 用于多实例独立拉流观看(该接口仅sfu)。
+- 同一个 `session` 只能使用其中一种模式。
+
+## 详细接口说明
+
+### 生命周期与客户端接口
+
+#### tcr_client_get_instance
+
+获取客户端实例句柄。
+
+```cpp
 TcrClientHandle tcr_client_get_instance();
 ```
 
-| 参数 | 类型 | 说明 |
-| ---- | ---- | ---- |
-| 无 | - | - |
+- **参数**：无。
+- **返回值**：`TcrClientHandle`，后续所有客户端相关操作都依赖该句柄。
 
-#### 初始化TcrClientHandle
+#### tcr_client_prepare
 
-初始化 TcrClientHandle。
+预初始化客户端并提前建立网络连接。
 
-```c
+```cpp
+void tcr_client_prepare(TcrClientHandle client, bool testEnv = false);
+```
+
+- **参数**：
+  - `client`：客户端句柄。
+  - `testEnv`：是否使用测试环境，默认 `false`。
+- **说明**：可在 `tcr_client_init` 之前调用，用于提前完成网络准备。
+
+#### tcr_client_init
+
+初始化客户端。
+
+```cpp
 TcrErrorCode tcr_client_init(TcrClientHandle client, const TcrConfig* config);
 ```
 
-| 参数 | 类型 | 说明 |
-| ---- | ---- | ---- |
-| client | TcrClientHandle | 客户端句柄 |
-| config | const TcrConfig* | 配置信息指针 |
+- **参数**：
+  - `client`：客户端句柄。
+  - `config`：客户端配置，建议使用 `tcr_config_default()` 初始化后再按需修改。
+- **返回值**：`TcrErrorCode`，`TCR_SUCCESS` 表示成功。
+- **说明**：可重复调用，用于更新 `token`、`accessInfo` 等配置。
 
-#### 创建会话对象
+#### tcr_client_release
 
-创建会话对象，用于串流和控制云手机实例。
+释放客户端持有的所有资源。
 
-```c
-TcrSessionHandle tcr_client_create_session(TcrClientHandle client);
+```cpp
+void tcr_client_release(TcrClientHandle client);
 ```
 
-| 参数 | 类型 | 说明 |
-| ---- | ---- | ---- |
-| client | TcrClientHandle | 客户端句柄 |
+- **参数**：
+  - `client`：客户端句柄。
+- **说明**：
+  - 应在进程退出前调用。
+  - 调用后原句柄不可继续使用；如需再次使用 SDK，请重新调用 `tcr_client_get_instance`。
 
-#### 销毁会话对象
+#### tcr_client_create_session
 
-销毁会话对象，释放相关资源。
+创建会话对象。
 
-```c
+```cpp
+TcrSessionHandle tcr_client_create_session(
+    TcrClientHandle client,
+    const TcrSessionConfig* session_config = nullptr
+);
+```
+
+- **参数**：
+  - `client`：客户端句柄。
+  - `session_config`：会话配置；可传 `nullptr` 使用 SDK 默认行为，推荐传入 `tcr_session_config_default()` 结果。
+- **返回值**：`TcrSessionHandle`；若客户端尚未初始化成功，则返回空。
+
+#### tcr_client_destroy_session
+
+销毁会话对象。
+
+```cpp
 void tcr_client_destroy_session(TcrClientHandle client, TcrSessionHandle session);
 ```
 
-| 参数 | 类型 | 说明 |
-| ---- | ---- | ---- |
-| client | TcrClientHandle | 客户端句柄 |
-| session | TcrSessionHandle | 会话句柄 |
+- **参数**：
+  - `client`：客户端句柄。
+  - `session`：待销毁的会话句柄。
+- **说明**：销毁前建议先取消视频帧和会话观察者。
 
-#### 设置会话事件观察者
+#### tcr_session_set_observer
 
-设置会话事件观察者，用于接收会话生命周期及业务事件。
+设置会话事件观察者。
 
-```c
+```cpp
 void tcr_session_set_observer(TcrSessionHandle session, const TcrSessionObserver* observer);
 ```
 
-| 参数 | 类型 | 说明 |
-| ---- | ---- | ---- |
-| session | TcrSessionHandle | 会话句柄 |
-| observer | const TcrSessionObserver* | 观察者结构体指针 |
+- **参数**：
+  - `session`：会话句柄。
+  - `observer`：观察者指针；传 `NULL` 表示取消当前观察者。
+- **说明**：
+  - `on_event` 用于单实例或通用事件回调。
+  - `on_instance_event` 用于多实例场景按实例拆分回调；若为空，SDK 回退到 `on_event`。
 
-#### 设置日志回调函数
+#### tcr_client_get_android_instance
 
-设置日志回调函数，用于接收 SDK 日志。
+获取安卓实例操作句柄。
 
-```c
-void tcr_set_log_callback(const TcrLogCallback* callback);
-```
-
-| 参数 | 类型 | 说明 |
-| ---- | ---- | ---- |
-| callback | const TcrLogCallback* | 日志回调结构体指针 |
-
-#### 设置日志输出级别
-
-设置日志输出级别。
-
-```c
-void tcr_set_log_level(TcrLogLevel level);
-```
-
-| 参数 | 类型 | 说明 |
-| ---- | ---- | ---- |
-| level | TcrLogLevel | 日志级别 |
-
-#### 获取当前日志输出级别
-
-获取当前日志输出级别。
-
-```c
-TcrLogLevel tcr_get_log_level();
-```
-
-| 参数  | 类型  | 说明  |
-| --- | --- | --- |
-| 无   | -   | -   |
-
-#### 获取TcrAndroidInstance操作对象
-
-获取 TcrAndroidInstance 操作对象。
-
-```c
+```cpp
 TcrAndroidInstance tcr_client_get_android_instance(TcrClientHandle client);
 ```
 
-| 参数 | 类型 | 说明 |
-| ---- | ---- | ---- |
-| client | TcrClientHandle | 客户端句柄 |
+- **参数**：
+  - `client`：客户端句柄。
+- **返回值**：`TcrAndroidInstance`；客户端未初始化成功时返回空。
 
-#### 将多个实例加入当前群组会话
+### 安卓实例操作接口
 
-将多个实例加入当前群组会话，实现多实例同步控制。
+#### tcr_instance_join_group
 
-```c
+将多个实例加入当前群组会话。
+
+```cpp
 void tcr_instance_join_group(TcrAndroidInstance op, const char** instanceIds, int32_t length);
 ```
 
-| 参数 | 类型 | 说明 |
-| ---- | ---- | ---- |
-| op | TcrAndroidInstance | 实例操作句柄 |
-| instanceIds | const char** | 实例 ID 字符串数组 |
-| length | int32_t | 实例 ID 数组长度 |
+- **参数**：
+  - `op`：实例操作句柄。
+  - `instanceIds`：实例 ID 数组。
+  - `length`：数组长度。
 
-#### 请求打开或关闭指定实例的视频流
+#### tcr_instance_request_stream
 
-请求打开或关闭指定实例的视频流，并设置流质量。
+请求打开或关闭指定实例的视频流。
 
-```c
-void tcr_instance_request_stream(TcrAndroidInstance op, const char* instanceID, bool status, const char* level);
+```cpp
+void tcr_instance_request_stream(
+    TcrAndroidInstance op,
+    const char* instanceID,
+    bool status,
+    const char* level
+);
 ```
 
-| 参数 | 类型 | 说明 |
-| ---- | ---- | ---- |
-| op | TcrAndroidInstance | 实例操作句柄 |
-| instanceID | const char* | 实例 ID |
-| status | bool | true 打开流，false 关闭流 |
-| level | const char* | 流质量级别（"low"、"normal"、"high"） |
+- **参数**：
+  - `op`：实例操作句柄。
+  - `instanceID`：实例 ID。
+  - `status`：`true` 打开流，`false` 关闭流。
+  - `level`：流质量级别，常用值为 `"low"`、`"normal"`、`"high"`。
 
-#### 设置或取消主控实例
+#### tcr_instance_set_master
 
-设置或取消主控实例，实现主从同步。
+设置或取消主控实例。
 
-```c
+```cpp
 void tcr_instance_set_master(TcrAndroidInstance op, const char* instanceId, bool status);
 ```
 
-| 参数 | 类型 | 说明 |
-| ---- | ---- | ---- |
-| op | TcrAndroidInstance | 实例操作句柄 |
-| instanceId | const char* | 主控实例 ID |
-| status | bool | true 设置为主控，false 取消主控 |
+- **参数**：
+  - `op`：实例操作句柄。
+  - `instanceId`：实例 ID。
+  - `status`：`true` 表示设为主控，`false` 表示取消主控。
 
-#### 设置群组会话同步实例列表
+#### tcr_instance_set_sync_list
 
-设置群组会话中需要被群控的实例列表。
+设置群控同步实例列表。
 
-```c
+```cpp
 void tcr_instance_set_sync_list(TcrAndroidInstance op, const char** instanceIds, int32_t length);
 ```
 
-| 参数 | 类型 | 说明 |
-| ---- | ---- | ---- |
-| op | TcrAndroidInstance | 实例操作句柄 |
-| instanceIds | const char** | 需要同步控制的实例 ID 数组 |
-| length | int32_t | 实例 ID 数组长度 |
+- **参数**：
+  - `op`：实例操作句柄。
+  - `instanceIds`：需要同步控制的实例 ID 数组。
+  - `length`：数组长度。
+- **说明**：列表中的实例必须已经在当前群组会话中。
 
-#### 获取指定实例的截图图片URL
+#### tcr_instance_get_image
 
-获取指定实例的截图图片 URL。
+获取实例截图 URL。
 
-```c
-bool tcr_instance_get_image(TcrAndroidInstance op, char* buffer, int bufferLen, const char* instanceId, int width, int height, int quality);
+```cpp
+bool tcr_instance_get_image(
+    TcrAndroidInstance op,
+    char* buffer,
+    int bufferLen,
+    const char* instanceId,
+    int width = 0,
+    int height = 0,
+    int quality = 20
+);
 ```
 
-| 参数 | 类型 | 说明 |
-| ---- | ---- | ---- |
-| op | TcrAndroidInstance | 实例操作句柄 |
-| buffer | char* | 输出缓冲区 |
-| bufferLen | int | 输出缓冲区长度 |
-| instanceId | const char* | 实例 ID |
-| width | int | 图片宽度（<=0 默认） |
-| height | int | 图片高度（<=0 默认） |
-| quality | int | 图片质量（1-100） |
+- **参数**：
+  - `op`：实例操作句柄。
+  - `buffer`：输出缓冲区。
+  - `bufferLen`：缓冲区长度。
+  - `instanceId`：实例 ID。
+  - `width`：截图宽度，`<= 0` 表示默认分辨率。
+  - `height`：截图高度，`<= 0` 表示默认分辨率。
+  - `quality`：图片质量，范围通常为 `1-100`。
+- **返回值**：`true` 表示成功写入 URL。
 
-#### 获取文件下载URL
+#### tcr_instance_get_download_address
 
-获取文件下载 URL。
+获取实例文件下载 URL。
 
-```c
-bool tcr_instance_get_download_address(TcrAndroidInstance op, char* buffer, int bufferLen, const char* instanceId, const char* path);
+```cpp
+bool tcr_instance_get_download_address(
+    TcrAndroidInstance op,
+    char* buffer,
+    int bufferLen,
+    const char* instanceId,
+    const char* path
+);
 ```
 
-| 参数 | 类型 | 说明 |
-| ---- | ---- | ---- |
-| op | TcrAndroidInstance | 实例操作句柄 |
-| buffer | char* | 输出缓冲区 |
-| bufferLen | int | 缓冲区长度 |
-| instanceId | const char* | 实例 ID |
-| path | const char* | 文件路径 |
+- **参数**：
+  - `op`：实例操作句柄。
+  - `buffer`：输出缓冲区。
+  - `bufferLen`：缓冲区长度。
+  - `instanceId`：实例 ID。
+  - `path`：云端文件路径。
+- **返回值**：`true` 表示成功。
 
-#### 获取logcat日志下载地址
+#### tcr_instance_get_download_logcat_address
 
-获取云手机实例 logcat 日志压缩包的下载地址。
+获取 logcat 日志压缩包下载地址。
 
-```c
-bool tcr_instance_get_download_logcat_address(TcrAndroidInstance op, char* buffer, int bufferLen, const char* instanceId, int recentDays);
+```cpp
+bool tcr_instance_get_download_logcat_address(
+    TcrAndroidInstance op,
+    char* buffer,
+    int bufferLen,
+    const char* instanceId,
+    int recentDays
+);
 ```
 
-| 参数 | 类型 | 说明 |
-| ---- | ---- | ---- |
-| op | TcrAndroidInstance | 实例操作句柄 |
-| buffer | char* | 输出缓冲区 |
-| bufferLen | int | 缓冲区长度 |
-| instanceId | const char* | 实例 ID |
-| recentDays | int | 下载几天内的日志 |
+- **参数**：
+  - `op`：实例操作句柄。
+  - `buffer`：输出缓冲区。
+  - `bufferLen`：缓冲区长度。
+  - `instanceId`：实例 ID。
+  - `recentDays`：下载最近多少天内修改过的日志。
+- **返回值**：`true` 表示成功。
 
-#### 上传文件到云实例相册
+#### tcr_instance_upload_media
 
-上传文件到云实例，固定上传至 /data/media/0/DCIM，并自动添加到相册。
+上传媒体文件到云实例固定相册目录 `/data/media/0/DCIM`。
 
-```c
+```cpp
 bool tcr_instance_upload_media(
     TcrAndroidInstance op,
     const char* instanceId,
@@ -290,21 +388,35 @@ bool tcr_instance_upload_media(
 );
 ```
 
-| 参数 | 类型 | 说明 |
-| ---- | ---- | ---- |
-| op | TcrAndroidInstance | 实例操作句柄 |
-| instanceId | const char* | 实例 ID |
-| local_paths | const char** | 本地文件路径数组 |
-| file_count | int | 文件数量 |
-| output | char** | 输出 JSON 字符串（需释放） |
-| output_size | size_t* | 输出字符串长度 |
-| callback | const TcrUploadCallback* | 上传进度回调（可为 NULL） |
+- **参数**：
+  - `op`：实例操作句柄。
+  - `instanceId`：实例 ID。
+  - `local_paths`：本地文件绝对路径数组。
+  - `file_count`：文件数量。
+  - `output`：返回 JSON 字符串，由 SDK 分配，使用后需 `tcr_instance_free_result` 释放。
+  - `output_size`：返回字符串长度。
+  - `callback`：上传进度回调，可为 `NULL`。
+- **返回值**：
+  - `true`：接口调用成功，但仍需检查 `output` 中业务结果。
+  - `false`：调用失败。
+- **说明**：
+  - 上传结束后会通知系统加入媒体库/相册。
+  - `local_paths` 必须为可读的绝对路径，且建议使用全英文路径。
+  - 多文件上传为串行处理，文件较多时建议分批调用。
+- **返回示例**：
 
-#### 上传本地文件到云手机实例
+```json
+{
+  "Code": 0,
+  "Msg": ""
+}
+```
+
+#### tcr_instance_upload_files
 
 上传本地文件到云手机实例指定目录。
 
-```c
+```cpp
 bool tcr_instance_upload_files(
     TcrAndroidInstance op,
     const char* instanceId,
@@ -317,461 +429,1322 @@ bool tcr_instance_upload_files(
 );
 ```
 
-| 参数 | 类型 | 说明 |
-| ---- | ---- | ---- |
-| op | TcrAndroidInstance | 实例操作句柄 |
-| instanceId | const char* | 实例 ID |
-| local_paths | const char** | 本地文件路径数组 |
-| cloud_paths | const char** | 云端目标路径数组（可为 NULL） |
-| file_count | int | 文件数量 |
-| output | char** | 输出 JSON 字符串（需释放） |
-| output_size | size_t* | 输出字符串长度 |
-| callback | const TcrUploadCallback* | 上传进度回调（可为 NULL） |
+- **参数**：
+  - `op`：实例操作句柄。
+  - `instanceId`：实例 ID。
+  - `local_paths`：本地文件绝对路径数组。
+  - `cloud_paths`：云端目录数组；可为 `NULL`，表示默认上传到 `/sdcard/Download`。
+  - `file_count`：文件数量。
+  - `output`：返回 JSON 字符串，由 SDK 分配，使用后需 `tcr_instance_free_result` 释放。
+  - `output_size`：返回字符串长度。
+  - `callback`：上传进度回调，可为 `NULL`。
+- **返回值**：
+  - `true`：接口调用成功，但仍需检查 `output` 中业务结果。
+  - `false`：调用失败。
+- **说明**：
+  - `cloud_paths` 中每个路径通常形如 `/sdcard/xxx`。
+  - 多文件上传为串行处理，建议分批调用。
+- **返回示例**：
 
-#### 批量请求云端任务
-
-`tcr_instance_request` 用于批量请求云端安卓实例的各类任务操作，包括但不限于分辨率修改、文本粘贴、GPS修改、应用管理、设备属性变更、保活策略、媒体操作等。该接口支持一次性对多个实例下发同类型任务。
-
-```c
-TcrErrorCode tcr_instance_request(TcrAndroidInstance op, const char* input_json, char** output, size_t* output_size);
+```json
+{
+  "Code": 0,
+  "Message": "",
+  "FileStatus": [
+    {
+      "FileName": "test_demo.py",
+      "CloudPath": "/sdcard/123456/test_demo.py"
+    }
+  ]
+}
 ```
 
-| 参数 | 类型 | 说明 |
-| ---- | ---- | ---- |
-| op | TcrAndroidInstance | 实例操作句柄 |
-| input_json | const char* | 输入 JSON 字符串，指定任务类型、目标实例及参数，详见下方格式说明 |
-| output | char** | 输出 JSON 字符串（需调用 tcr_instance_free_result 释放） |
-| output_size | size_t* | 输出字符串长度 |
+#### tcr_instance_request
 
-##### 输入 JSON 格式
+批量请求云端任务。
+
+```cpp
+TcrErrorCode tcr_instance_request(
+    TcrAndroidInstance op,
+    const char* input_json,
+    char** output,
+    size_t* output_size
+);
+```
+
+- **参数**：
+  - `op`：实例操作句柄。
+  - `input_json`：输入 JSON 字符串。
+  - `output`：输出 JSON 字符串，由 SDK 分配，使用后需 `tcr_instance_free_result` 释放。
+  - `output_size`：输出字符串长度。
+- **返回值**：
+  - `TCR_SUCCESS`：请求已成功发起。
+  - `TCR_ERR_INVALID_PARAMS`：输入参数非法。
+- **输入格式**：
 
 ```json
 {
   "TaskType": "任务类型字符串",
   "Params": {
-    "cai-xxxx-xxx": { ... }, // 实例ID: 任务参数
-    "cai-yyyy-yyy": { ... }
+    "cai-xxxx-xxx": { },
+    "cai-yyyy-yyy": { }
   }
 }
 ```
 
-- **TaskType**：必填，字符串，指定要执行的任务类型。支持的任务类型详见下表。
-- **Params**：必填，字典。key为实例ID，value为该实例的任务参数对象。参数结构依赖于TaskType。
+- **通用说明**：
+  - `TaskType`：任务类型。
+  - `Params`：以实例 ID 为 key、任务参数为 value 的对象。
+  - 返回结果通常是一个 JSON 对象，key 为实例 ID，value 为执行结果。
 
-##### 支持的任务类型及参数说明
+- **支持的任务类型**：
 
-| 任务类型 | 说明 | 参数结构示例 |
-| -------- | ---- | ------------ |
-| ModifyResolution | 修改分辨率 | `{ "Width": 1080, "Height": 1920, "DPI": 320 }` |
-| ModifyGPS | 修改GPS位置 | `{ "Longitude": 121.47, "Latitude": 31.23 }` |
-| Paste | 粘贴文本 | `{ "Text": "hello" }` |
-| SendClipboard | 发送剪贴板内容 | `{ "Text": "hello" }` |
-| ModifySensor | 修改传感器数据 | `{ "Type": "accelerometer", "Values": [0.1, 0.2, 0.3], "Accuracy": 3 }` |
-| Shake | 摇动设备 | `{}` |
-| Blow | 吹气 | `{}` |
-| SendTransMessage | 发送透传消息 | `{ "PackageName": "com.example", "Msg": "hello" }` |
-| ModifyInstanceProperties | 修改实例属性 | 详见下方说明 |
-| ModifyKeepFrontAppStatus | 修改保活应用状态 | `{ "PackageName": "com.example", "Enable": true, "RestartInterValSeconds": 3 }` |
-| UnInstallByPackageName | 卸载应用 | `{ "PackageName": "com.example" }` |
-| StartApp | 启动应用 | `{ "PackageName": "com.example", "ActivityName": "xxx" }` |
-| StopApp | 停止应用 | `{ "PackageName": "com.example" }` |
-| ClearAppData | 清除应用数据 | `{ "PackageName": "com.example" }` |
-| EnableApp | 启用应用 | `{ "PackageName": "com.example" }` |
-| DisableApp | 禁用应用 | `{ "PackageName": "com.example" }` |
-| StartCameraMediaPlay | 开始摄像头媒体播放 | `{ "FilePath": "/sdcard/video.mp4", "Loops": 3 }` |
-| DisplayCameraImage | 显示摄像头图像 | `{ "FilePath": "/sdcard/image.jpg" }` |
-| AddKeepAliveList | 添加保活列表 | `{ "AppList": ["com.wechat", "com.alipay"] }` |
-| RemoveKeepAliveList | 移除保活列表 | `{ "AppList": ["com.wechat"] }` |
-| SetKeepAliveList | 设置保活列表 | `{ "AppList": ["com.wechat", "com.alipay"] }` |
-| DescribeKeepFrontAppStatus | 获取保活应用状态 | `{}` |
-| StopCameraMediaPlay | 停止摄像头播放 | `{}` |
-| DescribeCameraMediaPlayStatus | 获取摄像头播放状态 | `{}` |
-| DescribeKeepAliveList | 获取保活列表 | `{}` |
-| ClearKeepAliveList | 清除保活列表 | `{}` |
-| ListUserApps | 列出用户应用 | `{}` |
-| Mute | 静音开关 | `{ "Mute": true }` |
-| MediaSearch | 媒体库文件搜索 | `{ "Keyword": "abc" }` |
-| Reboot | 重启实例 | `{}` |
-| ListAllApps | 查询所有应用列表 | `{}` |
-| MoveAppBackground | 关闭应用至后台 | `{}` |
-| AddAppInstallBlackList | 新增应用安装黑名单 | `{ "AppList": ["com.xxx"] }` |
-| RemoveAppInstallBlackList | 移除应用安装黑名单 | `{ "AppList": ["com.xxx"] }` |
-| SetAppInstallBlackList | 覆盖应用安装黑名单 | `{ "AppList": ["com.xxx"] }` |
-| DescribeAppInstallBlackList | 查询应用安装黑名单 | `{}` |
-| ClearAppInstallBlackList | 清空应用安装黑名单 | `{}` |
+| TaskType | 说明 | 参数示例 |
+| -------- | ---- | -------- |
+| `ModifyResolution` | 修改分辨率 | `{ "Width": 1080, "Height": 1920, "DPI": 320 }` |
+| `ModifyGPS` | 修改 GPS 信息 | `{ "Longitude": 121.47, "Latitude": 31.23 }` |
+| `Paste` | 粘贴文本 | `{ "Text": "hello" }` |
+| `SendClipboard` | 发送剪贴板内容 | `{ "Text": "hello" }` |
+| `ModifySensor` | 修改传感器数据 | `{ "Type": "accelerometer", "Values": [0.1, 0.2, 0.3], "Accuracy": 3 }` |
+| `Shake` | 摇动设备 | `{}` |
+| `Blow` | 吹气 | `{}` |
+| `SendTransMessage` | 发送透传消息 | `{ "PackageName": "com.example", "Msg": "hello" }` |
+| `ModifyInstanceProperties` | 修改实例属性 | 见下方补充说明 |
+| `ModifyKeepFrontAppStatus` | 修改保活应用状态 | `{ "PackageName": "com.example", "Enable": true, "RestartInterValSeconds": 3 }` |
+| `UnInstallByPackageName` | 卸载应用 | `{ "PackageName": "com.example" }` |
+| `StartApp` | 启动应用 | `{ "PackageName": "com.example", "ActivityName": "MainActivity" }` |
+| `StopApp` | 停止应用 | `{ "PackageName": "com.example" }` |
+| `ClearAppData` | 清除应用数据 | `{ "PackageName": "com.example" }` |
+| `EnableApp` | 启用应用 | `{ "PackageName": "com.example" }` |
+| `DisableApp` | 禁用应用 | `{ "PackageName": "com.example" }` |
+| `StartCameraMediaPlay` | 开始摄像头媒体播放 | `{ "FilePath": "/sdcard/video.mp4", "Loops": 3 }` |
+| `DisplayCameraImage` | 显示摄像头图像 | `{ "FilePath": "/sdcard/image.jpg" }` |
+| `AddKeepAliveList` | 添加保活列表 | `{ "AppList": ["com.wechat", "com.alipay"] }` |
+| `RemoveKeepAliveList` | 移除保活列表 | `{ "AppList": ["com.wechat"] }` |
+| `SetKeepAliveList` | 覆盖保活列表 | `{ "AppList": ["com.wechat", "com.alipay"] }` |
+| `DescribeInstanceProperties` | 查询实例属性 | `{}` |
+| `DescribeKeepFrontAppStatus` | 查询保活应用状态 | `{}` |
+| `StopCameraMediaPlay` | 停止摄像头媒体播放 | `{}` |
+| `DescribeCameraMediaPlayStatus` | 查询摄像头播放状态 | `{}` |
+| `DescribeKeepAliveList` | 查询保活列表 | `{}` |
+| `ClearKeepAliveList` | 清空保活列表 | `{}` |
+| `ListUserApps` | 查询用户应用列表 | `{}` |
+| `Mute` | 静音开关 | `{ "Mute": true }` |
+| `MediaSearch` | 媒体库文件搜索 | `{ "Keyword": "abc" }` |
+| `Reboot` | 重启实例 | `{}` |
+| `ListAllApps` | 查询全部应用列表 | `{}` |
+| `MoveAppBackground` | 将应用移到后台 | `{}` |
+| `AddAppInstallBlackList` | 添加安装黑名单 | `{ "AppList": ["com.xxx"] }` |
+| `RemoveAppInstallBlackList` | 移除安装黑名单 | `{ "AppList": ["com.xxx"] }` |
+| `SetAppInstallBlackList` | 覆盖安装黑名单 | `{ "AppList": ["com.xxx"] }` |
+| `DescribeAppInstallBlackList` | 查询安装黑名单 | `{}` |
+| `ClearAppInstallBlackList` | 清空安装黑名单 | `{}` |
 
-> 详细参数结构和返回示例可参考头文件中的说明。
-
-##### 典型输入示例
+- **`ModifyInstanceProperties` 参数结构**：
 
 ```json
 {
-  "TaskType": "ModifyResolution",
-  "Params": {
-    "cai-xxxx-xxx": { "Width": 1080, "Height": 1920 },
-    "cai-yyyy-yyy": { "Width": 720, "Height": 1280 }
+  "DeviceInfo": {
+    "Brand": "Samsung",
+    "Model": "Galaxy S23"
+  },
+  "ProxyInfo": {
+    "Enabled": true,
+    "Protocol": "socks5",
+    "Host": "proxy.example.com",
+    "Port": 1080,
+    "User": "username",
+    "Password": "password123"
+  },
+  "GPSInfo": {
+    "Longitude": 121.4737,
+    "Latitude": 31.2304
+  },
+  "SIMInfo": {
+    "State": 1,
+    "PhoneNumber": "13800138000",
+    "IMSI": "460001234567890",
+    "ICCID": "89860123456789012345"
+  },
+  "LocaleInfo": {
+    "Timezone": "Asia/Shanghai"
+  },
+  "LanguageInfo": {
+    "Language": "zh",
+    "Country": "CN"
+  },
+  "ExtraProperties": [
+    { "Key": "k1", "Value": "v1" }
+  ]
+}
+```
+
+- **输出结果示例**：
+
+```json
+{
+  "cai-xxxx": {
+    "Code": 0
+  },
+  "cai-yyyy": {
+    "Code": 10100,
+    "Msg": "operation denied"
+  },
+  "cai-zzzz": {
+    "Code": -101,
+    "Msg": "HTTP request failed"
   }
 }
 ```
 
-##### 输出结果格式
+#### tcr_instance_free_result
 
-返回值为一个JSON对象，key为实例ID，value为该实例的任务执行结果对象。例如：
+释放由 `tcr_instance_request`、上传接口等分配的结果内存。
 
-```json
-{
-  "cai-xxxx-xxx": { "Code": 0 },
-  "cai-yyyy-yyy": { "Code": 10100, "Msg": "operation denied" },
-  "cai-zzzz-zzz": { "Code": -101, "Msg": "HTTP request failed" }
-}
-```
-
-- `Code`为0表示成功，非0表示失败，`Msg`为失败原因。
-- 某些查询类任务（如DescribeInstanceProperties、ListUserApps等）返回结构会包含详细数据，详见各任务类型在头文件中的说明。
-
-##### 其他说明
-
-- `output` 由SDK内部分配内存，使用完毕后需调用 `tcr_instance_free_result` 释放。
-- 支持批量对多个实例下发同类型任务，便于大规模自动化管理。
-- 返回的JSON字符串长度通过`output_size`返回。
-- 任务类型及参数如有疑问，请参考接口注释或联系技术支持。
-
-##### 返回值
-
-- `TCR_SUCCESS`：任务请求成功
-- `TCR_ERR_INVALID_PARAMS`：输入参数无效
-#### 释放由tcr_instance_request分配的结果内存
-
-释放由 tcr_instance_request 分配的结果内存。
-
-```c
+```cpp
 void tcr_instance_free_result(TcrAndroidInstance op, char* output);
 ```
 
-| 参数 | 类型 | 说明 |
-| ---- | ---- | ---- |
-| op | TcrAndroidInstance | 实例操作句柄 |
-| output | char* | 需要释放的内存指针 |
+- **参数**：
+  - `op`：实例操作句柄。
+  - `output`：待释放内存指针。
 
-#### 设置远端视频帧观察者
+### 会话与串流接口
 
-设置远端视频帧观察者，用于接收解码后的视频帧数据。
+#### tcr_session_init
 
-```c
-void tcr_session_set_video_frame_observer(TcrSessionHandle session, const TcrVideoFrameObserver* observer);
+初始化会话；初始化成功后会通过观察者回调 `TCR_SESSION_EVENT_STATE_INITED` 事件。
+
+```cpp
+void tcr_session_init(TcrSessionHandle session);
 ```
 
-| 参数 | 类型 | 说明 |
-| ---- | ---- | ---- |
-| session | TcrSessionHandle | 会话句柄 |
-| observer | const TcrVideoFrameObserver* | 视频帧观察者结构体指针 |
+- **参数**：
+  - `session`：会话句柄。
 
-#### 连接到指定云端实例
+#### tcr_session_start
 
-连接到指定云端实例，建立单实例会话。
+使用服务端返回的会话串启动会话。
 
-```c
-void tcr_session_connect(TcrSessionHandle session, const char* instanceId);
+```cpp
+void tcr_session_start(TcrSessionHandle session, const char* serverSession);
 ```
 
-| 参数 | 类型 | 说明 |
-| ---- | ---- | ---- |
-| session | TcrSessionHandle | 会话句柄 |
-| instanceId | const char* | 云端实例 ID |
+- **参数**：
+  - `session`：会话句柄。
+  - `serverSession`：服务端 session 字符串。
+- **说明**：该接口对同一个会话通常只应调用一次。
 
-#### 启动会话并连接云手机
+#### tcr_session_get_request_id
 
-启动会话并连接云手机，支持群控。
+获取会话的 RequestId。
 
-```c
-void tcr_session_access(TcrSessionHandle session, const char** instanceIds, int32_t length, bool isGroupControl);
+```cpp
+bool tcr_session_get_request_id(TcrSessionHandle session, char* buffer, int buffer_size);
 ```
 
-| 参数 | 类型 | 说明 |
-| ---- | ---- | ---- |
-| session | TcrSessionHandle | 会话句柄 |
-| instanceIds | const char** | 云端实例 ID 数组 |
-| length | int32_t | 实例 ID 数组长度 |
-| isGroupControl | bool | 是否群控 |
+- **参数**：
+  - `session`：会话句柄。
+  - `buffer`：输出缓冲区。
+  - `buffer_size`：缓冲区长度。
+- **返回值**：成功返回 `true`。
 
-#### 暂停媒体流
+#### tcr_session_set_video_frame_observer
 
-暂停媒体流（如视频流），通常用于临时挂起。
+设置视频帧观察者。
 
-```c
-void tcr_session_pause_streaming(TcrSessionHandle session);
+```cpp
+void tcr_session_set_video_frame_observer(
+    TcrSessionHandle session,
+    const TcrVideoFrameObserver* observer
+);
 ```
 
-| 参数 | 类型 | 说明 |
-| ---- | ---- | ---- |
-| session | TcrSessionHandle | 会话句柄 |
+- **参数**：
+  - `session`：会话句柄。
+  - `observer`：观察者指针；传 `NULL` 表示取消。
+- **说明**：回调中拿到的是 `TcrVideoFrameHandle`，需通过 `tcr_video_frame_get_buffer` 获取实际帧缓冲区。
 
-#### 恢复媒体流
+#### tcr_session_access
 
-恢复媒体流（如视频流），与暂停配合使用。
+启动会话并接入云端实例，支持单实例或群控模式。
 
-```c
-void tcr_session_resume_streaming(TcrSessionHandle session);
+```cpp
+void tcr_session_access(
+    TcrSessionHandle session,
+    const char** instanceIds,
+    int32_t length,
+    bool isGroupControl
+);
 ```
 
-| 参数 | 类型 | 说明 |
-| ---- | ---- | ---- |
-| session | TcrSessionHandle | 会话句柄 |
+- **参数**：
+  - `session`：会话句柄。
+  - `instanceIds`：实例 ID 数组。
+  - `length`：数组长度。
+  - `isGroupControl`：是否群控。
 
-#### 设置远端视频流参数
+#### tcr_session_access_multi_stream
 
-设置远端视频流参数（帧率、码率等）。
+连接多个云端实例并分别接收独立视频流。
 
-```c
-void tcr_session_set_remote_video_profile(TcrSessionHandle session, int32_t fps, int32_t minBitrate, int32_t maxBitrate);
+```cpp
+void tcr_session_access_multi_stream(
+    TcrSessionHandle session,
+    const char** instanceIds,
+    int32_t length
+);
 ```
 
-| 参数 | 类型 | 说明 |
-| ---- | ---- | ---- |
-| session | TcrSessionHandle | 会话句柄 |
-| fps | int32_t | 视频帧率 |
-| minBitrate | int32_t | 最小码率（kbps） |
-| maxBitrate | int32_t | 最大码率（kbps） |
+- **参数**：
+  - `session`：会话句柄。
+  - `instanceIds`：实例 ID 数组。
+  - `length`：数组长度。
+- **说明**：
+  - 与 `tcr_session_access` 互斥。
+  - 每路视频流可在 `TcrVideoFrameBuffer.instance_id` 中区分来源实例。
+  - 连接后可通过 `tcr_session_switch_streaming_instances` 动态切换实际拉流实例列表。
 
-#### 向云端应用发送透传消息
+#### tcr_session_switch_streaming_instances
 
-向云端应用发送透传消息。
+动态切换多流会话当前拉流的实例列表。
 
-```c
-void tcr_session_send_trans_message(TcrSessionHandle session, const char* package_name, const char* msg);
+```cpp
+void tcr_session_switch_streaming_instances(
+    TcrSessionHandle session,
+    const char** streamingInstanceIds,
+    int32_t streamingLength
+);
 ```
 
-| 参数 | 类型 | 说明 |
-| ---- | ---- | ---- |
-| session | TcrSessionHandle | 会话句柄 |
-| package_name | const char* | 应用包名 |
-| msg | const char* | 消息内容 |
+- **参数**：
+  - `session`：会话句柄。
+  - `streamingInstanceIds`：希望继续拉流的实例 ID 数组。
+  - `streamingLength`：数组长度。
+- **说明**：
+  - 仅在 `tcr_session_access_multi_stream` 模式下有效。
+  - 传入列表必须是最初 `instanceIds` 的子集。
+  - 数量不能超过 `TcrSessionConfig.concurrentStreamingInstances`。
+  - 若部分实例切换失败，会触发 `TCR_SESSION_EVENT_STREAMING_SWITCH_FAILED`。
 
-#### 将文本写入剪贴板并粘贴到输入框
+#### tcr_session_pause_streaming
 
-将文本写入剪贴板并粘贴到输入框。
+暂停指定媒体流。
 
-```c
+```cpp
+void tcr_session_pause_streaming(
+    TcrSessionHandle session,
+    const char* media_type = nullptr,
+    const char** instanceIds = nullptr,
+    int32_t instance_count = 0
+);
+```
+
+- **参数**：
+  - `session`：会话句柄。
+  - `media_type`：`"audio"`、`"video"` 或空字符串；为空时表示同时暂停音视频。
+  - `instanceIds`：实例 ID 数组；仅多流模式下有意义，为 `NULL` 时对全部实例生效。
+  - `instance_count`：实例数量。
+
+#### tcr_session_resume_streaming
+
+恢复指定媒体流。
+
+```cpp
+void tcr_session_resume_streaming(
+    TcrSessionHandle session,
+    const char* media_type = nullptr,
+    const char** instanceIds = nullptr,
+    int32_t instance_count = 0
+);
+```
+
+- **参数**：与 `tcr_session_pause_streaming` 一致。
+
+#### tcr_session_set_remote_video_profile
+
+设置远端视频流参数。
+
+```cpp
+void tcr_session_set_remote_video_profile(
+    TcrSessionHandle session,
+    int32_t fps,
+    int32_t minBitrate,
+    int32_t maxBitrate,
+    int32_t video_width,
+    int32_t video_height,
+    const char** instanceIds = nullptr,
+    int32_t instance_count = 0
+);
+```
+
+- **参数**：
+  - `session`：会话句柄。
+  - `fps`：帧率，`<= 0` 表示不设置。
+  - `minBitrate`：最小码率（kbps），与 `maxBitrate` 配套使用。
+  - `maxBitrate`：最大码率（kbps），与 `minBitrate` 配套使用。
+  - `video_width`：目标宽度。
+  - `video_height`：目标高度。
+  - `instanceIds`：仅多流模式下有效；为空时作用于全部实例。
+  - `instance_count`：实例数量。
+- **分辨率规则**：
+  - `video_width > 0 && video_height > 0`：固定宽高。
+  - `video_width > 0 && video_height == 0`：短边固定为 `video_width`，长边自适应。
+  - `video_width == 0 && video_height > 0`：长边固定为 `video_height`，短边自适应。
+
+### 视频帧访问接口
+
+#### tcr_video_frame_get_buffer
+
+获取视频帧缓冲区。
+
+```cpp
+const TcrVideoFrameBuffer* tcr_video_frame_get_buffer(TcrVideoFrameHandle frame_handle);
+```
+
+- **参数**：
+  - `frame_handle`：视频帧句柄。
+- **返回值**：`TcrVideoFrameBuffer*`；失败返回 `NULL`。
+- **说明**：返回指针生命周期受 `frame_handle` 管理。
+
+#### tcr_video_frame_add_ref
+
+增加视频帧引用计数。
+
+```cpp
+void tcr_video_frame_add_ref(TcrVideoFrameHandle frame_handle);
+```
+
+- **参数**：
+  - `frame_handle`：视频帧句柄。
+- **说明**：跨线程、跨回调持有时必须先调用本接口。
+
+#### tcr_video_frame_release
+
+释放视频帧引用。
+
+```cpp
+void tcr_video_frame_release(TcrVideoFrameHandle frame_handle);
+```
+
+- **参数**：
+  - `frame_handle`：视频帧句柄。
+- **说明**：需与 `tcr_video_frame_add_ref` 成对调用。
+
+#### tcr_video_frame_buffer_is_d3d11
+
+判断缓冲区是否为 D3D11 纹理类型。
+
+```cpp
+bool tcr_video_frame_buffer_is_d3d11(const TcrVideoFrameBuffer* buffer);
+```
+
+- **参数**：
+  - `buffer`：视频帧缓冲区。
+- **返回值**：`true` 表示为 D3D11 类型。
+
+#### tcr_video_frame_buffer_get_d3d11_texture
+
+获取 D3D11 纹理指针。
+
+```cpp
+void* tcr_video_frame_buffer_get_d3d11_texture(const TcrVideoFrameBuffer* buffer);
+```
+
+- **参数**：
+  - `buffer`：视频帧缓冲区，且必须为 D3D11 类型。
+- **返回值**：底层 `ID3D11Texture2D*` 指针；失败返回 `NULL`。
+
+### 数据通道接口
+
+#### tcr_session_create_data_channel
+
+创建自定义数据通道。
+
+```cpp
+TcrDataChannelHandle tcr_session_create_data_channel(
+    TcrSessionHandle session,
+    int32_t port,
+    const TcrDataChannelObserver* observer,
+    const char* type = "android"
+);
+```
+
+- **参数**：
+  - `session`：会话句柄。
+  - `port`：云端数据通道唯一端口号。
+  - `observer`：数据通道观察者；可为 `NULL`。
+  - `type`：仅支持 `""`、`"android"`、`"android_broadcast"`，默认 `"android"`。
+- **返回值**：数据通道句柄；失败返回空。
+
+#### tcr_data_channel_send
+
+通过数据通道发送数据。
+
+```cpp
+TcrErrorCode tcr_data_channel_send(
+    TcrDataChannelHandle channel,
+    const uint8_t* data,
+    size_t size
+);
+```
+
+- **参数**：
+  - `channel`：数据通道句柄。
+  - `data`：待发送数据。
+  - `size`：数据长度。
+- **返回值**：`TcrErrorCode`。
+
+#### tcr_data_channel_close
+
+关闭数据通道。
+
+```cpp
+void tcr_data_channel_close(TcrDataChannelHandle channel);
+```
+
+- **参数**：
+  - `channel`：数据通道句柄。
+
+### 本地音视频设备接口
+
+#### tcr_session_enable_local_camera_with_config
+
+使用指定配置启用本地摄像头。
+
+```cpp
+bool tcr_session_enable_local_camera_with_config(
+    TcrSessionHandle session,
+    const TcrVideoConfig* config
+);
+```
+
+- **参数**：
+  - `session`：会话句柄。
+  - `config`：本地摄像头配置，建议通过 `tcr_video_config_default()` 获取默认值后修改。
+- **返回值**：成功返回 `true`。
+- **说明**：SDK 会根据配置查找最匹配的本地摄像头能力。
+
+#### tcr_session_enable_local_camera
+
+启用或禁用本地摄像头。
+
+```cpp
+bool tcr_session_enable_local_camera(TcrSessionHandle session, bool enable);
+```
+
+- **参数**：
+  - `session`：会话句柄。
+  - `enable`：`true` 启用，`false` 禁用。
+- **返回值**：成功返回 `true`。
+
+#### tcr_session_disable_local_camera
+
+禁用本地摄像头。
+
+```cpp
+void tcr_session_disable_local_camera(TcrSessionHandle session);
+```
+
+- **参数**：
+  - `session`：会话句柄。
+
+#### tcr_session_is_local_camera_enabled
+
+查询本地摄像头是否已启用。
+
+```cpp
+bool tcr_session_is_local_camera_enabled(TcrSessionHandle session);
+```
+
+- **参数**：
+  - `session`：会话句柄。
+- **返回值**：已启用返回 `true`。
+
+#### tcr_session_local_camera_config
+
+配置本地摄像头最大码率与帧率。
+
+```cpp
+bool tcr_session_local_camera_config(
+    TcrSessionHandle session,
+    int max_bitrate_bps,
+    int max_fps
+);
+```
+
+- **参数**：
+  - `session`：会话句柄。
+  - `max_bitrate_bps`：最大码率，单位 bps。
+  - `max_fps`：最大帧率。
+- **返回值**：成功返回 `true`。
+- **说明**：需在摄像头已启用后调用。
+
+#### tcr_session_get_camera_device_count
+
+获取可用摄像头设备数量。
+
+```cpp
+int tcr_session_get_camera_device_count(TcrSessionHandle session);
+```
+
+- **参数**：
+  - `session`：会话句柄。
+- **返回值**：可用设备数量，负值表示错误。
+
+#### tcr_session_get_camera_device
+
+获取指定摄像头设备信息。
+
+```cpp
+bool tcr_session_get_camera_device(
+    TcrSessionHandle session,
+    int device_index,
+    TcrCameraDeviceInfo* info
+);
+```
+
+- **参数**：
+  - `session`：会话句柄。
+  - `device_index`：设备索引。
+  - `info`：输出设备信息结构体。
+- **返回值**：成功返回 `true`。
+
+#### tcr_session_enable_local_microphone
+
+启用或禁用本地麦克风。
+
+```cpp
+bool tcr_session_enable_local_microphone(TcrSessionHandle session, bool enable);
+```
+
+- **参数**：
+  - `session`：会话句柄。
+  - `enable`：`true` 启用，`false` 禁用。
+- **返回值**：成功返回 `true`。
+
+#### tcr_session_is_local_microphone_enabled
+
+查询本地麦克风是否已启用。
+
+```cpp
+bool tcr_session_is_local_microphone_enabled(TcrSessionHandle session);
+```
+
+- **参数**：
+  - `session`：会话句柄。
+- **返回值**：已启用返回 `true`。
+
+#### tcr_session_get_microphone_device_count
+
+获取可用麦克风设备数量。
+
+```cpp
+int tcr_session_get_microphone_device_count(TcrSessionHandle session);
+```
+
+- **参数**：
+  - `session`：会话句柄。
+- **返回值**：设备数量。
+
+#### tcr_session_get_microphone_device
+
+获取指定麦克风设备信息。
+
+```cpp
+bool tcr_session_get_microphone_device(
+    TcrSessionHandle session,
+    int device_index,
+    TcrMicrophoneDeviceInfo* info
+);
+```
+
+- **参数**：
+  - `session`：会话句柄。
+  - `device_index`：设备索引。
+  - `info`：输出设备信息结构体。
+- **返回值**：成功返回 `true`。
+
+#### tcr_session_enable_microphone_with_config
+
+使用指定设备配置启用麦克风。
+
+```cpp
+bool tcr_session_enable_microphone_with_config(
+    TcrSessionHandle session,
+    const TcrMicrophoneConfig* config
+);
+```
+
+- **参数**：
+  - `session`：会话句柄。
+  - `config`：麦克风配置；`device_id` 为空时使用系统默认设备。
+- **返回值**：成功返回 `true`。
+
+### 输入与控制接口
+
+#### tcr_session_send_trans_message
+
+发送透传消息到云端应用。
+
+```cpp
+void tcr_session_send_trans_message(
+    TcrSessionHandle session,
+    const char* package_name,
+    const char* msg
+);
+```
+
+- **参数**：
+  - `session`：会话句柄。
+  - `package_name`：目标应用包名。
+  - `msg`：消息内容。
+- **说明**：目标应用需实现 `Messenger` 服务。
+
+#### tcr_session_paste_text
+
+将文本写入云端剪贴板并执行粘贴。
+
+```cpp
 void tcr_session_paste_text(TcrSessionHandle session, const char* msg);
 ```
 
-| 参数 | 类型 | 说明 |
-| ---- | ---- | ---- |
-| session | TcrSessionHandle | 会话句柄 |
-| msg | const char* | 文本内容 |
+- **参数**：
+  - `session`：会话句柄。
+  - `msg`：文本内容。
 
-#### 将文本直接输入到输入框
+#### tcr_session_input_text
 
-将文本直接输入到输入框。
+直接向当前输入框输入文本。
 
-```c
-void tcr_session_input_text(TcrSessionHandle session, const char* content, const char* mode);
+```cpp
+void tcr_session_input_text(
+    TcrSessionHandle session,
+    const char* content,
+    const char* mode
+);
 ```
 
-| 参数 | 类型 | 说明 |
-| ---- | ---- | ---- |
-| session | TcrSessionHandle | 会话句柄 |
-| content | const char* | 输入文本内容 |
-| mode | const char* | 输入模式："append" 或 "override" |
+- **参数**：
+  - `session`：会话句柄。
+  - `content`：待输入文本。
+  - `mode`：输入模式，`"append"` 或 `"override"`。
+- **说明**：调用前应已收到 `TCR_SESSION_EVENT_IME_STATUS_CHANGE`，且事件中的 `ime_type` 为 `"local"`。
 
-#### 切换输入法
+#### tcr_session_switch_ime
 
 切换输入法。
 
-```c
+```cpp
 void tcr_session_switch_ime(TcrSessionHandle session, const char* ime);
 ```
 
-| 参数 | 类型 | 说明 |
-| ---- | ---- | ---- |
-| session | TcrSessionHandle | 会话句柄 |
-| ime | const char* | 输入法类型："cloud" 或 "local" |
+- **参数**：
+  - `session`：会话句柄。
+  - `ime`：输入法类型，`"cloud"` 或 `"local"`。
 
-#### 开关摄像头
+#### tcr_session_switch_camera
 
-开关摄像头。
+切换云端摄像头状态。
 
-```c
+```cpp
 void tcr_session_switch_camera(TcrSessionHandle session, const char* status);
 ```
 
-| 参数 | 类型 | 说明 |
-| ---- | ---- | ---- |
-| session | TcrSessionHandle | 会话句柄 |
-| status | const char* | 状态："open" 或 "close" |
+- **参数**：
+  - `session`：会话句柄。
+  - `status`：状态，`"open"` 或 `"close"`。
 
-#### 开关麦克风
+#### tcr_session_switch_mic
 
-开关麦克风。
+切换云端麦克风状态。
 
-```c
+```cpp
 void tcr_session_switch_mic(TcrSessionHandle session, const char* status);
 ```
 
-| 参数 | 类型 | 说明 |
-| ---- | ---- | ---- |
-| session | TcrSessionHandle | 会话句柄 |
-| status | const char* | 状态："open" 或 "close" |
+- **参数**：
+  - `session`：会话句柄。
+  - `status`：状态，`"open"` 或 `"close"`。
 
-#### 发送键盘事件
-向云端实例发送单个键盘事件（按键按下/抬起），用于模拟物理键盘操作。
+#### tcr_session_send_keyboard_event
 
-```c
+发送云端键盘事件。
+
+```cpp
 void tcr_session_send_keyboard_event(TcrSessionHandle session, int32_t keycode, bool down);
 ```
 
-| 参数    | 类型             | 说明                                                                                      |
-| ------- | ---------------- | ----------------------------------------------------------------------------------------- |
-| session | TcrSessionHandle | 会话句柄                                                                                  |
-| keycode | int32_t          | 按键码（建议使用十进制，可参考 [keycode 列表](https://www.toptal.com/developers/keycode) 或 Android KeyEvent 定义）|
-| down    | bool             | true 表示按下（KeyDown），false 表示抬起（KeyUp）                                         |
+- **参数**：
+  - `session`：会话句柄。
+  - `keycode`：按键码。
+  - `down`：`true` 表示按下，`false` 表示抬起。
+- **说明**：
+  - 常见按键：返回键 `158`、菜单键 `139`、Home 键 `172`、音量加 `58`、音量减 `59`。
+  - 模拟一次完整按键通常需要先发送按下，再发送抬起。
 
-**功能说明：**
-该接口用于向云端实例发送单个按键事件，通常需要成对调用（即先发送按下事件，再发送抬起事件），以模拟真实物理键盘的操作。例如，模拟输入字母“A”时，应先调用一次 `down=true`，再调用一次 `down=false`。
+#### tcr_session_send_mouse_key
 
-**常用云手机按键 keycode 对照表（十进制）：**
+发送鼠标按键事件。
 
-| 按键名称         | keycode |
-| ---------------- | ------- |
-| 返回键           | 158     |
-| 菜单键           | 139     |
-| Home 键          | 172     |
-| 音量加           | 58      |
-| 音量减           | 59      |
-
-**使用示例：**
-
-模拟点击返回键：
-```c
-tcr_session_send_keyboard_event(session, 158, true);   // 按下
-tcr_session_send_keyboard_event(session, 158, false);  // 抬起
+```cpp
+void tcr_session_send_mouse_key(TcrSessionHandle session, TcrMouseKeyType key, bool down);
 ```
 
-**注意事项：**
-- keycode 建议使用十进制，部分特殊按键可参考上表或 Android KeyEvent 定义。
-- 若需模拟连续输入，请依次发送对应的按下/抬起事件。
-- 该接口仅发送单个按键事件，复杂输入需自行组合多次调用。
+- **参数**：
+  - `session`：会话句柄。
+  - `key`：鼠标按键类型，见 `TcrMouseKeyType`。
+  - `down`：`true` 按下，`false` 释放。
 
-#### 发送触摸屏触摸事件
+#### tcr_session_send_mouse_scroll
 
-发送触摸屏触摸事件。
+发送垂直滚轮事件。
 
-```c
-void tcr_session_touchscreen_touch(TcrSessionHandle session, float x, float y, int eventType, int width, int height, long timestamp);
+```cpp
+void tcr_session_send_mouse_scroll(TcrSessionHandle session, float delta);
 ```
 
-| 参数 | 类型 | 说明 |
-| ---- | ---- | ---- |
-| session | TcrSessionHandle | 会话句柄 |
-| x | float | 触摸点横坐标（像素） |
-| y | float | 触摸点纵坐标（像素） |
-| eventType | int | 事件类型（0: 按下, 1: 移动, 2: 抬起） |
-| width | int | 屏幕宽度（像素） |
-| height | int | 屏幕高度（像素） |
-| timestamp | long | 事件时间戳（毫秒） |
+- **参数**：
+  - `session`：会话句柄。
+  - `delta`：滚轮增量，建议范围 `-1.0 ~ 1.0`。
 
-## 结构体与回调说明
+#### tcr_session_send_mouse_horizontal_scroll
+
+发送水平滚轮事件。
+
+```cpp
+void tcr_session_send_mouse_horizontal_scroll(TcrSessionHandle session, float delta);
+```
+
+- **参数**：同 `tcr_session_send_mouse_scroll`。
+
+#### tcr_session_send_mouse_move_to
+
+发送鼠标绝对坐标移动事件。
+
+```cpp
+void tcr_session_send_mouse_move_to(TcrSessionHandle session, int32_t x, int32_t y);
+```
+
+- **参数**：
+  - `session`：会话句柄。
+  - `x`：远端坐标 X。
+  - `y`：远端坐标 Y。
+
+#### tcr_session_send_mouse_delta_move
+
+发送鼠标相对位移事件。
+
+```cpp
+void tcr_session_send_mouse_delta_move(
+    TcrSessionHandle session,
+    int32_t delta_x,
+    int32_t delta_y
+);
+```
+
+- **参数**：
+  - `session`：会话句柄。
+  - `delta_x`：水平位移，正值向右。
+  - `delta_y`：垂直位移，正值向下。
+
+#### tcr_session_set_mouse_cursor_style
+
+设置云端鼠标光标样式。
+
+```cpp
+void tcr_session_set_mouse_cursor_style(TcrSessionHandle session, TcrCursorStyle style);
+```
+
+- **参数**：
+  - `session`：会话句柄。
+  - `style`：光标样式，见 `TcrCursorStyle`。
+
+#### tcr_session_touchscreen_touch
+
+发送基础触摸事件。
+
+```cpp
+void tcr_session_touchscreen_touch(
+    TcrSessionHandle session,
+    float x,
+    float y,
+    int eventType,
+    int width,
+    int height,
+    long timestamp
+);
+```
+
+- **参数**：
+  - `session`：会话句柄。
+  - `x` / `y`：像素坐标。
+  - `eventType`：`0` 按下、`1` 移动、`2` 抬起。
+  - `width` / `height`：远端屏幕尺寸。
+  - `timestamp`：事件时间戳（毫秒）。
+
+#### tcr_session_touchscreen_touch_ex
+
+发送扩展多点触摸事件。
+
+```cpp
+void tcr_session_touchscreen_touch_ex(
+    TcrSessionHandle session,
+    float x,
+    float y,
+    int eventType,
+    int fingerID,
+    int width,
+    int height,
+    long timestamp,
+    float orientation,
+    float pressure,
+    float size,
+    float tool_major,
+    float tool_minor,
+    float touch_major,
+    float touch_minor
+);
+```
+
+- **参数**：
+  - `session`：会话句柄。
+  - `x` / `y`：像素坐标。
+  - `eventType`：`0` 按下、`1` 移动、`2` 抬起。
+  - `fingerID`：指针 ID。
+  - `width` / `height`：远端屏幕尺寸。
+  - `timestamp`：事件时间戳（毫秒）。
+  - `orientation`：触摸方向（弧度）。
+  - `pressure`：压力值，通常范围 `0-1`。
+  - `size`：标准化触摸尺寸。
+  - `tool_major` / `tool_minor`：工具椭圆长短轴。
+  - `touch_major` / `touch_minor`：实际接触区域长短轴。
+- **说明**：适合多点触控、绘画、手写等需要精细控制的场景。
+
+### 日志与工具接口
+
+#### tcr_set_log_callback
+
+设置日志回调。
+
+```cpp
+void tcr_set_log_callback(const TcrLogCallback* callback);
+```
+
+- **参数**：
+  - `callback`：日志回调结构体指针。
+
+#### tcr_set_log_level
+
+设置日志输出级别。
+
+```cpp
+void tcr_set_log_level(TcrLogLevel level);
+```
+
+- **参数**：
+  - `level`：日志级别，见 `TcrLogLevel`。
+
+#### tcr_get_log_level
+
+获取当前日志级别。
+
+```cpp
+TcrLogLevel tcr_get_log_level();
+```
+
+- **参数**：无。
+- **返回值**：当前日志级别。
+
+#### tcr_session_event_to_string
+
+将 `TcrSessionEvent` 枚举值转换为字符串。
+
+```cpp
+const char* tcr_session_event_to_string(TcrSessionEvent event);
+```
+
+- **参数**：
+  - `event`：事件枚举值。
+- **返回值**：静态字符串，不需要释放。
+
+## 结构体、枚举与回调说明
+
+### 句柄类型
+
+```cpp
+typedef void* TcrClientHandle;
+typedef void* TcrSessionHandle;
+typedef void* TcrAndroidInstance;
+typedef void* TcrDataChannelHandle;
+typedef void* TcrVideoFrameHandle;
+```
+
+### 常量
+
+#### TCR_MAX_CONCURRENT_STREAMING_INSTANCES
+
+```cpp
+#define TCR_MAX_CONCURRENT_STREAMING_INSTANCES 500
+```
+
+- **说明**：多实例场景下允许同时拉流的实例数上限。
+
+### TcrErrorCode
+
+```cpp
+typedef enum {
+    TCR_SUCCESS = 0,
+    TCR_ERR_TIMEOUT = 100010,
+    TCR_ERR_INVALID_PARAMS = 100011,
+    TCR_ERR_UNKNOWN = 100012,
+    TCR_ERR_INTERNAL_ERROR = 100013,
+    TCR_ERR_STATE_ILLEGAL = 100014,
+    TCR_ERR_DATA_CHANNEL_BASE_CODE = 102000,
+    TCR_ERR_CREATE_FAILURE = 102001,
+    TCR_ERR_CLOSED = 102002,
+} TcrErrorCode;
+```
+
+| 枚举值 | 说明 |
+| ------ | ---- |
+| `TCR_SUCCESS` | 成功 |
+| `TCR_ERR_TIMEOUT` | 超时 |
+| `TCR_ERR_INVALID_PARAMS` | 参数无效 |
+| `TCR_ERR_UNKNOWN` | 未知错误 |
+| `TCR_ERR_INTERNAL_ERROR` | 内部错误 |
+| `TCR_ERR_STATE_ILLEGAL` | 状态非法 |
+| `TCR_ERR_CREATE_FAILURE` | 数据通道创建失败 |
+| `TCR_ERR_CLOSED` | 数据通道已关闭 |
+
+### TcrSdkType
+
+```cpp
+typedef enum {
+    CloudPhonePaas = 0,
+    CloudStream = 1
+} TcrSdkType;
+```
+
+### TcrMouseKeyType
+
+```cpp
+typedef enum {
+    TCR_MOUSE_KEY_LEFT = 0,
+    TCR_MOUSE_KEY_RIGHT = 1,
+    TCR_MOUSE_KEY_MIDDLE = 2,
+    TCR_MOUSE_KEY_FORWARD = 3,
+    TCR_MOUSE_KEY_BACKWARD = 4
+} TcrMouseKeyType;
+```
+
+### TcrCursorStyle
+
+```cpp
+typedef enum {
+    TCR_CURSOR_STYLE_NORMAL = 0,
+    TCR_CURSOR_STYLE_HUGE = 1
+} TcrCursorStyle;
+```
 
 ### TcrConfig
 
-会话配置信息结构体，通常由业务后台调用云API `CreateAndroidInstancesAccessToken` 获取。
-
-```c
+```cpp
 typedef struct {
     const char* token;
     const char* accessInfo;
+    TcrSdkType sdkType;
+    bool streamOpt;
+    bool hardwareDecode;
 } TcrConfig;
 ```
 
-- `token`：访问令牌字符串
-- `accessInfo`：访问信息字符串
+- **字段说明**：
+  - `token`：业务后台生成的访问令牌。
+  - `accessInfo`：业务后台返回的访问信息。
+  - `sdkType`：SDK 类型，默认 `CloudStream`。
+  - `streamOpt`：是否开启串流优化，仅测试场景使用。
+  - `hardwareDecode`：是否启用硬件解码。
+
+#### tcr_config_default
+
+```cpp
+TcrConfig tcr_config_default(void);
+```
+
+- **默认值**：
+  - `token = NULL`
+  - `accessInfo = NULL`
+  - `sdkType = CloudStream`
+  - `streamOpt = false`
+  - `hardwareDecode = false`
 
 ### TcrI420Buffer
 
-I420 (YUV420P) 格式的视频帧缓冲区，包含亮度和色度分量。
-
-```c
+```cpp
 typedef struct {
-    const uint8_t* data_y;    ///< 亮度(Y)分量数据指针
-    const uint8_t* data_u;    ///< 色度(U)分量数据指针
-    const uint8_t* data_v;    ///< 色度(V)分量数据指针
-    int32_t stride_y;         ///< Y分量的行跨度(字节数)
-    int32_t stride_u;         ///< U分量的行跨度(字节数)
-    int32_t stride_v;         ///< V分量的行跨度(字节数)
-    int32_t width;            ///< 视频帧的宽度(像素)
-    int32_t height;           ///< 视频帧的高度(像素)
+    const uint8_t* data_y;
+    const uint8_t* data_u;
+    const uint8_t* data_v;
+    int32_t stride_y;
+    int32_t stride_u;
+    int32_t stride_v;
+    int32_t width;
+    int32_t height;
 } TcrI420Buffer;
 ```
+
+### TcrVideoBufferType
+
+```cpp
+typedef enum {
+    TCR_VIDEO_BUFFER_TYPE_I420 = 0,
+    TCR_VIDEO_BUFFER_TYPE_D3D11 = 1
+} TcrVideoBufferType;
+```
+
+### TcrD3D11Buffer
+
+```cpp
+typedef struct {
+    void* texture;
+    void* device;
+    int32_t width;
+    int32_t height;
+    int32_t array_index;
+    int32_t format;
+} TcrD3D11Buffer;
+```
+
+- **说明**：
+  - `texture` 可按 `ID3D11Texture2D*` 使用。
+  - `device` 可按 `ID3D11Device*` 使用。
+  - SDK 当前保证纹理格式固定为 `DXGI_FORMAT_R8G8B8A8_UNORM`（值 `28`）。
+
 ### TcrVideoRotation
 
-视频旋转角度枚举。
-
-```c
+```cpp
 typedef enum {
-    TCR_VIDEO_ROTATION_0 = 0,    ///< 不旋转(0度)
-    TCR_VIDEO_ROTATION_90 = 90,  ///< 顺时针旋转90度
-    TCR_VIDEO_ROTATION_180 = 180,///< 旋转180度
-    TCR_VIDEO_ROTATION_270 = 270 ///< 顺时针旋转270度
+    TCR_VIDEO_ROTATION_0 = 0,
+    TCR_VIDEO_ROTATION_90 = 90,
+    TCR_VIDEO_ROTATION_180 = 180,
+    TCR_VIDEO_ROTATION_270 = 270
 } TcrVideoRotation;
 ```
 
+### TcrVideoFrameBuffer
+
+```cpp
+typedef struct TcrVideoFrameBuffer {
+    TcrVideoBufferType type;
+    union {
+        TcrI420Buffer i420;
+        TcrD3D11Buffer d3d11;
+    } buffer;
+    int64_t timestamp_us;
+    TcrVideoRotation rotation;
+    const char* instance_id;
+    int instance_index;
+} TcrVideoFrameBuffer;
+```
+
+- **说明**：
+  - `type` 用于区分软件解码的 `I420` 与硬件解码的 `D3D11`。
+  - 多流模式下可通过 `instance_id` 和 `instance_index` 区分来源。
+  - `rotation` 字段当前保留，业务应以实际画面处理策略为准。
+
 ### TcrVideoFrame
 
-视频帧结构体，包含视频帧数据和相关时间戳信息。
-
-```c
+```cpp
 typedef struct {
-    TcrI420Buffer i420_buffer;  ///< I420格式的视频数据缓冲区
-    int64_t timestamp_us;       ///< 视频帧时间戳(微秒)
-    TcrVideoRotation rotation;  ///< 视频帧需要旋转的角度
-    uint32_t timestamp_rtp;     ///< RTP时间戳(90kHz时钟)
-    int64_t ntp_time_ms;        ///< NTP网络时间戳(毫秒)
+    TcrVideoFrameBuffer frame_buffer;
+    int64_t timestamp_us;
+    TcrVideoRotation rotation;
 } TcrVideoFrame;
 ```
-### TcrUploadProgressCallback
 
-所有文件上传进度回调函数指针定义。
+### TcrVideoFrameCallback / TcrVideoFrameObserver
 
-```c
+```cpp
+typedef void (*TcrVideoFrameCallback)(void* user_data, TcrVideoFrameHandle frame_handle);
+
+typedef struct TcrVideoFrameObserver {
+    void* user_data;
+    TcrVideoFrameCallback on_frame;
+} TcrVideoFrameObserver;
+```
+
+#### tcr_video_frame_observer_default
+
+```cpp
+TcrVideoFrameObserver tcr_video_frame_observer_default(void);
+```
+
+- **默认值**：`user_data = NULL`，`on_frame = NULL`。
+
+### TcrStreamProfile
+
+```cpp
+typedef struct {
+    int32_t video_width;
+    int32_t video_height;
+    int32_t fps;
+    int32_t max_bitrate;
+    int32_t min_bitrate;
+} TcrStreamProfile;
+```
+
+### TcrSessionConfig
+
+```cpp
+typedef struct {
+    TcrStreamProfile stream_profile;
+    int32_t statsInterval;
+    const char* user_id;
+    bool enable_audio;
+    bool enable_hardware_decode;
+    int32_t concurrentStreamingInstances;
+} TcrSessionConfig;
+```
+
+- **字段说明**：
+  - `stream_profile`：初始拉流参数。
+  - `statsInterval`：`TCR_SESSION_EVENT_CLIENT_STATS` 回调间隔，范围通常为 `1-60` 秒。
+  - `user_id`：会话用户标识。
+  - `enable_audio`：是否启用音频。
+  - `enable_hardware_decode`：是否启用硬件解码。
+  - `concurrentStreamingInstances`：多流模式下允许同时拉流的最大实例数。
+
+#### tcr_session_config_default
+
+```cpp
+TcrSessionConfig tcr_session_config_default(void);
+```
+
+- **默认值**：
+  - `stream_profile.video_width = -1`
+  - `stream_profile.video_height = -1`
+  - `stream_profile.fps = 0`
+  - `stream_profile.max_bitrate = 0`
+  - `stream_profile.min_bitrate = 0`
+  - `user_id = NULL`
+  - `enable_audio = true`
+  - `enable_hardware_decode = false`
+  - `statsInterval = 1`
+  - `concurrentStreamingInstances = 1`
+
+### TcrUploadProgressCallback / TcrUploadCallback
+
+```cpp
 typedef void (*TcrUploadProgressCallback)(
     const char* instance_id,
     double total_bytes,
     double transferred_bytes,
-    void* user_data);
-```
+    void* user_data
+);
 
-- `instance_id`：当前操作的实例ID
-- `total_bytes`：文件总大小（字节）
-- `transferred_bytes`：已传输的大小（字节）
-- `user_data`：用户自定义数据指针
-
-### TcrUploadCallback
-
-上传回调结构体，包含进度回调函数和用户数据。
-
-```c
 typedef struct {
     TcrUploadProgressCallback on_progress;
     void* user_data;
 } TcrUploadCallback;
 ```
 
-- `on_progress`：进度回调函数指针
-- `user_data`：用户自定义数据指针
-**示例代码**
-```c
-void my_upload_progress(const char* instance_id, double total, double transferred, void* user_data) {
-    // 处理上传进度
-}
-TcrUploadCallback upload_cb = { .on_progress = my_upload_progress, .user_data = NULL };
+### TcrVideoConfig
+
+```cpp
+typedef struct TcrVideoConfig {
+    int width;
+    int height;
+    int max_fps;
+    int max_bitrate_bps;
+    const char* device_id;
+} TcrVideoConfig;
 ```
+
+#### tcr_video_config_default
+
+```cpp
+TcrVideoConfig tcr_video_config_default(void);
+```
+
+- **默认值**：
+  - `width = 640`
+  - `height = 480`
+  - `max_fps = 30`
+  - `max_bitrate_bps = 1000000`
+  - `device_id = NULL`
+
+### TcrVideoCapability / TcrCameraDeviceInfo
+
+```cpp
+typedef struct TcrVideoCapability {
+    int width;
+    int height;
+} TcrVideoCapability;
+
+typedef struct TcrCameraDeviceInfo {
+    char device_name[256];
+    char device_id[256];
+    TcrVideoCapability capabilities[16];
+    int capability_count;
+} TcrCameraDeviceInfo;
+```
+
+### TcrMicrophoneDeviceInfo / TcrMicrophoneConfig
+
+```cpp
+typedef struct TcrMicrophoneDeviceInfo {
+    char device_name[128];
+    char device_id[128];
+} TcrMicrophoneDeviceInfo;
+
+typedef struct TcrMicrophoneConfig {
+    char device_id[128];
+} TcrMicrophoneConfig;
+```
+
+### TcrDataChannelObserver
+
+```cpp
+typedef struct TcrDataChannelObserver {
+    void* user_data;
+    void (*on_connected)(void* user_data, const int32_t port);
+    void (*on_error)(void* user_data, const int32_t port, const TcrErrorCode& code, const char* msg);
+    void (*on_message)(void* user_data, const int32_t port, const uint8_t* data, size_t size);
+} TcrDataChannelObserver;
+```
+
+#### tcr_data_channel_observer_default
+
+```cpp
+TcrDataChannelObserver tcr_data_channel_observer_default(void);
+```
+
+- **默认值**：所有回调与 `user_data` 均初始化为 `NULL`。
+
+### TcrSessionObserver
+
+```cpp
+typedef struct TcrSessionObserver {
+    void* user_data;
+    void (*on_event)(void* user_data, TcrSessionEvent event, const char* eventData);
+    void (*on_instance_event)(void* user_data, const char* instanceId, TcrSessionEvent event, const char* eventData);
+} TcrSessionObserver;
+```
+
+#### tcr_session_observer_default
+
+```cpp
+TcrSessionObserver tcr_session_observer_default(void);
+```
+
+- **默认值**：`user_data = NULL`，所有回调为 `NULL`。
 
 ### TcrSessionEvent
 
-会话事件类型枚举，定义了客户端与云端会话过程中可能产生的所有事件类型。
-
-```c
+```cpp
 typedef enum {
+    TCR_SESSION_EVENT_UNDEFINED = -1,
     TCR_SESSION_EVENT_STATE_INITED = 0,
     TCR_SESSION_EVENT_STATE_CONNECTED = 1,
     TCR_SESSION_EVENT_STATE_CLOSED = 2,
@@ -784,16 +1757,40 @@ typedef enum {
     TCR_SESSION_EVENT_SYSTEM_USAGE = 9,
     TCR_SESSION_EVENT_CLIPBOARD_EVENT = 10,
     TCR_SESSION_EVENT_NOTIFICATION_EVENT = 11,
-    TCR_SESSION_EVENT_IME_STATUS_CHANGE = 12
+    TCR_SESSION_EVENT_IME_STATUS_CHANGE = 12,
+    TCR_SESSION_EVENT_REMOTE_DESKTOP_INFO = 13,
+    TCR_SESSION_EVENT_RECONNECTING = 14,
+    TCR_SESSION_EVENT_STREAMING_DISCONNECT = 15,
+    TCR_SESSION_EVENT_STREAMING_SWITCH_FAILED = 16,
+    TCR_SESSION_EVENT_SERVER_STREAMING_STARTED = 17,
 } TcrSessionEvent;
 ```
 
-> 具体每个事件的 JSON 数据结构详见头文件注释。
-### TcrLogLevel
+| 事件 | 说明 | `eventData` 结构 |
+| ---- | ---- | ---------------- |
+| `TCR_SESSION_EVENT_UNDEFINED` | 未定义事件 | - |
+| `TCR_SESSION_EVENT_STATE_INITED` | 会话初始化完成（已废弃状态） | - |
+| `TCR_SESSION_EVENT_STATE_CONNECTED` | 会话已连接 | - |
+| `TCR_SESSION_EVENT_STATE_CLOSED` | 会话关闭 | 关闭原因字符串 |
+| `TCR_SESSION_EVENT_CLIENT_STATS` | 客户端性能统计 | JSON，包含 `bitrate`、`fps`、`rtt`、丢包、收发包等字段 |
+| `TCR_SESSION_EVENT_SCREEN_CONFIG_CHANGE` | 云端屏幕配置变化 | JSON，包含 `degree`、`width`、`height` |
+| `TCR_SESSION_EVENT_REQUEST_STREAMING_STATUS` | 请求视频流状态结果 | JSON，包含 `user`、`code`、`status` |
+| `TCR_SESSION_EVENT_HIT_INPUT` | 输入框状态变化 | JSON，包含 `field_type`、`text` |
+| `TCR_SESSION_EVENT_CAMERA_STATUS` | 云端摄像头状态变化 | JSON，包含 `status`、`width`、`height` |
+| `TCR_SESSION_EVENT_TRANSMISSION_MESSAGE` | 收到云端透传消息 | JSON，包含 `package_name`、`msg` |
+| `TCR_SESSION_EVENT_SYSTEM_USAGE` | 云端系统资源使用率 | JSON，包含 `cpu_usage`、`mem_usage`、`gpu_usage` |
+| `TCR_SESSION_EVENT_CLIPBOARD_EVENT` | 云端剪贴板变化 | JSON，包含 `text` |
+| `TCR_SESSION_EVENT_NOTIFICATION_EVENT` | 新通知事件 | JSON，包含 `package_name`、`title`、`text` |
+| `TCR_SESSION_EVENT_IME_STATUS_CHANGE` | 输入法状态变化 | JSON，包含 `ime_type`（`cloud` / `local`） |
+| `TCR_SESSION_EVENT_REMOTE_DESKTOP_INFO` | 云桌面屏幕信息 | JSON，包含 `screen_width`、`screen_height`、`screen_left`、`screen_top` |
+| `TCR_SESSION_EVENT_RECONNECTING` | 正在重连 | 无数据 |
+| `TCR_SESSION_EVENT_STREAMING_DISCONNECT` | 多流场景实例断开 | JSON，包含 `user_list` |
+| `TCR_SESSION_EVENT_STREAMING_SWITCH_FAILED` | 多流切流失败 | JSON，包含 `failed_list` |
+| `TCR_SESSION_EVENT_SERVER_STREAMING_STARTED` | 服务端开始推流 | 无数据 |
 
-日志级别枚举。
+### TcrLogLevel / TcrLogCallback
 
-```c
+```cpp
 typedef enum TcrLogLevel {
     TCR_LOG_LEVEL_TRACE = 0,
     TCR_LOG_LEVEL_DEBUG = 1,
@@ -801,26 +1798,14 @@ typedef enum TcrLogLevel {
     TCR_LOG_LEVEL_WARN  = 3,
     TCR_LOG_LEVEL_ERROR = 4
 } TcrLogLevel;
-```
 
-### TcrLogCallback
-
-日志回调结构体。
-
-```c
 typedef struct TcrLogCallback {
     void* user_data;
     void (*on_log)(void* user_data, TcrLogLevel level, const char* tag, const char* log);
 } TcrLogCallback;
 ```
 
-- `user_data`：用户自定义数据指针
-- `on_log`：日志回调函数指针，参数为用户数据、日志级别、日志标签、日志内容
-**示例代码**
-```c
-void my_log_callback(void* user_data, TcrLogLevel level, const char* tag, const char* log) {
-    // 处理日志
-}
-TcrLogCallback log_cb = { .user_data = NULL, .on_log = my_log_callback };
-tcr_set_log_callback(&log_cb);
-```
+## 备注
+
+- 上传类接口返回中的错误信息字段，文档示例中可能出现 `Msg` 或 `Message`，以实际返回数据为准。
+- 如需查看更多任务返回样例、事件 JSON 细节或渲染实现说明，请结合头文件注释一并参考。
