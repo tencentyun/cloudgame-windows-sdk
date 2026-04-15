@@ -3,6 +3,22 @@
 <!-- FORMAT_VERSION: 1.0 -->
 
 ---
+## [1.22.13] - 2026-04-15
+
+### Bugfix
+- 修复云手机PaaS环境拉流失败问题
+
+
+### Download
+
+| Platform | Arch | Package |
+|----------|------|---------|
+| Windows | x86 & x64 | [TcrSdk-Windows-Debug-1.22.13-20260415-23f0abfa.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Windows-Debug-1.22.13-20260415-23f0abfa.zip) |
+| Windows | x86 & x64 | [TcrSdk-Windows-Release-1.22.13-20260415-23f0abfa.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Windows-Release-1.22.13-20260415-23f0abfa.zip) |
+| Macos | universal | [TcrSdk-Macos-universal-1.22.13-20260415-23f0abfa.zip](https://cg-sdk-1258344699.cos.ap-nanjing.myqcloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Macos-universal-1.22.13-20260415-23f0abfa.zip) |
+| Linux | x86_64 | [TcrSdk-Linux-x86_64-1.22.13-20260415-23f0abfa.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Linux-x86_64-1.22.13-20260415-23f0abfa.zip) |
+
+---
 ## [1.22.11] - 2026-04-01
 
 ### Bugfix
