@@ -19,7 +19,7 @@ Logger* Logger::instance() {
 }
 
 Logger::Logger()
-    : m_logLevel(DEBUG), m_logToFile(false), m_stopThread(false), m_logThread(nullptr)
+    : m_logLevel(LOG_DEBUG), m_logToFile(false), m_stopThread(false), m_logThread(nullptr)
 {
     startLogThread();
 }
@@ -157,10 +157,10 @@ void Logger::logWriterLoop() {
                 const LogMsg& msg = m_logQueue.front();
                 QString levelStr;
                 switch(msg.level) {
-                    case DEBUG: levelStr = "DEBUG"; break;
-                    case INFO: levelStr = "INFO "; break;
-                    case WARNING: levelStr = "WARN "; break;
-                    case ERROR: levelStr = "ERROR"; break;
+                    case LOG_DEBUG: levelStr = "DEBUG"; break;
+                    case LOG_INFO: levelStr = "INFO "; break;
+                    case LOG_WARNING: levelStr = "WARN "; break;
+                    case LOG_ERROR: levelStr = "ERROR"; break;
                 }
                 QString logMsg = QString("[%1] [%2] [%3] %4")
                     .arg(msg.timeStr)
@@ -216,7 +216,7 @@ void Logger::stopLogThread() {
     }
 }
 
-void Logger::debug(const QString& message) { instance()->log(DEBUG, message); }
-void Logger::info(const QString& message) { instance()->log(INFO, message); }
-void Logger::warning(const QString& message) { instance()->log(WARNING, message); }
-void Logger::error(const QString& message) { instance()->log(ERROR, message); }
+void Logger::debug(const QString& message) { instance()->log(LOG_DEBUG, message); }
+void Logger::info(const QString& message) { instance()->log(LOG_INFO, message); }
+void Logger::warning(const QString& message) { instance()->log(LOG_WARNING, message); }
+void Logger::error(const QString& message) { instance()->log(LOG_ERROR, message); }

@@ -15,10 +15,10 @@ class Logger : public QObject
     Q_OBJECT
 public:
     enum LogLevel {
-        DEBUG,
-        INFO,
-        WARNING,
-        ERROR
+        LOG_DEBUG,
+        LOG_INFO,
+        LOG_WARNING,
+        LOG_ERROR
     };
 
     static void globalInit();
