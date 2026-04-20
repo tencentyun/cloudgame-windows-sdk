@@ -1,9 +1,11 @@
 #include "http_client.h"
+
 #include <array>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <sstream>
+
 #include "logger.h"
 
 #if defined(_WIN32)

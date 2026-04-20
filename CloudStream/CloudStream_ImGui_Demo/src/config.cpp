@@ -1,7 +1,9 @@
 #include "config.h"
+
 #include <fstream>
 #include <nlohmann/json.hpp>
 #include <sstream>
+
 #include "logger.h"
 
 bool AppConfig::load(const std::string& config_path) {

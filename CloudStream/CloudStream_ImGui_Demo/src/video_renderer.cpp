@@ -1,5 +1,7 @@
 #include "video_renderer.h"
+
 #include <cstring>
+
 #include "logger.h"
 
 VideoRenderer::VideoRenderer() {}

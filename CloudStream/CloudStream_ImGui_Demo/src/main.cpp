@@ -3,12 +3,12 @@
 // Windows: SDL2 + D3D11 + ImGui
 // macOS/Linux: SDL2 + OpenGL3 + ImGui
 
-#include "app.h"
-#include "logger.h"
-
-#include <SDL.h>
 #include <imgui.h>
 #include <imgui_impl_sdl2.h>
+#include <SDL.h>
+
+#include "app.h"
+#include "logger.h"
 
 #if defined(RENDERER_D3D11)
 // ======= Windows: D3D11 =======

@@ -1,10 +1,11 @@
 #include "app.h"
-#include "http_client.h"
-#include "logger.h"
 
-#include <SDL.h>
 #include <imgui.h>
 #include <imgui_impl_sdl2.h>
+#include <SDL.h>
+
+#include "http_client.h"
+#include "logger.h"
 #if defined(RENDERER_D3D11)
 #  include <imgui_impl_dx11.h>
 #else
@@ -16,15 +17,15 @@
 #  endif
 #endif
 
-#include "tcr_c_api.h"
-#include "tcr_types.h"
-
 #include <algorithm>
 #include <cstring>
 #include <fstream>
 #include <nlohmann/json.hpp>
 #include <sstream>
 #include <thread>
+
+#include "tcr_c_api.h"
+#include "tcr_types.h"
 
 // =============================================================================
 // Lifecycle

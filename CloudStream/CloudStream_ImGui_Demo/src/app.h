@@ -1,5 +1,7 @@
 #pragma once
 
+#include <SDL.h>
+
 #include <atomic>
 #include <cstdint>
 #include <map>
@@ -8,11 +10,10 @@
 #include <set>
 #include <string>
 #include <vector>
+
 #include "config.h"
 #include "frame_queue.h"
 #include "video_renderer.h"
-
-#include <SDL.h>
 
 struct SDL_Window;
 union SDL_Event;
