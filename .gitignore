@@ -3,5 +3,8 @@
 **/*.pdb
 **/*.lib
 
+# 忽略 .DS_Store
+**/.DS_Store
+
 # 忽略构建目录
-CloudStream/QtQuick_Demo/build/**
+**/build/**
