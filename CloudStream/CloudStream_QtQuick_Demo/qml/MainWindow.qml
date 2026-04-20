@@ -56,6 +56,11 @@ Window {
     property bool isAllSelected: false              // 是否全选状态
     property bool isUpdatingCheckboxes: false       // 正在批量更新复选框状态
     
+    // 拖拽选择状态
+    property bool isDragSelecting: false            // 是否处于拖拽选择模式
+    property bool dragSelectTargetState: true       // 拖拽选择的目标状态（true=选中, false=取消）
+    property var dragSelectedIds: []                // 本次拖拽已处理过的实例ID
+    
     // 视图模型
     property MultiStreamViewModel multiInstanceViewModel: MultiStreamViewModel {}
     
@@ -356,6 +361,56 @@ Window {
         
         // 显示提示信息
         copySuccessToast.show();
+    }
+
+    /**
+     * 根据鼠标在 GridView 覆盖层上的坐标，计算对应卡片的实例ID
+     * @param mouseX 鼠标X坐标（相对于覆盖层/GridView）
+     * @param mouseY 鼠标Y坐标（相对于覆盖层/GridView）
+     * @return 实例ID字符串，如果坐标不在任何卡片上则返回 ""
+     */
+    function getInstanceIdAtPosition(mouseX, mouseY) {
+        var cellW = videoGridView.cellWidth;
+        var cellH = videoGridView.cellHeight;
+        if (cellW <= 0 || cellH <= 0) return "";
+        
+        // 加上 GridView 的滚动偏移
+        var contentX = mouseX;
+        var contentY = mouseY + videoGridView.contentY;
+        
+        var col = Math.floor(contentX / cellW);
+        var row = Math.floor(contentY / cellH);
+        var cols = viewSizeColumns[viewSize];
+        
+        if (col < 0 || col >= cols) return "";
+        
+        var index = row * cols + col;
+        if (index < 0 || index >= instanceConfigs.length) return "";
+        
+        return instanceConfigs[index].instanceId;
+    }
+    
+    /**
+     * 对指定实例应用拖拽选择状态
+     * @param instanceId 实例ID
+     */
+    function applyDragSelection(instanceId) {
+        if (!instanceId || instanceId === "") return;
+        
+        // 已经处理过的实例不再重复处理
+        if (dragSelectedIds.indexOf(instanceId) !== -1) return;
+        
+        // 记录已处理
+        var newDragIds = dragSelectedIds.slice();
+        newDragIds.push(instanceId);
+        dragSelectedIds = newDragIds;
+        
+        // 应用选择状态
+        var previousCheckedIds = checkedInstanceIds.slice();
+        var newCheckedIds = updateCheckedInstances(instanceId, dragSelectTargetState);
+        if (newCheckedIds !== null) {
+            checkedInstanceIds = newCheckedIds;
+        }
     }
 
     // ============================================
@@ -664,14 +719,6 @@ Window {
                 }
             }
             
-            // 点击事件处理
-            MouseArea {
-                anchors.fill: parent
-                onClicked: {
-                    createSingleInstanceWindow(videoCell.instanceId);
-                }
-            }
-            
             // 视频渲染项
             VideoRenderItem {
                 id: videoRenderItem
@@ -823,6 +870,105 @@ Window {
                     }
                 }
             }
+        }
+    }
+    
+    // 拖拽选择覆盖层 - 长按并拖拽可批量选中/取消卡片
+    MouseArea {
+        id: dragSelectOverlay
+        anchors.fill: videoGridView
+        z: 1
+        
+        // 不拦截滚轮事件，让 GridView 处理滚动
+        propagateComposedEvents: true
+        
+        // 长按标记
+        property bool longPressTriggered: false
+        // 按下时的起始位置
+        property real pressStartX: 0
+        property real pressStartY: 0
+        
+        // 长按定时器
+        Timer {
+            id: longPressTimer
+            interval: 300
+            repeat: false
+            onTriggered: {
+                dragSelectOverlay.longPressTriggered = true;
+                isDragSelecting = true;
+                dragSelectedIds = [];
+                
+                // 确定起始卡片及目标状态
+                var instanceId = getInstanceIdAtPosition(
+                    dragSelectOverlay.pressStartX, 
+                    dragSelectOverlay.pressStartY
+                );
+                if (instanceId !== "") {
+                    // 如果起始卡片已选中，则本次拖拽为取消选中；反之为选中
+                    var isCurrentlyChecked = checkedInstanceIds.indexOf(instanceId) !== -1;
+                    dragSelectTargetState = !isCurrentlyChecked;
+                    applyDragSelection(instanceId);
+                }
+            }
+        }
+        
+        onPressed: {
+            longPressTriggered = false;
+            pressStartX = mouse.x;
+            pressStartY = mouse.y;
+            longPressTimer.restart();
+        }
+        
+        onPositionChanged: {
+            if (isDragSelecting) {
+                var instanceId = getInstanceIdAtPosition(mouse.x, mouse.y);
+                if (instanceId !== "") {
+                    applyDragSelection(instanceId);
+                }
+            }
+        }
+        
+        onReleased: {
+            longPressTimer.stop();
+            
+            if (isDragSelecting) {
+                // 拖拽选择结束，同步到同步窗口
+                isDragSelecting = false;
+                syncToSyncWindow();
+                mouse.accepted = true;
+            } else if (!longPressTriggered) {
+                // 普通点击 — 打开单实例窗口
+                var instanceId = getInstanceIdAtPosition(mouse.x, mouse.y);
+                if (instanceId !== "") {
+                    createSingleInstanceWindow(instanceId);
+                }
+                mouse.accepted = true;
+            }
+            
+            longPressTriggered = false;
+            dragSelectedIds = [];
+        }
+        
+        onCanceled: {
+            longPressTimer.stop();
+            isDragSelecting = false;
+            longPressTriggered = false;
+            dragSelectedIds = [];
+        }
+        
+        onWheel: {
+            // 将滚轮事件转发给 GridView
+            var delta = wheel.angleDelta.y;
+            videoGridView.contentY = Math.max(
+                0, 
+                Math.min(
+                    videoGridView.contentHeight - videoGridView.height,
+                    videoGridView.contentY - delta
+                )
+            );
+            videoGridView.returnToBounds();
+            scrollStopTimer.restart();
+            wheel.accepted = true;
         }
     }
     
