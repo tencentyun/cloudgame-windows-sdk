@@ -1,11 +1,9 @@
 #ifndef CRASHDUMPHANDLER_H
 #define CRASHDUMPHANDLER_H
 
-#include <atomic>
-#include <mutex>
-#include <QString>
-
-// Prevent Windows macros from polluting the global namespace
+// Windows headers must be included before any Qt or STL headers to ensure
+// NOMINMAX and WIN32_LEAN_AND_MEAN take effect before the first windows.h inclusion.
+// dbghelp.h requires windows.h to be included first for HANDLE, BOOL, CALLBACK etc.
 #ifndef NOMINMAX
 #  define NOMINMAX
 #endif
@@ -14,13 +12,17 @@
 #  define WIN32_LEAN_AND_MEAN
 #endif
 
+#include <windows.h>
+#include <dbghelp.h>
+
 // Undefine problematic Windows macros that conflict with common identifiers
 #ifdef ERROR
 #  undef ERROR
 #endif
 
-#include <dbghelp.h>
-#include <windows.h>
+#include <atomic>
+#include <mutex>
+#include <QString>
 
 /**
  * @brief 崩溃转储处理类

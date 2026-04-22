@@ -1,3 +1,9 @@
+// CrashDumpHandler must be included first on Windows to ensure windows.h is
+// included with NOMINMAX and WIN32_LEAN_AND_MEAN before any Qt headers do it.
+#ifdef _WIN32
+#  include "utils/CrashDumpHandler.h"
+#endif
+
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
@@ -6,9 +12,6 @@
 #include "services/ApiService.h"
 #include "services/NetworkService.h"
 #include "utils/Logger.h"
-#ifdef _WIN32
-#  include "utils/CrashDumpHandler.h"
-#endif
 #include "core/AppConfig.h"
 #include "core/StreamConfig.h"
 #include "core/video/VideoRenderItem.h"
