@@ -22,8 +22,8 @@ Window {
     property string token: ""                       // 认证令牌
     
     // 视图大小配置
-    property int viewSize: 1                        // 视图大小: 0=小(30列), 1=中(10列), 2=大(5列)
-    property var viewSizeColumns: [20, 10, 5]       // 对应每种视图的列数
+    property int viewSize: 2                        // 视图大小: 0=超小(40列),1=小(30列), 2=中(10列), 3=大(5列)
+    property var viewSizeColumns: [40, 20, 10, 5]       // 对应每种视图的列数
     
     // 监听视图大小变化，触发可见性检测
     onViewSizeChanged: {
@@ -115,8 +115,8 @@ Window {
         // 计算GridView可用高度（减去顶部控制栏和底部状态栏）
         var gridViewHeight = multiInstanceWindow.height - 100;  // 预估顶部和底部占用约100像素
         
-        // 计算可见行数（向上取整确保覆盖部分可见的行，再加1行预加载）
-        var visibleRows = Math.ceil(gridViewHeight / cellH) + 1;
+        // 计算可见行数（向上取整确保覆盖部分可见的行）
+        var visibleRows = Math.ceil(gridViewHeight / cellH);
         
         // 计算每页可见的实例数量
         var visibleInstances = visibleRows * cols;
