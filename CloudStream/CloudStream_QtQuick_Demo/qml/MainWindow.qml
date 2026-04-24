@@ -115,8 +115,8 @@ Window {
         // 计算GridView可用高度（减去顶部控制栏和底部状态栏）
         var gridViewHeight = multiInstanceWindow.height - 100;  // 预估顶部和底部占用约100像素
         
-        // 计算可见行数（向上取整确保覆盖部分可见的行）
-        var visibleRows = Math.ceil(gridViewHeight / cellH);
+        // 计算可见行数（向上取整确保覆盖部分可见的行, 额外多1行预加载）
+        var visibleRows = Math.ceil(gridViewHeight / cellH) + 1;
         
         // 计算每页可见的实例数量
         var visibleInstances = visibleRows * cols;
