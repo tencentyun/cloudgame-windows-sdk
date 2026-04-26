@@ -54,12 +54,15 @@ Window {
     
     // 全选状态
     property bool isAllSelected: false              // 是否全选状态
-    property bool isUpdatingCheckboxes: false       // 正在批量更新复选框状态
     
     // 拖拽选择状态
     property bool isDragSelecting: false            // 是否处于拖拽选择模式
     property bool dragSelectTargetState: true       // 拖拽选择的目标状态（true=选中, false=取消）
-    property var dragSelectedIds: []                // 本次拖拽已处理过的实例ID
+    property var dragPreCheckedIds: []              // 拖拽开始前的选中快照
+    property real dragStartX: 0                     // 拖拽框起始X（屏幕坐标）
+    property real dragStartY: 0                     // 拖拽框起始Y（屏幕坐标）
+    property real dragEndX: 0                       // 拖拽框结束X（屏幕坐标）
+    property real dragEndY: 0                       // 拖拽框结束Y（屏幕坐标）
     
     // 视图模型
     property MultiStreamViewModel multiInstanceViewModel: MultiStreamViewModel {}
@@ -76,8 +79,6 @@ Window {
         
         function onClientStatsChanged() {
             // 统计数据更新
-            // 可以在这里解析 JSON 并更新 UI
-            // console.log("统计数据更新:", multiInstanceViewModel.clientStats);
         }
     }
 
@@ -87,8 +88,6 @@ Window {
     
     /**
      * 计算实例配置
-     * @param instanceIdList 实例ID列表
-     * @return 实例配置数组，包含instanceId和instanceIndex
      */
     function calculateInstanceConfigs(instanceIdList) {
         var configs = [];
@@ -103,22 +102,13 @@ Window {
     
     /**
      * 计算每页可见的实例数量
-     * @return 每页可见的实例数量（GridView可视区域内的格子数）
      */
     function calculateVisibleInstancesPerPage() {
         var cols = viewSizeColumns[viewSize];
-        
-        // 计算单元格尺寸
         var cellW = (multiInstanceWindow.width - 20) / cols;
         var cellH = cellW * 240 / 135;
-        
-        // 计算GridView可用高度（减去顶部控制栏和底部状态栏）
-        var gridViewHeight = multiInstanceWindow.height - 100;  // 预估顶部和底部占用约100像素
-        
-        // 计算可见行数（向上取整确保覆盖部分可见的行, 额外多1行预加载）
+        var gridViewHeight = multiInstanceWindow.height - 100;
         var visibleRows = Math.ceil(gridViewHeight / cellH) + 1;
-        
-        // 计算每页可见的实例数量
         var visibleInstances = visibleRows * cols;
         
         console.log("[calculateVisibleInstancesPerPage] 列数:", cols, "单元格高度:", cellH, 
@@ -129,7 +119,6 @@ Window {
     
     /**
      * 创建同步窗口（单例模式）
-     * @param targetInstanceIds 目标实例ID列表
      */
     function createSyncWindow(targetInstanceIds) {
         if (!targetInstanceIds || targetInstanceIds.length === 0) {
@@ -137,48 +126,36 @@ Window {
             return;
         }
         
-        // 如果同步窗口已存在，直接显示并更新实例列表
         if (syncWindow) {
             syncWindow.show();
             syncWindow.raise && syncWindow.raise();
             syncWindow.requestActivate && syncWindow.requestActivate();
-            
-            // 更新视图模型的实例列表
             if (syncViewModel) {
                 syncViewModel.updateCheckedInstanceIds(targetInstanceIds);
             }
             return;
         }
         
-        // 创建新的同步视图模型
         syncViewModel = Qt.createQmlObject(
             'import CustomComponents 1.0; StreamingViewModel {}', 
             multiInstanceWindow
         );
         syncViewModel.connectSession(targetInstanceIds, true);
         
-        // 创建窗口
         var window = createWindow(syncViewModel);
         if (!window) return;
         
         syncWindow = window;
         
-        // 绑定窗口关闭事件
         syncWindow.closing.connect(function() {
             console.log("同步窗口关闭");
-            
-            // 1. 关闭会话，释放TcrSdk资源
             if (syncViewModel && syncViewModel.closeSession) {
                 syncViewModel.closeSession();
             }
-            
-            // 2. 销毁视图模型
             if (syncViewModel) {
                 syncViewModel.destroy();
                 syncViewModel = null;
             }
-            
-            // 3. 销毁窗口
             if (syncWindow) {
                 syncWindow.destroy();
                 syncWindow = null;
@@ -188,7 +165,6 @@ Window {
     
     /**
      * 创建单实例窗口
-     * @param instanceId 实例ID
      */
     function createSingleInstanceWindow(instanceId) {
         if (!instanceId) {
@@ -196,7 +172,6 @@ Window {
             return;
         }
         
-        // 如果窗口已存在，直接显示
         if (singleInstanceWindows[instanceId]) {
             var existingWindow = singleInstanceWindows[instanceId];
             existingWindow.show();
@@ -205,14 +180,12 @@ Window {
             return;
         }
         
-        // 创建新的视图模型
         var viewModel = Qt.createQmlObject(
             'import CustomComponents 1.0; StreamingViewModel {}', 
             multiInstanceWindow
         );
         viewModel.connectSession([instanceId], false);
         
-        // 创建窗口
         var window = createWindow(viewModel);
         if (!window) return;
         
@@ -221,38 +194,26 @@ Window {
             viewModel: viewModel
         };
         
-        // 绑定窗口关闭事件
         window.closing.connect(function() {
             console.log("单实例窗口关闭:", instanceId);
-            
-            // 获取窗口信息
             var windowInfo = singleInstanceWindows[instanceId];
             if (windowInfo) {
-                // 1. 关闭会话，释放TcrSdk资源
                 if (windowInfo.viewModel && windowInfo.viewModel.closeSession) {
                     windowInfo.viewModel.closeSession();
                 }
-                
-                // 2. 销毁视图模型
                 if (windowInfo.viewModel) {
                     windowInfo.viewModel.destroy();
                 }
-                
-                // 3. 销毁窗口
                 if (windowInfo.window) {
                     windowInfo.window.destroy();
                 }
             }
-            
-            // 4. 清除引用
             delete singleInstanceWindows[instanceId];
         });
     }
     
     /**
      * 创建窗口的通用方法
-     * @param viewModel 视图模型
-     * @return 创建的窗口对象，失败返回null
      */
     function createWindow(viewModel) {
         var component = Qt.createComponent("StreamingWindow.qml");
@@ -269,37 +230,10 @@ Window {
     }
     
     /**
-     * 更新选中的实例ID列表
-     * @param instanceId 实例ID
-     * @param isChecked 是否选中
-     * @return 更新后的选中列表，如果操作被阻止则返回null
-     */
-    function updateCheckedInstances(instanceId, isChecked) {
-        var newCheckedIds = checkedInstanceIds.slice(); // 创建副本
-        
-        if (isChecked) {
-            // 添加到选中列表
-            if (newCheckedIds.indexOf(instanceId) === -1) {
-                newCheckedIds.push(instanceId);
-            }
-        } else {
-            // 从选中列表移除
-            var idx = newCheckedIds.indexOf(instanceId);
-            if (idx !== -1) {
-                newCheckedIds.splice(idx, 1);
-            }
-        }
-        
-        return newCheckedIds;
-    }
-    
-    /**
-     * @brief 同步更新同步窗口的选中实例列表
-     * @param previousCheckedIds 之前选中的实例ID列表（可选）
+     * 同步更新同步窗口的选中实例列表
      */
     function syncToSyncWindow(previousCheckedIds) {
         if (syncViewModel && syncViewModel.updateCheckedInstanceIds) {
-            // 计算新增的实例列表
             var addedIds = [];
             if (previousCheckedIds) {
                 for (var i = 0; i < checkedInstanceIds.length; i++) {
@@ -309,7 +243,6 @@ Window {
                     }
                 }
             }
-            
             syncViewModel.updateCheckedInstanceIds(checkedInstanceIds, addedIds);
         }
     }
@@ -320,25 +253,14 @@ Window {
     function toggleSelectAll() {
         var previousCheckedIds = checkedInstanceIds.slice();
         
-        // 设置更新标志，防止 CheckBox 的 onCheckedChanged 触发
-        isUpdatingCheckboxes = true;
-        
         if (isAllSelected) {
-            // 取消全选
             checkedInstanceIds = [];
             isAllSelected = false;
         } else {
-            // 全选
             checkedInstanceIds = instanceIds.slice();
             isAllSelected = true;
         }
         
-        // 延迟重置更新标志，让所有 CheckBox 完成状态更新
-        Qt.callLater(function() {
-            isUpdatingCheckboxes = false;
-        });
-        
-        // 同步到同步窗口
         syncToSyncWindow(previousCheckedIds);
     }
 
@@ -351,30 +273,20 @@ Window {
             return;
         }
         
-        // 使用逗号分隔实例ID
         var idsText = checkedInstanceIds.join(",");
-        
-        // 通过C++接口复制到剪贴板（确保Windows兼容性）
         multiInstanceViewModel.copyToClipboard(idsText);
-        
         console.log("已复制实例ID:", idsText);
-        
-        // 显示提示信息
         copySuccessToast.show();
     }
 
     /**
-     * 根据鼠标在 GridView 覆盖层上的坐标，计算对应卡片的实例ID
-     * @param mouseX 鼠标X坐标（相对于覆盖层/GridView）
-     * @param mouseY 鼠标Y坐标（相对于覆盖层/GridView）
-     * @return 实例ID字符串，如果坐标不在任何卡片上则返回 ""
+     * 根据鼠标在覆盖层上的坐标，计算对应卡片的实例ID
      */
     function getInstanceIdAtPosition(mouseX, mouseY) {
         var cellW = videoGridView.cellWidth;
         var cellH = videoGridView.cellHeight;
         if (cellW <= 0 || cellH <= 0) return "";
         
-        // 加上 GridView 的滚动偏移
         var contentX = mouseX;
         var contentY = mouseY + videoGridView.contentY;
         
@@ -391,26 +303,76 @@ Window {
     }
     
     /**
-     * 对指定实例应用拖拽选择状态
-     * @param instanceId 实例ID
+     * 判断点击位置是否在卡片右上角的 CheckBox 区域
      */
-    function applyDragSelection(instanceId) {
-        if (!instanceId || instanceId === "") return;
+    function isClickOnCheckBox(mouseX, mouseY) {
+        var cellW = videoGridView.cellWidth;
+        var cellH = videoGridView.cellHeight;
+        if (cellW <= 0 || cellH <= 0) return false;
         
-        // 已经处理过的实例不再重复处理
-        if (dragSelectedIds.indexOf(instanceId) !== -1) return;
+        var contentX = mouseX;
+        var contentY = mouseY + videoGridView.contentY;
         
-        // 记录已处理
-        var newDragIds = dragSelectedIds.slice();
-        newDragIds.push(instanceId);
-        dragSelectedIds = newDragIds;
+        // 点击在卡片内的局部坐标
+        var localX = contentX % cellW;
+        var localY = contentY % cellH;
         
-        // 应用选择状态
-        var previousCheckedIds = checkedInstanceIds.slice();
-        var newCheckedIds = updateCheckedInstances(instanceId, dragSelectTargetState);
-        if (newCheckedIds !== null) {
-            checkedInstanceIds = newCheckedIds;
+        // CheckBox 在卡片右上角，大约 32x32 区域
+        var cardW = cellW - 10;  // 卡片实际宽度 (cellWidth - 间距)
+        return localX >= (cardW - 34) && localX <= cardW && localY <= 34;
+    }
+    
+    /**
+     * 检查指定卡片是否在拖拽选择框内（屏幕坐标比较）
+     */
+    function isCellInDragBox(cellIndex) {
+        var cols = viewSizeColumns[viewSize];
+        var cellW = videoGridView.cellWidth;
+        var cellH = videoGridView.cellHeight;
+        
+        var row = Math.floor(cellIndex / cols);
+        var col = cellIndex % cols;
+        
+        // 卡片的屏幕坐标
+        var cellLeft = col * cellW;
+        var cellTop = row * cellH - videoGridView.contentY;
+        var cellRight = cellLeft + cellW;
+        var cellBottom = cellTop + cellH;
+        
+        // 拖拽框的屏幕坐标
+        var minX = Math.min(dragStartX, dragEndX);
+        var maxX = Math.max(dragStartX, dragEndX);
+        var minY = Math.min(dragStartY, dragEndY);
+        var maxY = Math.max(dragStartY, dragEndY);
+        
+        // 矩形相交检测
+        return !(cellRight <= minX || cellLeft >= maxX || cellBottom <= minY || cellTop >= maxY);
+    }
+    
+    /**
+     * 根据当前拖拽框重新计算选中状态（以快照为基础）
+     */
+    function applyDragSelectionToBox() {
+        var newCheckedIds = dragPreCheckedIds.slice();
+        
+        for (var i = 0; i < instanceConfigs.length; i++) {
+            var instanceId = instanceConfigs[i].instanceId;
+            
+            if (isCellInDragBox(i)) {
+                if (dragSelectTargetState) {
+                    if (newCheckedIds.indexOf(instanceId) === -1) {
+                        newCheckedIds.push(instanceId);
+                    }
+                } else {
+                    var idx = newCheckedIds.indexOf(instanceId);
+                    if (idx !== -1) {
+                        newCheckedIds.splice(idx, 1);
+                    }
+                }
+            }
         }
+        
+        checkedInstanceIds = newCheckedIds;
     }
 
     // ============================================
@@ -434,17 +396,10 @@ Window {
         console.log("MultiInstanceWindow completed, instanceIds:", instanceIds)
         if (instanceIds && instanceIds.length > 0) {
             multiInstanceViewModel.initialize(instanceIds, accessInfo, token);
-            
-            // 计算实例配置
             instanceConfigs = calculateInstanceConfigs(instanceIds);
-            
-            // 计算每页可见的实例数量
             var visibleInstancesPerPage = calculateVisibleInstancesPerPage();
-            
-            // 直接传递所有实例ID和同时串流数量给C++层
             multiInstanceViewModel.connectMultipleInstances(instanceIds, visibleInstancesPerPage);
             
-            // 延迟执行初始可见性检测，确保 GridView 完成布局
             Qt.callLater(function() {
                 videoGridView.checkVisibleItems();
             });
@@ -516,7 +471,6 @@ Window {
             implicitWidth: 80
             onCurrentIndexChanged: {
                 viewSize = currentIndex;
-                // 当视图大小不是"大"时，自动取消勾选统计数据显示
                 if (viewSize !== 2) {
                     showStatsOverlay = false;
                 }
@@ -527,7 +481,7 @@ Window {
             id: statsOverlayCheckBox
             text: "显示统计数据"
             checked: showStatsOverlay
-            enabled: viewSize === 2  // 只有视图大小为"大"时才允许勾选
+            enabled: viewSize === 2
             onCheckedChanged: {
                 showStatsOverlay = checked;
             }
@@ -568,10 +522,7 @@ Window {
             text: "暂停音视频流"
             enabled: checkedInstanceIds.length > 0
             onClicked: {
-                // 获取选中的实例ID
                 console.log("暂停音视频流，实例:", checkedInstanceIds);
-                
-                // 调用C++接口暂停流媒体
                 if (multiInstanceViewModel.pauseStreaming) {
                     multiInstanceViewModel.pauseStreaming(checkedInstanceIds);
                 }
@@ -582,25 +533,20 @@ Window {
             text: "恢复音视频流"
             enabled: checkedInstanceIds.length > 0
             onClicked: {
-                // 获取选中的实例ID
                 console.log("恢复音视频流，实例:", checkedInstanceIds);
-                
-                // 调用C++接口恢复流媒体
                 if (multiInstanceViewModel.resumeStreaming) {
                     multiInstanceViewModel.resumeStreaming(checkedInstanceIds);
                 }
             }
         }
 
-        Item { Layout.fillWidth: true } // 弹性空间
+        Item { Layout.fillWidth: true }
 
         Button {
             text: "重新连接"
             onClicked: {
                 if (instanceIds && instanceIds.length > 0) {
-                    // 计算每页可见的实例数量
                     var visibleInstancesPerPage = calculateVisibleInstancesPerPage();
-                    // 直接传递所有实例ID和同时串流数量
                     multiInstanceViewModel.connectMultipleInstances(instanceIds, visibleInstancesPerPage);
                 }
             }
@@ -613,6 +559,7 @@ Window {
             }
         }
     }
+
     // 视频渲染网格区域
     GridView {
         id: videoGridView
@@ -654,19 +601,15 @@ Window {
                 return;
             }
             
-            // 检查 GridView 是否已正确初始化
             if (cellHeight <= 0 || height <= 0) {
                 console.warn("[checkVisibleItems] GridView 尺寸未初始化 - cellHeight:", cellHeight, "height:", height);
                 return;
             }
             
-            // 计算可见区域的行范围
             var startRow = Math.floor(contentY / cellHeight);
             var endRow = Math.ceil((contentY + height) / cellHeight);
-            
-            // 转换为索引范围
             var startIndex = startRow * cols;
-            var endIndex = Math.min(endRow * cols, instanceConfigs.length); // 防止越界
+            var endIndex = Math.min(endRow * cols, instanceConfigs.length);
             
             console.log("[checkVisibleItems] 检测参数 - contentY:", contentY, "height:", height, 
                        "cellHeight:", cellHeight, "cols:", cols);
@@ -682,7 +625,6 @@ Window {
                 }
             }
             
-            // 回调到C++并打印
             multiInstanceViewModel.onVisibilityChanged(visibleIds, invisibleIds);
         }
         
@@ -694,19 +636,15 @@ Window {
             border.width: 1
             color: "transparent"
             
-            // 实例信息属性
             property string instanceId: modelData.instanceId
             property int instanceIndex: modelData.instanceIndex
-            // 连接状态: 0=未连接, 1=连接中, 2=已连接
             property int connectionState: 0
             property bool isConnected: connectionState === 2
             
-            // 初始化时获取状态
             Component.onCompleted: {
                 connectionState = multiInstanceViewModel.getInstanceConnectionState(instanceId)
             }
             
-            // 监听连接状态变化
             Connections {
                 target: multiInstanceViewModel
                 function onInstanceConnectionChanged(changedInstanceId, connected) {
@@ -723,50 +661,25 @@ Window {
             VideoRenderItem {
                 id: videoRenderItem
                 objectName: "videoRenderItem_" + videoCell.instanceId
-                
-                // 居中显示
                 anchors.centerIn: parent
                 
-                // 根据视频宽高比动态调整尺寸，保持宽高比
                 width: {
-                    if (videoWidth <= 0 || videoHeight <= 0) {
-                        return parent.width;
-                    }
+                    if (videoWidth <= 0 || videoHeight <= 0) return parent.width;
                     var aspectRatio = videoWidth / videoHeight;
                     var parentAspectRatio = parent.width / parent.height;
-                    
-                    if (aspectRatio > parentAspectRatio) {
-                        // 视频更宽，以宽度为准
-                        return parent.width;
-                    } else {
-                        // 视频更高，以高度为准
-                        return parent.height * aspectRatio;
-                    }
+                    return aspectRatio > parentAspectRatio ? parent.width : parent.height * aspectRatio;
                 }
                 
                 height: {
-                    if (videoWidth <= 0 || videoHeight <= 0) {
-                        return parent.height;
-                    }
+                    if (videoWidth <= 0 || videoHeight <= 0) return parent.height;
                     var aspectRatio = videoWidth / videoHeight;
                     var parentAspectRatio = parent.width / parent.height;
-                    
-                    if (aspectRatio > parentAspectRatio) {
-                        // 视频更宽，以宽度为准
-                        return parent.width / aspectRatio;
-                    } else {
-                        // 视频更高，以高度为准
-                        return parent.height;
-                    }
+                    return aspectRatio > parentAspectRatio ? parent.width / aspectRatio : parent.height;
                 }
                 
                 Component.onCompleted: {
-                    console.log("Registering VideoRenderItem for instance:", 
-                               videoCell.instanceId)
-                    multiInstanceViewModel.registerVideoRenderItem(
-                        videoCell.instanceId,
-                        videoRenderItem
-                    )
+                    console.log("Registering VideoRenderItem for instance:", videoCell.instanceId)
+                    multiInstanceViewModel.registerVideoRenderItem(videoCell.instanceId, videoRenderItem)
                 }
             }
             
@@ -777,10 +690,8 @@ Window {
                 anchors.left: videoRenderItem.left
                 anchors.right: videoRenderItem.right
                 clientStats: ""
-                // 只有在开关打开且有统计数据时才显示
                 visible: showStatsOverlay && statsOverlay.clientStats !== ""
                 
-                // 监听统计数据更新
                 Connections {
                     target: multiInstanceViewModel
                     function onClientStatsChanged() {
@@ -791,7 +702,6 @@ Window {
                     }
                 }
                 
-                // 初始化时获取一次数据
                 Component.onCompleted: {
                     var initialStats = multiInstanceViewModel.getInstanceStats(videoCell.instanceId);
                     if (initialStats && initialStats.length > 0) {
@@ -799,35 +709,16 @@ Window {
                     }
                 }
             }
-            // 选择复选框
+
+            // 选择复选框（纯显示，点击由覆盖层统一处理）
             CheckBox { 
                 id: instanceCheckBox
                 anchors.right: parent.right
                 anchors.top: parent.top
                 anchors.margins: 2
                 checked: checkedInstanceIds.indexOf(videoCell.instanceId) !== -1
-                
-                onCheckedChanged: {
-                    // 如果正在批量更新，忽略此事件
-                    if (isUpdatingCheckboxes) {
-                        return;
-                    }
-                    
-                    // 保存旧的选中列表
-                    var previousCheckedIds = checkedInstanceIds.slice();
-                    
-                    var newCheckedIds = updateCheckedInstances(videoCell.instanceId, checked);
-                    
-                    // 如果操作被阻止，恢复checkbox状态
-                    if (newCheckedIds === null) {
-                        checked = true;
-                        return;
-                    }
-                    
-                    // 更新选中列表并同步到同步窗口
-                    checkedInstanceIds = newCheckedIds;
-                    syncToSyncWindow(previousCheckedIds);
-                }
+                enabled: false
+                opacity: 1.0
             }
 
             // 实例信息底部栏
@@ -873,22 +764,23 @@ Window {
         }
     }
     
-    // 拖拽选择覆盖层 - 长按并拖拽可批量选中/取消卡片
+    // ============================================
+    // 拖拽选择覆盖层
+    // ============================================
+    
+    // 处理：长按拖拽批量选中 / 短按打开单实例窗口
+    // 复选框点击由 CheckBox 内嵌的 MouseArea 自行处理，不经过此覆盖层
     MouseArea {
         id: dragSelectOverlay
         anchors.fill: videoGridView
         z: 1
-        
-        // 不拦截滚轮事件，让 GridView 处理滚动
         propagateComposedEvents: true
         
-        // 长按标记
         property bool longPressTriggered: false
-        // 按下时的起始位置
         property real pressStartX: 0
         property real pressStartY: 0
         
-        // 长按定时器
+        // 长按 300ms 进入拖拽模式
         Timer {
             id: longPressTimer
             interval: 300
@@ -896,19 +788,19 @@ Window {
             onTriggered: {
                 dragSelectOverlay.longPressTriggered = true;
                 isDragSelecting = true;
-                dragSelectedIds = [];
+                dragPreCheckedIds = checkedInstanceIds.slice();
+                dragStartX = dragSelectOverlay.pressStartX;
+                dragStartY = dragSelectOverlay.pressStartY;
+                dragEndX = dragStartX;
+                dragEndY = dragStartY;
                 
-                // 确定起始卡片及目标状态
-                var instanceId = getInstanceIdAtPosition(
-                    dragSelectOverlay.pressStartX, 
-                    dragSelectOverlay.pressStartY
-                );
+                // 根据起始卡片的当前状态决定拖拽方向
+                var instanceId = getInstanceIdAtPosition(dragStartX, dragStartY);
                 if (instanceId !== "") {
-                    // 如果起始卡片已选中，则本次拖拽为取消选中；反之为选中
-                    var isCurrentlyChecked = checkedInstanceIds.indexOf(instanceId) !== -1;
-                    dragSelectTargetState = !isCurrentlyChecked;
-                    applyDragSelection(instanceId);
+                    dragSelectTargetState = checkedInstanceIds.indexOf(instanceId) === -1;
                 }
+                
+                applyDragSelectionToBox();
             }
         }
         
@@ -921,10 +813,9 @@ Window {
         
         onPositionChanged: {
             if (isDragSelecting) {
-                var instanceId = getInstanceIdAtPosition(mouse.x, mouse.y);
-                if (instanceId !== "") {
-                    applyDragSelection(instanceId);
-                }
+                dragEndX = mouse.x;
+                dragEndY = mouse.y;
+                applyDragSelectionToBox();
             }
         }
         
@@ -932,32 +823,56 @@ Window {
             longPressTimer.stop();
             
             if (isDragSelecting) {
-                // 拖拽选择结束，同步到同步窗口
+                // 拖拽结束
                 isDragSelecting = false;
                 syncToSyncWindow();
-                mouse.accepted = true;
             } else if (!longPressTriggered) {
-                // 普通点击 — 打开单实例窗口
+                // 短按
                 var instanceId = getInstanceIdAtPosition(mouse.x, mouse.y);
                 if (instanceId !== "") {
-                    createSingleInstanceWindow(instanceId);
+                    if (isClickOnCheckBox(mouse.x, mouse.y)) {
+                        // 点击在复选框区域 — 切换勾选
+                        var previousCheckedIds = checkedInstanceIds.slice();
+                        var newList = checkedInstanceIds.slice();
+                        var idx = newList.indexOf(instanceId);
+                        if (idx !== -1) {
+                            newList.splice(idx, 1);
+                        } else {
+                            newList.push(instanceId);
+                        }
+                        checkedInstanceIds = newList;
+                        syncToSyncWindow(previousCheckedIds);
+                    } else {
+                        // 点击在其他区域 — 打开单实例窗口
+                        createSingleInstanceWindow(instanceId);
+                    }
                 }
-                mouse.accepted = true;
             }
             
+            mouse.accepted = true;
             longPressTriggered = false;
-            dragSelectedIds = [];
+            dragPreCheckedIds = [];
+            dragStartX = 0;
+            dragStartY = 0;
+            dragEndX = 0;
+            dragEndY = 0;
         }
         
         onCanceled: {
             longPressTimer.stop();
+            if (isDragSelecting) {
+                checkedInstanceIds = dragPreCheckedIds.slice();
+            }
             isDragSelecting = false;
             longPressTriggered = false;
-            dragSelectedIds = [];
+            dragPreCheckedIds = [];
+            dragStartX = 0;
+            dragStartY = 0;
+            dragEndX = 0;
+            dragEndY = 0;
         }
         
         onWheel: {
-            // 将滚轮事件转发给 GridView
             var delta = wheel.angleDelta.y;
             videoGridView.contentY = Math.max(
                 0, 
@@ -972,7 +887,42 @@ Window {
         }
     }
     
+    // 拖拽选择框可视化
+    Canvas {
+        id: dragSelectBox
+        anchors.fill: videoGridView
+        z: 2
+        visible: isDragSelecting
+        
+        onPaint: {
+            var ctx = getContext("2d");
+            ctx.clearRect(0, 0, width, height);
+            
+            if (!isDragSelecting) return;
+            
+            var minX = Math.min(dragStartX, dragEndX);
+            var maxX = Math.max(dragStartX, dragEndX);
+            var minY = Math.min(dragStartY, dragEndY);
+            var maxY = Math.max(dragStartY, dragEndY);
+            
+            ctx.fillStyle = "rgba(100, 150, 255, 0.2)";
+            ctx.fillRect(minX, minY, maxX - minX, maxY - minY);
+            
+            ctx.strokeStyle = "rgba(70, 130, 255, 0.8)";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(minX, minY, maxX - minX, maxY - minY);
+        }
+    }
+    
+    // 拖拽坐标变化时刷新选择框绘制
+    onDragEndXChanged: dragSelectBox.requestPaint()
+    onDragEndYChanged: dragSelectBox.requestPaint()
+    onIsDragSelectingChanged: dragSelectBox.requestPaint()
+    
+    // ============================================
     // 底部状态栏
+    // ============================================
+    
     Rectangle {
         anchors.bottom: parent.bottom
         width: parent.width
@@ -1006,9 +956,7 @@ Window {
                             var rtt = stats.rtt || 0;
                             return "FPS: " + fps + " | 码率: " + (bitrate/1000).toFixed(1) + "Mbps | 延迟: " + rtt + "ms";
                         }
-                    } catch(e) {
-                        // JSON 解析失败，忽略
-                    }
+                    } catch(e) {}
                     return "统计数据: --";
                 }
                 font.pixelSize: 12
@@ -1019,7 +967,10 @@ Window {
         }
     }
     
-    // 会话关闭对话框
+    // ============================================
+    // 对话框
+    // ============================================
+    
     Dialog {
         id: sessionClosedDialog
         title: "会话已关闭"
@@ -1085,9 +1036,7 @@ Window {
                 DialogButtonBox.buttonRole: DialogButtonBox.ActionRole
                 onClicked: {
                     sessionClosedDialog.close();
-                    // 重新连接所有实例
                     if (instanceIds && instanceIds.length > 0) {
-                        // 计算每页可见的实例数量
                         var visibleInstancesPerPage = calculateVisibleInstancesPerPage();
                         multiInstanceViewModel.connectMultipleInstances(instanceIds, visibleInstancesPerPage);
                     }
