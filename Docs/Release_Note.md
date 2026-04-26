@@ -3,6 +3,23 @@
 <!-- FORMAT_VERSION: 1.0 -->
 
 ---
+## [1.23.7] - 2026-04-26
+
+### Features
+- 1.传输优化, 降低小流串流时的内存占用和网络带宽消耗
+- 2.支持tcr_session_send_mouse_scroll等鼠标事件
+
+
+### Download
+
+| Platform | Arch | Package |
+|----------|------|---------|
+| Windows | x86 & x64 | [TcrSdk-Windows-Debug-1.23.7-20260426-b18939d7.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Windows-Debug-1.23.7-20260426-b18939d7.zip) |
+| Windows | x86 & x64 | [TcrSdk-Windows-Release-1.23.7-20260426-b18939d7.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Windows-Release-1.23.7-20260426-b18939d7.zip) |
+| Macos | universal | [TcrSdk-Macos-universal-1.23.7-20260426-b18939d7.zip](https://cg-sdk-1258344699.cos.ap-nanjing.myqcloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Macos-universal-1.23.7-20260426-b18939d7.zip) |
+| Linux | x86_64 | [TcrSdk-Linux-x86_64-1.23.7-20260426-b18939d7.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Linux-x86_64-1.23.7-20260426-b18939d7.zip) |
+
+---
 ## [1.22.13] - 2026-04-15
 
 ### Bugfix
