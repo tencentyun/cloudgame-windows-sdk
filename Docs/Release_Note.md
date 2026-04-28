@@ -3,6 +3,22 @@
 <!-- FORMAT_VERSION: 1.0 -->
 
 ---
+## [1.23.9] - 2026-04-28
+
+### Features
+- 优化长链接未建立场景在的小流首帧耗时
+
+
+### Download
+
+| Platform | Arch | Package |
+|----------|------|---------|
+| Windows | x86 & x64 | [TcrSdk-Windows-Debug-1.23.9-20260428-ebe87a74.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Windows-Debug-1.23.9-20260428-ebe87a74.zip) |
+| Windows | x86 & x64 | [TcrSdk-Windows-Release-1.23.9-20260428-ebe87a74.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Windows-Release-1.23.9-20260428-ebe87a74.zip) |
+| Macos | universal | [TcrSdk-Macos-universal-1.23.9-20260428-ebe87a74.zip](https://cg-sdk-1258344699.cos.ap-nanjing.myqcloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Macos-universal-1.23.9-20260428-ebe87a74.zip) |
+| Linux | x86_64 | [TcrSdk-Linux-x86_64-1.23.9-20260428-ebe87a74.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Linux-x86_64-1.23.9-20260428-ebe87a74.zip) |
+
+---
 ## [1.23.8] - 2026-04-27
 
 ### Bugfix
