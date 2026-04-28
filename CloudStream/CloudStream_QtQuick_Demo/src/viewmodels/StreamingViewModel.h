@@ -176,6 +176,14 @@ class StreamingViewModel : public QObject {
    */
   void sendTouchEvent(int x, int y, int width, int height, int eventType, qint64 timestamp);
 
+  /**
+   * @brief 执行指定时长的触摸点击（按下后延迟抬起）
+   * @param delayMs 按下后延迟抬起的时间（毫秒）
+   *
+   * 触摸位置为屏幕中央。此方法用于测试触摸延迟功能。
+   */
+  Q_INVOKABLE void performTouchClick(int delayMs);
+
   // ==================== 鼠标输入 ====================
 
   /**

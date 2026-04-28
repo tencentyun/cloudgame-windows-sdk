@@ -47,6 +47,12 @@ Item {
         ListElement { text: "查看摄像头设备列表"; action: "cameraDeviceList"; group: 7 }
 
         ListElement { text: "查看麦克风设备列表"; action: "microphoneDeviceList"; group: 8 }
+
+        ListElement { text: "触摸测试(200ms)"; action: "touch200ms"; group: 9 }
+        ListElement { text: "触摸测试(300ms)"; action: "touch300ms"; group: 9 }
+        ListElement { text: "触摸测试(350ms)"; action: "touch350ms"; group: 9 }
+        ListElement { text: "触摸测试(400ms)"; action: "touch400ms"; group: 9 }
+        ListElement { text: "触摸测试(500ms)"; action: "touch500ms"; group: 9 }
     }
     
     // 处理按钮点击事件
@@ -106,6 +112,21 @@ Item {
             case "microphoneDeviceList":
                 var micDevices = streamingViewModel.getMicrophoneDeviceList()
                 root.microphoneDeviceListRequested(micDevices)
+                break
+            case "touch200ms":
+                streamingViewModel.performTouchClick(200)
+                break
+            case "touch300ms":
+                streamingViewModel.performTouchClick(300)
+                break
+            case "touch350ms":
+                streamingViewModel.performTouchClick(350)
+                break
+            case "touch400ms":
+                streamingViewModel.performTouchClick(400)
+                break
+            case "touch500ms":
+                streamingViewModel.performTouchClick(500)
                 break
         }
     }

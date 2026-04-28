@@ -22,7 +22,7 @@ Window {
     property string token: ""                       // 认证令牌
     
     // 视图大小配置
-    property int viewSize: 2                        // 视图大小: 0=超小(40列),1=小(30列), 2=中(10列), 3=大(5列)
+    property int viewSize: 1                        // 视图大小: 0=超小(40列),1=小(30列), 2=中(10列), 3=大(5列)
     property var viewSizeColumns: [40, 20, 10, 5]       // 对应每种视图的列数
     
     // 监听视图大小变化，触发可见性检测
@@ -466,7 +466,7 @@ Window {
         
         ComboBox {
             id: viewSizeComboBox
-            model: ["小", "中", "大"]
+            model: ["超小", "小", "中", "大"]
             currentIndex: viewSize
             implicitWidth: 80
             onCurrentIndexChanged: {

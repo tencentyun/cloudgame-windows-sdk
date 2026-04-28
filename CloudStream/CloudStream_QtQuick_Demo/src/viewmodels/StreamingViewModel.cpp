@@ -4,6 +4,7 @@
 #include <QDebug>
 #include <QGuiApplication>
 #include <QMetaType>
+#include <QTimer>
 #include <QVariant>
 
 #include "core/StreamConfig.h"
@@ -266,6 +267,30 @@ void StreamingViewModel::sendTouchEvent(int x, int y, int width, int height, int
     // eventType: 0=按下, 1=移动, 2=抬起
     tcr_session_touchscreen_touch(m_session, x, y, eventType, width, height, timestamp);
   }
+}
+
+void StreamingViewModel::performTouchClick(int delayMs) {
+  if (!m_session || !m_sessionConnected) {
+    qWarning() << "[performTouchClick] Session not ready";
+    return;
+  }
+
+  // 计算屏幕中央坐标
+  int centerX = 720 / 2;
+  int centerY = 1080 / 4;
+  qint64 timestamp = QDateTime::currentMSecsSinceEpoch();
+
+  // 发送按下事件
+  tcr_session_touchscreen_touch(m_session, centerX, centerY, 0, 720, 1080, timestamp);
+  qDebug() << "[performTouchClick] Touch DOWN at (" << centerX << "," << centerY << ")";
+
+  // 延迟 delayMs 毫秒后发送抬起事件
+  QTimer::singleShot(delayMs, this, [this, centerX, centerY, timestamp, delayMs]() {
+    if (m_session && m_sessionConnected) {
+      tcr_session_touchscreen_touch(m_session, centerX, centerY, 2, 720, 1080, timestamp + delayMs);
+      qDebug() << "[performTouchClick] Touch UP after" << delayMs << "ms";
+    }
+  });
 }
 
 // ==================== 鼠标输入 ====================
