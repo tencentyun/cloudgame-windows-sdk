@@ -909,10 +909,12 @@ Window {
                             var firstFrame = stats.first_frame_render_delay !== undefined ? stats.first_frame_render_delay : "--";
                             var firstPkt   = stats.first_video_packet_received !== undefined ? stats.first_video_packet_received : "--";
                             var bitrateStr = stats.bitrate !== undefined ? (stats.bitrate / 1000000).toFixed(2) + "Mbps" : "--";
-                            return "RTT: " + rtt + "ms  |  码率: " + bitrateStr + "  |  首帧渲染: " + firstFrame + "ms  |  首包到达: " + firstPkt + "ms";
+                            var serverSession = stats.server_session_time !== undefined ? stats.server_session_time : "--";
+                            var connectTime   = stats.connect_time !== undefined ? stats.connect_time : "--";
+                            return "RTT: " + rtt + "ms  |  码率: " + bitrateStr + "  |  首帧渲染: " + firstFrame + "ms  |  首包到达: " + firstPkt + "ms  |  信令耗时: " + serverSession + "ms  |  连接耗时: " + connectTime + "ms";
                         }
                     } catch(e) {}
-                    return "RTT: --  |  码率: --  |  首帧渲染: --  |  首包到达: --";
+                    return "RTT: --  |  码率: --  |  首帧渲染: --  |  首包到达: --  |  信令耗时: --  |  连接耗时: --";
                 }
                 font.pixelSize: 12
                 color: "#666666"
