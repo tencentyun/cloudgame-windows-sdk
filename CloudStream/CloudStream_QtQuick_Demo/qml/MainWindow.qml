@@ -908,10 +908,11 @@ Window {
                             var rtt = stats.raw_rtt !== undefined ? stats.raw_rtt : "--";
                             var firstFrame = stats.first_frame_render_delay !== undefined ? stats.first_frame_render_delay : "--";
                             var firstPkt   = stats.first_video_packet_received !== undefined ? stats.first_video_packet_received : "--";
-                            return "RTT: " + rtt + "ms  |  首帧渲染: " + firstFrame + "ms  |  首包到达: " + firstPkt + "ms";
+                            var bitrateStr = stats.bitrate !== undefined ? (stats.bitrate / 1000000).toFixed(2) + "Mbps" : "--";
+                            return "RTT: " + rtt + "ms  |  码率: " + bitrateStr + "  |  首帧渲染: " + firstFrame + "ms  |  首包到达: " + firstPkt + "ms";
                         }
                     } catch(e) {}
-                    return "RTT: --  |  首帧渲染: --  |  首包到达: --";
+                    return "RTT: --  |  码率: --  |  首帧渲染: --  |  首包到达: --";
                 }
                 font.pixelSize: 12
                 color: "#666666"
