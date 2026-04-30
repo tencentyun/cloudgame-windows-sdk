@@ -1,0 +1,5 @@
+{
+    "baseUrl": "https://test-accelerator-biz-server.cai.crtrcloud.com",
+    "apiPath": "/CreateAndroidInstancesAccessToken",
+    "instanceIds": "cai-1300056159-fe2dhk6w65e,cai-1300056159-fe2dc3vyloo,cai-1300056159-fe2drzlzonn"
+}

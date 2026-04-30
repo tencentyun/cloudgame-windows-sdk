@@ -18,8 +18,8 @@ NetworkService::NetworkService(QObject* parent) : QObject(parent) {
 // ============================================================================
 
 QNetworkReply* NetworkService::postRequest(const QString& endpoint, const QJsonObject& data) {
-  // 构建完整的请求URL
-  QUrl url(m_baseUrl + endpoint);
+  // 构建完整的请求URL（动态读取 baseUrl，以支持运行时切换配置）
+  QUrl url(AppConfig::instance()->baseUrl() + endpoint);
   QNetworkRequest request(url);
 
   // 记录请求信息（用于调试）

@@ -50,11 +50,5 @@ class NetworkService : public QObject {
  private:
   QNetworkAccessManager m_manager;  ///< Qt网络访问管理器
 
-  /**
-   * @brief 业务后台基础URL
-   *
-   * 云渲染开发团队搭建的体验后台地址，用于Demo开发和测试。
-   * 生产环境需要替换为正式的业务后台地址。
-   */
-  QString m_baseUrl = AppConfig::instance()->baseUrl();
+  // baseUrl 通过 AppConfig::instance()->baseUrl() 动态获取，不再缓存
 };

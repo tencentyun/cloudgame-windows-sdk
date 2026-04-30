@@ -113,13 +113,13 @@ else()
 endif()
 
 # =============================================================
-# 复制 config.json 到可执行文件目录（所有平台通用）
+# 复制 config/ 目录到可执行文件目录（所有平台通用）
 # =============================================================
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_CURRENT_SOURCE_DIR}/config.json"
-        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/config.json"
-    COMMENT "Copying config.json to output directory"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/config"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/config"
+    COMMENT "Copying config/ directory to output directory"
     VERBATIM
 )
 
@@ -134,7 +134,7 @@ install(TARGETS ${PROJECT_NAME}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
-install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/config.json"
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/config"
     DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
