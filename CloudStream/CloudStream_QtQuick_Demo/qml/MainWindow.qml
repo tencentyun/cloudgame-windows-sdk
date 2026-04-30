@@ -40,9 +40,6 @@ Window {
         });
     }
     
-    // 统计数据显示开关
-    property bool showStatsOverlay: false           // 是否显示统计数据蒙层
-    
     // 实例管理属性
     property var checkedInstanceIds: []             // 选中的实例ID列表
     property var instanceConfigs: []                // 格式: [{instanceId: "xxx", instanceIndex: 0}, ...]
@@ -471,25 +468,9 @@ Window {
             implicitWidth: 80
             onCurrentIndexChanged: {
                 viewSize = currentIndex;
-                if (viewSize !== 2) {
-                    showStatsOverlay = false;
-                }
             }
         }
-        
-        CheckBox {
-            id: statsOverlayCheckBox
-            text: "显示统计数据"
-            checked: showStatsOverlay
-            enabled: viewSize === 2
-            onCheckedChanged: {
-                showStatsOverlay = checked;
-            }
-            
-            ToolTip.visible: hovered && !enabled
-            ToolTip.text: "请先将视图大小切换为\"大\"才能启用统计数据显示"
-        }
-        
+
         Button {
             text: isAllSelected ? "取消全选" : "全选"
             onClicked: {
@@ -683,33 +664,6 @@ Window {
                 }
             }
             
-            // 统计数据显示蒙层
-            Components.StatsOverlay {
-                id: statsOverlay
-                anchors.top: videoRenderItem.top
-                anchors.left: videoRenderItem.left
-                anchors.right: videoRenderItem.right
-                clientStats: ""
-                visible: showStatsOverlay && statsOverlay.clientStats !== ""
-                
-                Connections {
-                    target: multiInstanceViewModel
-                    function onClientStatsChanged() {
-                        var newStats = multiInstanceViewModel.getInstanceStats(videoCell.instanceId);
-                        if (newStats && newStats.length > 0) {
-                            statsOverlay.clientStats = newStats;
-                        }
-                    }
-                }
-                
-                Component.onCompleted: {
-                    var initialStats = multiInstanceViewModel.getInstanceStats(videoCell.instanceId);
-                    if (initialStats && initialStats.length > 0) {
-                        statsOverlay.clientStats = initialStats;
-                    }
-                }
-            }
-
             // 选择复选框（纯显示，点击由覆盖层统一处理）
             CheckBox { 
                 id: instanceCheckBox
@@ -951,13 +905,13 @@ Window {
                     try {
                         if (multiInstanceViewModel.clientStats) {
                             var stats = JSON.parse(multiInstanceViewModel.clientStats);
-                            var fps = stats.fps || 0;
-                            var bitrate = stats.bitrate || 0;
-                            var rtt = stats.rtt || 0;
-                            return "FPS: " + fps + " | 码率: " + (bitrate/1000).toFixed(1) + "Mbps | 延迟: " + rtt + "ms";
+                            var rtt = stats.raw_rtt !== undefined ? stats.raw_rtt : "--";
+                            var firstFrame = stats.first_frame_render_delay !== undefined ? stats.first_frame_render_delay : "--";
+                            var firstPkt   = stats.first_video_packet_received !== undefined ? stats.first_video_packet_received : "--";
+                            return "RTT: " + rtt + "ms  |  首帧渲染: " + firstFrame + "ms  |  首包到达: " + firstPkt + "ms";
                         }
                     } catch(e) {}
-                    return "统计数据: --";
+                    return "RTT: --  |  首帧渲染: --  |  首包到达: --";
                 }
                 font.pixelSize: 12
                 color: "#666666"
