@@ -475,6 +475,18 @@ void MultiStreamViewModel::SessionEventCallback(void* user_data, TcrSessionEvent
 
       self->m_isConnected = true;
 
+      // 获取 RequestId（全链路追踪标识，反馈问题时使用）
+      constexpr int kRequestIdBufSize = 256;
+      char requestIdBuffer[kRequestIdBufSize] = {0};
+      if (tcr_session_get_request_id(self->m_session, requestIdBuffer, kRequestIdBufSize)) {
+        self->m_requestId = QString::fromUtf8(requestIdBuffer);
+        Logger::info(QString("[SessionEventCallback] RequestId: %1").arg(self->m_requestId));
+      } else {
+        self->m_requestId.clear();
+        Logger::warning("[SessionEventCallback] 获取 RequestId 失败");
+      }
+      emit self->requestIdChanged();
+
       // 更新所有实例为已连接状态
       for (const QString& instanceId : self->m_allInstanceIds) {
         self->m_instanceConnectionStates[instanceId] = InstanceConnectionState::Connected;
@@ -494,6 +506,8 @@ void MultiStreamViewModel::SessionEventCallback(void* user_data, TcrSessionEvent
       Logger::error(QString("[SessionEventCallback] Session 断开: %1").arg(eventDataCopy));
 
       self->m_isConnected = false;
+      self->m_requestId.clear();
+      emit self->requestIdChanged();
 
       // 更新所有实例为未连接状态
       for (const QString& instanceId : self->m_allInstanceIds) {

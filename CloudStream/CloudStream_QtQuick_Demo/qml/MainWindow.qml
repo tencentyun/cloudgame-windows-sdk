@@ -484,9 +484,24 @@ Window {
             onClicked: {
                 copyCheckedInstanceIds();
             }
-            
+
             ToolTip.visible: hovered
             ToolTip.text: "复制选中的实例ID（逗号分隔）"
+        }
+
+        Button {
+            id: copyRequestIdButton
+            text: "复制 request_id"
+            enabled: multiInstanceViewModel.requestId.length > 0
+            onClicked: {
+                multiInstanceViewModel.copyToClipboard(multiInstanceViewModel.requestId);
+                copySuccessToast.show();
+            }
+
+            ToolTip.visible: hovered
+            ToolTip.text: multiInstanceViewModel.requestId.length > 0
+                          ? multiInstanceViewModel.requestId
+                          : "暂无 request_id"
         }
 
         Button {

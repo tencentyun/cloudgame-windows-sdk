@@ -50,6 +50,7 @@ class MultiStreamViewModel : public QObject {
   Q_OBJECT
   Q_PROPERTY(QStringList connectedInstanceIds READ connectedInstanceIds NOTIFY connectedInstanceIdsChanged)
   Q_PROPERTY(QString clientStats READ clientStats NOTIFY clientStatsChanged)
+  Q_PROPERTY(QString requestId READ requestId NOTIFY requestIdChanged)
 
  public:
   explicit MultiStreamViewModel(QObject* parent = nullptr);
@@ -67,6 +68,12 @@ class MultiStreamViewModel : public QObject {
    * @return 包含帧率、码率、延迟等信息的 JSON 字符串
    */
   QString clientStats() const { return m_clientStats; }
+
+  /**
+   * @brief 获取会话的 RequestId
+   * @return 会话连接成功后由 tcr_session_get_request_id 获取的 RequestId，未连接时为空
+   */
+  QString requestId() const { return m_requestId; }
 
   /**
    * @brief 根据实例ID获取该实例的统计数据（JSON 格式）
@@ -181,6 +188,13 @@ class MultiStreamViewModel : public QObject {
    */
   void clientStatsChanged();
 
+  /**
+   * @brief RequestId 变化信号
+   *
+   * 会话连接成功后触发
+   */
+  void requestIdChanged();
+
  private:
   // ==================== 内部数据结构 ====================
 
@@ -202,6 +216,7 @@ class MultiStreamViewModel : public QObject {
   QStringList m_connectedInstanceIds;      ///< 已连接的实例ID列表
   QStringList m_currentStreamingIds;       ///< 当前正在拉流的实例ID列表
   QString m_clientStats;                   ///< 客户端统计数据（JSON 格式）
+  QString m_requestId;                     ///< 会话的 RequestId（连接成功后获取）
   int m_concurrentStreamingInstances = 0;  ///< 并发拉流实例数
   bool m_isConnected = false;              ///< 会话连接状态
 
