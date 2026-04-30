@@ -463,7 +463,7 @@ Window {
         
         ComboBox {
             id: viewSizeComboBox
-            model: ["小", "中", "大"]
+            model: ["超小","小", "中", "大"]
             currentIndex: viewSize
             implicitWidth: 80
             onCurrentIndexChanged: {
