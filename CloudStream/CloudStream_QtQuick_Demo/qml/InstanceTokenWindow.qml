@@ -99,6 +99,14 @@ Window {
                         onActivated: {
                             AppConfig.switchConfig(currentText)
                         }
+
+                        // 初始化时加载第一个配置文件的数据
+                        // onActivated 只在用户交互时触发，启动时需手动触发一次
+                        Component.onCompleted: {
+                            if (model && model.length > 0) {
+                                AppConfig.switchConfig(currentText)
+                            }
+                        }
                     }
                 }
             }
