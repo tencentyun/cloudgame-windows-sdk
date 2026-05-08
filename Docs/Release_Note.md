@@ -3,6 +3,22 @@
 <!-- FORMAT_VERSION: 1.0 -->
 
 ---
+## [1.25.0] - 2026-05-08
+
+### Features
+- 支持网络探测与连接优化功能
+
+
+### Download
+
+| Platform | Arch | Package |
+|----------|------|---------|
+| Windows | x86 & x64 | [TcrSdk-Windows-Debug-1.25.0-20260508-52c85f4d.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Windows-Debug-1.25.0-20260508-52c85f4d.zip) |
+| Windows | x86 & x64 | [TcrSdk-Windows-Release-1.25.0-20260508-52c85f4d.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Windows-Release-1.25.0-20260508-52c85f4d.zip) |
+| Macos | universal | [TcrSdk-Macos-universal-1.25.0-20260508-52c85f4d.zip](https://cg-sdk-1258344699.cos.ap-nanjing.myqcloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Macos-universal-1.25.0-20260508-52c85f4d.zip) |
+| Linux | x86_64 | [TcrSdk-Linux-x86_64-1.25.0-20260508-52c85f4d.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Linux-x86_64-1.25.0-20260508-52c85f4d.zip) |
+
+---
 ## [1.24.1] - 2026-05-06
 
 ### Features
