@@ -366,7 +366,155 @@ strncpy(mic_config.device_id, selected_device_id, sizeof(mic_config.device_id) -
 tcr_session_enable_microphone_with_config(tcrSession, &mic_config);
 ```
 
-### 4.5 资源释放
+### 4.5 网络探测与连接优化
+
+SDK 提供网络探测能力，支持**主动探测**和**被动探测**两种模式，帮助业务评估各加速节点的网络质量（RTT、抖动、丢包率等），从而选择最优节点以优化连接体验。
+
+#### 主动探测 vs 被动探测
+
+| | 主动探测 | 被动探测 |
+|---|---|---|
+| **触发方式** | 业务主动调用 `tcr_client_start_probe` | 创建会话时通过 `TcrSessionConfig.enable_passive_probe = true` 开启 |
+| **使用时机** | 会话建立前，用于预选最优节点 | 会话串流过程中，持续评估当前连接质量 |
+| **是否需要 Session** | 不需要，仅需 Client 初始化完成 | 需要，随会话生命周期自动运行 |
+| **结果获取方式** | 通过回调函数返回 `TcrProbeResult` | SDK 内部使用，自动优化连接路径 |
+| **适用场景** | 展示网络质量面板、让用户选择节点、指定 `preferred_domain` | 自动感知网络变化并优化 |
+
+#### 探测结果数据结构
+
+```cpp
+// 单个节点的探测质量信息
+typedef struct TcrProbeNodeInfo {
+    const char* zone;         // 节点标识，如 "ap-shanghai-3"
+    const char* domain;       // 节点域名
+    double rtt_ms;            // 往返延迟 (ms)
+    double jitter_ms;         // 抖动 (ms)
+    double packet_loss_rate;  // 丢包率 (0.0~1.0)
+    double quality_score;     // 综合评分 (0~100，越高越好)
+    int64_t connect_time_ms;  // 连接建立耗时 (ms)
+} TcrProbeNodeInfo;
+
+// 探测结果
+typedef struct TcrProbeResult {
+    TcrProbeNodeInfo* nodes;  // 节点数组（按 quality_score 降序排列）
+    int node_count;           // 节点数量
+    int64_t timestamp_ms;     // 结果生成时间戳
+    bool is_ready;            // 是否所有节点都已完成探测
+} TcrProbeResult;
+```
+
+#### 主动探测
+
+主动探测用于在创建会话前探测各加速节点的网络质量，业务可根据探测结果选择最优节点。
+
+**前提条件：**
+- 需先调用 `tcr_client_init` 完成 Client 初始化
+- 无需创建 Session 即可发起探测
+- 同一时刻只能有一次主动探测在进行
+
+**启动探测：**
+
+```cpp
+// 探测结果回调（在 SDK 内部线程触发，注意线程安全）
+void OnProbeResult(void* user_data, const TcrProbeResult* result) {
+    printf("探测结果: %d 个节点, is_ready=%d\n", result->node_count, result->is_ready);
+
+    for (int i = 0; i < result->node_count; i++) {
+        const TcrProbeNodeInfo* node = &result->nodes[i];
+        printf("  [%d] zone=%s, domain=%s, rtt=%.1fms, jitter=%.1fms, loss=%.2f%%, score=%.1f\n",
+               i, node->zone, node->domain, node->rtt_ms, node->jitter_ms,
+               node->packet_loss_rate * 100, node->quality_score);
+    }
+
+    // 如需在回调外持有结果，需要克隆
+    if (result->is_ready) {
+        TcrProbeResult* cloned = tcr_probe_result_clone(result);
+        // 将 cloned 传递到其他线程使用...
+        // 使用完毕后释放：tcr_probe_result_release(cloned);
+    }
+}
+
+// 启动探测（首次结果就绪后回调，之后每 2 秒更新一次）
+TcrErrorCode err = tcr_client_start_probe(tcrClient, OnProbeResult, nullptr);
+if (err != TCR_SUCCESS) {
+    // 启动失败（如已在探测中、Client 未初始化）
+}
+```
+
+**停止探测：**
+
+```cpp
+// 停止探测并释放探测连接资源，停止后不再触发回调
+tcr_client_stop_probe(tcrClient);
+```
+
+**将探测结果应用到会话（指定首选节点）：**
+
+```cpp
+// 根据主动探测结果，将最优节点的 domain 设置为会话的首选加速节点
+TcrSessionConfig session_config = tcr_session_config_default();
+session_config.preferred_domain = best_node_domain;  // 探测结果中 quality_score 最高的节点 domain
+TcrSessionHandle tcrSession = tcr_client_create_session(tcrClient, &session_config);
+```
+
+#### 被动探测
+
+被动探测在会话串流期间自动运行，SDK 内部持续评估连接质量并自动优化传输路径，业务无需手动处理探测结果。
+
+```cpp
+TcrSessionConfig session_config = tcr_session_config_default();
+session_config.enable_passive_probe = true;  // 启用被动探测
+
+// 可选：结合主动探测结果指定首选节点
+session_config.preferred_domain = "best-node.example.com";
+
+TcrSessionHandle tcrSession = tcr_client_create_session(tcrClient, &session_config);
+```
+
+#### 完整使用流程示例
+
+```cpp
+// 1. 初始化 Client
+TcrClientHandle tcrClient = tcr_client_get_instance();
+TcrConfig config = tcr_config_default();
+config.token = token;
+config.accessInfo = accessInfo;
+tcr_client_init(tcrClient, &config);
+
+// 2. 启动主动探测，评估各节点网络质量
+const char* best_domain = nullptr;
+tcr_client_start_probe(tcrClient, [](void* user_data, const TcrProbeResult* result) {
+    if (result->is_ready && result->node_count > 0) {
+        // nodes[0] 即为评分最高的节点（数组按 quality_score 降序排列）
+        const char** best = (const char**)user_data;
+        *best = result->nodes[0].domain;
+    }
+}, &best_domain);
+
+// 3. 等待探测完成后停止探测
+// ...（业务逻辑等待 is_ready=true）
+tcr_client_stop_probe(tcrClient);
+
+// 4. 创建会话时应用探测结果，并开启被动探测
+TcrSessionConfig session_config = tcr_session_config_default();
+session_config.preferred_domain = best_domain;    // 指定最优加速节点
+session_config.enable_passive_probe = true;       // 串流期间持续优化连接
+TcrSessionHandle tcrSession = tcr_client_create_session(tcrClient, &session_config);
+
+// 5. 连接实例并开始串流
+const char* instanceIds[] = {"cai-xxx-001"};
+tcr_session_access(tcrSession, instanceIds, 1, false);
+```
+
+#### 注意事项
+
+- **主动探测回调线程安全**：回调在 SDK 内部线程触发，如需更新 UI 请切换到主线程
+- **探测结果生命周期**：回调中的 `result` 指针仅在回调期间有效，如需持有需调用 `tcr_probe_result_clone()` 克隆，使用完毕后必须调用 `tcr_probe_result_release()` 释放内存
+- **带宽开销**：探测会占用一定网络带宽
+- **被动探测开销**：被动探测在会话期间自动运行，开销极小，适合长连接场景持续优化
+- **preferred_domain 使用**：该字段为可选项，NULL 表示不指定，SDK 会自动选择节点；设置后 SDK 优先连接指定节点
+
+### 4.6 资源释放
 
 ```cpp
 // 1. 先将 observer 置空，避免悬空回调
