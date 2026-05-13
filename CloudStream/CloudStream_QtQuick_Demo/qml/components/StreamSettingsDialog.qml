@@ -2,6 +2,7 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import QtQuick.Dialogs 6.3
+import ".." as App
 
 Dialog {
     id: streamSettingsDialog
@@ -228,12 +229,12 @@ Dialog {
         Button {
             text: "确定"
             DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
-            
+
             background: Rectangle {
-                color: parent.hovered ? "#1565C0" : "#1976D2"
+                color: parent.hovered ? App.Theme.primaryHover : App.Theme.primary
                 radius: 4
             }
-            
+
             contentItem: Text {
                 text: parent.text
                 color: "white"
@@ -242,21 +243,21 @@ Dialog {
                 font.pixelSize: 14
             }
         }
-        
+
         Button {
             text: "取消"
             DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
-            
+
             background: Rectangle {
-                color: parent.hovered ? "#E0E0E0" : "#F5F5F5"
+                color: parent.hovered ? App.Theme.cancelBtnHoverBg : App.Theme.cancelBtnBg
                 radius: 4
-                border.color: "#BDBDBD"
+                border.color: App.Theme.cancelBtnBorder
                 border.width: 1
             }
-            
+
             contentItem: Text {
                 text: parent.text
-                color: "#424242"
+                color: App.Theme.cancelBtnText
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
                 font.pixelSize: 14

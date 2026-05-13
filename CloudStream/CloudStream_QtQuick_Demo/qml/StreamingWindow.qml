@@ -3,6 +3,7 @@ import QtQuick.Controls 2.15
 import QtQuick.Dialogs
 import CustomComponents 1.0
 import "components" as Components
+import "." as App
 
 ApplicationWindow {
     id: streamingWindow
@@ -10,6 +11,27 @@ ApplicationWindow {
     width: 800
     height: 1024
     visible: true
+    color: App.Theme.windowBg
+
+    // 适配深色模式: palette 会自动传播给所有子 Controls (Button, CheckBox 等)
+    palette {
+        window: App.Theme.windowBg
+        windowText: App.Theme.textPrimary
+        base: App.Theme.paletteBase
+        alternateBase: App.Theme.paletteAlternateBase
+        button: App.Theme.paletteButton
+        buttonText: App.Theme.paletteButtonText
+        mid: App.Theme.paletteMid
+        light: App.Theme.paletteLight
+        midlight: App.Theme.paletteMidlight
+        dark: App.Theme.paletteDark
+        text: App.Theme.textPrimary
+        highlight: App.Theme.paletteHighlight
+        highlightedText: App.Theme.paletteHighlightedText
+        toolTipBase: App.Theme.paletteToolTipBase
+        toolTipText: App.Theme.paletteToolTipText
+        placeholderText: App.Theme.textHint
+    }
 
     property StreamingViewModel streamingViewModel: StreamingViewModel {}
     

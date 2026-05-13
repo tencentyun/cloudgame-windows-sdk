@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
+import ".." as App
 
 // 控制按钮区域组件
 Item {
@@ -166,7 +167,7 @@ Item {
                     Rectangle {
                         width: parent.width
                         height: 1
-                        color: "#cccccc"
+                        color: App.Theme.border
                         visible: index > 0 && model.group !== buttonModel.get(index - 1).group
                     }
                     

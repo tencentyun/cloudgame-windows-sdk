@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
+import ".." as App
 
 // 麦克风设备选择对话框
 Popup {
@@ -24,8 +25,8 @@ Popup {
 
     Rectangle {
         anchors.fill: parent
-        color: "white"
-        border.color: "#cccccc"
+        color: App.Theme.cardBg
+        border.color: App.Theme.border
         border.width: 1
         radius: 4
 
@@ -37,7 +38,7 @@ Popup {
             Rectangle {
                 width: parent.width
                 height: 40
-                color: "#f5f5f5"
+                color: App.Theme.headerBg
                 radius: 4
 
                 Text {
@@ -45,6 +46,7 @@ Popup {
                     text: "可用的麦克风设备"
                     font.pixelSize: 16
                     font.bold: true
+                    color: App.Theme.textPrimary
                 }
             }
 
@@ -58,9 +60,12 @@ Popup {
                 }
 
                 delegate: Rectangle {
+                    id: micDelegate
                     width: ListView.view.width
                     height: 40
-                    color: index % 2 === 0 ? "#f9f9f9" : "white"
+                    color: index % 2 === 0 ? App.Theme.listEvenBg : App.Theme.listOddBg
+
+                    property bool isHovered: false
 
                     Row {
                         anchors.fill: parent
@@ -72,6 +77,7 @@ Popup {
                             text: "设备 " + (index + 1) + ":"
                             font.bold: true
                             font.pixelSize: 13
+                            color: App.Theme.textPrimary
                         }
 
                         Text {
@@ -80,14 +86,15 @@ Popup {
                             elide: Text.ElideRight
                             width: parent.width - 80
                             font.pixelSize: 12
+                            color: App.Theme.textPrimary
                         }
                     }
 
                     MouseArea {
                         anchors.fill: parent
                         hoverEnabled: true
-                        onEntered: parent.color = "#e8f4fd"
-                        onExited: parent.color = index % 2 === 0 ? "#f9f9f9" : "white"
+                        onEntered: { micDelegate.isHovered = true; parent.color = App.Theme.listHoverBg }
+                        onExited: { micDelegate.isHovered = false; parent.color = index % 2 === 0 ? App.Theme.listEvenBg : App.Theme.listOddBg }
                         onClicked: {
                             console.log("选中麦克风设备: " + deviceId)
                             root.deviceSelected(deviceId)
@@ -100,7 +107,7 @@ Popup {
                     anchors.centerIn: parent
                     text: "未检测到麦克风设备"
                     visible: microphoneDeviceListModel.count === 0
-                    color: "#999999"
+                    color: App.Theme.textHint
                     font.pixelSize: 14
                 }
 

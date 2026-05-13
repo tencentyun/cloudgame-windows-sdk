@@ -55,6 +55,9 @@ qt6_add_shaders(${PROJECT_NAME} "shaders"
 # =============================================================
 file(GLOB_RECURSE QML_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "qml/*.qml")
 
+# Theme.qml is a QML singleton (pragma Singleton)
+set_source_files_properties(qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+
 qt_add_qml_module(${PROJECT_NAME}
     URI ${PROJECT_NAME}
     VERSION 1.0

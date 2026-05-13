@@ -4,13 +4,35 @@ import QtQuick.Layouts 1.15
 import QtQuick.Window 2.15
 import CustomComponents 1.0
 import "components" as Components
+import "." as App
 
-Window {
+ApplicationWindow {
     id: multiInstanceWindow
     visible: true
     title: "多实例视频渲染窗口"
     width: 1660
     height: 879
+    color: App.Theme.windowBg
+
+    // 适配深色模式: palette 会自动传播给所有子 Controls (Button, Label, ComboBox, CheckBox 等)
+    palette {
+        window: App.Theme.windowBg
+        windowText: App.Theme.textPrimary
+        base: App.Theme.paletteBase
+        alternateBase: App.Theme.paletteAlternateBase
+        button: App.Theme.paletteButton
+        buttonText: App.Theme.paletteButtonText
+        mid: App.Theme.paletteMid
+        light: App.Theme.paletteLight
+        midlight: App.Theme.paletteMidlight
+        dark: App.Theme.paletteDark
+        text: App.Theme.textPrimary
+        highlight: App.Theme.paletteHighlight
+        highlightedText: App.Theme.paletteHighlightedText
+        toolTipBase: App.Theme.paletteToolTipBase
+        toolTipText: App.Theme.paletteToolTipText
+        placeholderText: App.Theme.textHint
+    }
 
     // ============================================
     // 属性定义区域
@@ -452,13 +474,15 @@ Window {
             text: "多实例视频渲染 - 总计: " + instanceIds.length + " 个实例"
             font.pixelSize: 16
             font.bold: true
+            color: App.Theme.textPrimary
         }
-        
+
         // 视图大小选择
         Text {
             text: "视图:"
             font.pixelSize: 14
             verticalAlignment: Text.AlignVCenter
+            color: App.Theme.textPrimary
         }
         
         ComboBox {
@@ -896,23 +920,24 @@ Window {
         anchors.bottom: parent.bottom
         width: parent.width
         height: 25
-        color: "#f0f0f0"
-        border.color: "#cccccc"
+        color: App.Theme.statusBarBg
+        border.color: App.Theme.border
         border.width: 1
-        
+
         RowLayout {
             anchors.fill: parent
             anchors.margins: 5
-            
+
             Text {
                 text: "连接状态: " + multiInstanceViewModel.connectedInstanceIds.length + "/" + instanceIds.length
                 font.pixelSize: 12
+                color: App.Theme.textPrimary
             }
-            
+
             Text {
                 text: "已选中: " + checkedInstanceIds.length + " 个实例"
                 font.pixelSize: 12
-                color: checkedInstanceIds.length > 0 ? "#007bff" : "#666666"
+                color: checkedInstanceIds.length > 0 ? App.Theme.primary : App.Theme.textSecondary
             }
             
             Text {
@@ -932,9 +957,9 @@ Window {
                     return "RTT: --  |  码率: --  |  首帧渲染: --  |  首包到达: --  |  信令耗时: --  |  连接耗时: --";
                 }
                 font.pixelSize: 12
-                color: "#666666"
+                color: App.Theme.textSecondary
             }
-            
+
             Item { Layout.fillWidth: true }
         }
     }
@@ -969,26 +994,27 @@ Window {
                 font.pixelSize: 14
                 wrapMode: Text.WordWrap
                 width: parent.width - 40
+                color: App.Theme.textPrimary
             }
-            
+
             Rectangle {
                 width: parent.width - 40
                 height: Math.min(instanceListText.contentHeight + 20, 200)
-                color: "#f5f5f5"
-                border.color: "#cccccc"
+                color: App.Theme.headerBg
+                border.color: App.Theme.border
                 border.width: 1
                 radius: 4
-                
+
                 ScrollView {
                     anchors.fill: parent
                     anchors.margins: 10
                     clip: true
-                    
+
                     Text {
                         id: instanceListText
                         text: sessionClosedDialog.instanceIds.join("\n")
                         font.pixelSize: 12
-                        color: "#666666"
+                        color: App.Theme.textSecondary
                     }
                 }
             }

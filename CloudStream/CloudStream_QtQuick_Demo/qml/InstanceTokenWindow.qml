@@ -4,8 +4,9 @@ import QtQuick.Layouts 1.15
 import QtQuick.Window 2.15
 import QtQuick.Dialogs 6.3
 import CustomComponents 1.0
+import "." as App
 
-Window {
+ApplicationWindow {
     id: instanceAccessWindow
     visible: true
     title: "实例访问配置"
@@ -13,6 +14,27 @@ Window {
     height: 620
     minimumWidth: 440
     minimumHeight: 500
+    color: App.Theme.windowBg
+
+    // 适配深色模式: palette 会自动传播给所有子 Controls (Button, Label, ComboBox, GroupBox, TextField 等)
+    palette {
+        window: App.Theme.windowBg
+        windowText: App.Theme.textPrimary
+        base: App.Theme.paletteBase
+        alternateBase: App.Theme.paletteAlternateBase
+        button: App.Theme.paletteButton
+        buttonText: App.Theme.paletteButtonText
+        mid: App.Theme.paletteMid
+        light: App.Theme.paletteLight
+        midlight: App.Theme.paletteMidlight
+        dark: App.Theme.paletteDark
+        text: App.Theme.textPrimary
+        highlight: App.Theme.paletteHighlight
+        highlightedText: App.Theme.paletteHighlightedText
+        toolTipBase: App.Theme.paletteToolTipBase
+        toolTipText: App.Theme.paletteToolTipText
+        placeholderText: App.Theme.textHint
+    }
 
     // 串流参数设置对话框
     StreamSettingsDialog {
@@ -55,15 +77,15 @@ Window {
                     Layout.alignment: Qt.AlignRight
 
                     background: Rectangle {
-                        color: parent.hovered ? "#E3F2FD" : "#F5F5F5"
+                        color: parent.hovered ? App.Theme.btnHoverBg : App.Theme.btnBg
                         radius: 5
-                        border.color: "#1976D2"
+                        border.color: App.Theme.primary
                         border.width: 1
                     }
 
                     contentItem: Text {
                         text: parent.text
-                        color: "#1976D2"
+                        color: App.Theme.primary
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                         font: parent.font
@@ -131,8 +153,8 @@ Window {
                         font.pixelSize: 13
 
                         background: Rectangle {
-                            color: "#FAFAFA"
-                            border.color: instanceIdsField.activeFocus ? "#1976D2" : "#CCCCCC"
+                            color: App.Theme.inputBg
+                            border.color: instanceIdsField.activeFocus ? App.Theme.primary : App.Theme.border
                             border.width: 1
                             radius: 3
                         }
@@ -149,7 +171,7 @@ Window {
                     Label {
                         text: "多个实例ID用英文逗号分隔"
                         font.pixelSize: 12
-                        color: "#888"
+                        color: App.Theme.textHint
                     }
                 }
             }
@@ -181,7 +203,7 @@ Window {
                 font.bold: true
 
                 background: Rectangle {
-                    color: confirmButton.enabled ? "#1976D2" : "#BDBDBD"
+                    color: confirmButton.enabled ? App.Theme.primary : App.Theme.btnDisabledBg
                     radius: 5
                 }
 
