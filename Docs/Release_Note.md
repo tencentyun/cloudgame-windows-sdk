@@ -3,6 +3,22 @@
 <!-- FORMAT_VERSION: 1.0 -->
 
 ---
+## [1.25.3] - 2026-05-25
+
+### Features
+- 将群控接口从 AndroidInstance 迁移到 Session 以解决多session情况下设置群控列表的问题
+
+
+### Download
+
+| Platform | Arch | Package |
+|----------|------|---------|
+| Windows | x86 & x64 | [TcrSdk-Windows-Debug-1.25.3-20260525-e738308a.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Windows-Debug-1.25.3-20260525-e738308a.zip) |
+| Windows | x86 & x64 | [TcrSdk-Windows-Release-1.25.3-20260525-e738308a.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Windows-Release-1.25.3-20260525-e738308a.zip) |
+| Macos | universal | [TcrSdk-Macos-universal-1.25.3-20260525-e738308a.zip](https://cg-sdk-1258344699.cos.ap-nanjing.myqcloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Macos-universal-1.25.3-20260525-e738308a.zip) |
+| Linux | x86_64 | [TcrSdk-Linux-x86_64-1.25.3-20260525-e738308a.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Linux-x86_64-1.25.3-20260525-e738308a.zip) |
+
+---
 ## [1.25.2] - 2026-05-20
 
 ### Features
