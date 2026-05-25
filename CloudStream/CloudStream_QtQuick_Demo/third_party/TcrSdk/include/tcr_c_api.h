@@ -315,14 +315,6 @@ TCRSDK_API TcrAndroidInstance tcr_client_get_android_instance(TcrClientHandle cl
 // ==================== 云手机操作接口  ====================
 
 /**
- * @brief 将多个实例加入当前群组会话，实现多实例同步控制
- * @param session TcrAndroidInstance 句柄
- * @param instanceIds 实例 ID 字符串数组
- * @param length 实例 ID 数组长度
- */
-TCRSDK_API void tcr_instance_join_group(TcrAndroidInstance op, const char** instanceIds, int32_t length);
-
-/**
  * @brief 请求打开或关闭指定实例的视频流，并设置流质量
  * @param session TcrAndroidInstance 句柄
  * @param instanceID 实例 ID
@@ -331,23 +323,6 @@ TCRSDK_API void tcr_instance_join_group(TcrAndroidInstance op, const char** inst
  */
 TCRSDK_API void tcr_instance_request_stream(TcrAndroidInstance op, const char* instanceID, bool status,
                                             const char* level);
-
-/**
- * @brief 设置或取消主控实例，实现主从同步
- * @param session TcrAndroidInstance 句柄
- * @param instanceId 主控实例 ID
- * @param status true 表示设置为主控，false 表示取消主控
- */
-TCRSDK_API void tcr_instance_set_master(TcrAndroidInstance op, const char* instanceId, bool status);
-
-/**
- * @brief 设置群组会话中需要被群控的实例列表。
- * @param session TcrAndroidInstance 句柄
- * @param instanceIds 需要同步控制的实例ID字符串数组, 这些ID必须已经添加到群组会话中。
- * @param length 实例 ID 数组长度
- * @note 仅群组会话成员可同步，需先通过 join_group_session 加入群组
- */
-TCRSDK_API void tcr_instance_set_sync_list(TcrAndroidInstance op, const char** instanceIds, int32_t length);
 
 /**
  * @brief 获取指定实例的截图图片 URL
@@ -931,7 +906,6 @@ TCRSDK_API void tcr_session_access(TcrSessionHandle session, const char** instan
  *
  * @warning
  *   - 此接口与tcr_session_access互斥，同一session只能调用其中一个
- *   - 调用此接口后，群控相关接口（如tcr_instance_set_sync_list）针对该会话将不可用
  *
  * @example 典型用法
  * @code
@@ -1127,6 +1101,32 @@ TCRSDK_API bool tcr_session_get_camera_device(TcrSessionHandle session, int devi
  * @note 目标应用需实现 Messenger 服务，否则无法收到消息
  */
 TCRSDK_API void tcr_session_send_trans_message(TcrSessionHandle session, const char* package_name, const char* msg);
+
+/**
+ * @brief 将多个实例加入当前群组会话，实现多实例同步控制
+ * @param session 会话句柄
+ * @param instanceIds 实例 ID 字符串数组
+ * @param length 实例 ID 数组长度
+ */
+TCRSDK_API void tcr_session_join_group(TcrSessionHandle session, const char** instanceIds, int32_t length);
+
+/**
+ * @brief 设置或取消主控实例，实现主从同步
+ * @param session 会话句柄
+ * @param instanceId 主控实例 ID
+ * @param status true 表示设置为主控，false 表示取消主控
+ */
+TCRSDK_API void tcr_session_set_master(TcrSessionHandle session, const char* instanceId, bool status);
+
+/**
+ * @brief 设置群组会话中需要被群控的实例列表
+ * @param session 会话句柄
+ * @param instanceIds 需要同步控制的实例ID字符串数组, 这些ID必须已经添加到群组会话中
+ * @param length 实例 ID 数组长度
+ * @note 仅群组会话成员可同步，需先通过 tcr_session_join_group 加入群组。
+ *       若当前主实例为空，则同步列表不会被更新。
+ */
+TCRSDK_API void tcr_session_set_sync_list(TcrSessionHandle session, const char** instanceIds, int32_t length);
 
 /**
  * @brief 将文本写入剪贴板并粘贴到输入框
@@ -1409,6 +1409,59 @@ TCRSDK_API bool tcr_session_enable_microphone_with_config(TcrSessionHandle sessi
  * @endcode
  */
 TCRSDK_API const char* tcr_session_event_to_string(TcrSessionEvent event);
+
+// ==================== 探测相关接口 ====================
+
+/**
+ * @brief 探测结果回调函数类型
+ *
+ * 探测完成后（或定期更新时）通过此回调将结果返回给调用方。
+ * result 指针在回调期间有效，如需持有需调用 tcr_probe_result_clone()。
+ *
+ * @param user_data 用户自定义数据
+ * @param result 探测结果，包含所有可用节点的质量信息
+ */
+typedef void (*TcrProbeResultCallback)(void* user_data, const TcrProbeResult* result);
+
+/**
+ * @brief 启动主动网络探测
+ *
+ * 建立到各加速节点的探测连接，持续采集网络质量指标。
+ * 首次结果就绪后通过 callback 回调，之后每 2 秒更新一次。
+ * 调用 tcr_client_stop_probe() 停止探测。
+ *
+ * @param client Client 句柄
+ * @param callback 结果回调（在内部线程触发，调用方需注意线程安全）
+ * @param user_data 传递给回调的用户数据
+ * @return 0 成功启动，非 0 失败（如已在探测中、Client 未初始化）
+ *
+ * @note 无需先创建 Session 即可调用
+ * @note 同一时刻只能有一次主动探测在进行
+ */
+TCRSDK_API TcrErrorCode tcr_client_start_probe(TcrClientHandle client, TcrProbeResultCallback callback,
+                                               void* user_data);
+
+/**
+ * @brief 停止主动探测
+ *
+ * 停止探测并释放探测连接资源。停止后不再触发回调。
+ */
+TCRSDK_API void tcr_client_stop_probe(TcrClientHandle client);
+
+/**
+ * @brief 克隆探测结果（延长生命周期）
+ *
+ * 回调中的 result 指针仅在回调期间有效。
+ * 如需在回调外持有结果，调用此函数获取独立副本。
+ *
+ * @return 新分配的结果副本，用完需调用 tcr_probe_result_release() 释放
+ */
+TCRSDK_API TcrProbeResult* tcr_probe_result_clone(const TcrProbeResult* result);
+
+/**
+ * @brief 释放探测结果内存
+ */
+TCRSDK_API void tcr_probe_result_release(TcrProbeResult* result);
 
 #ifdef __cplusplus
 }

@@ -390,6 +390,9 @@ typedef struct {
                                          ///<
                                          ///< @note 该配置会限制 tcr_session_switch_streaming_instances 接口
                                          ///<       切换的实例数量，切换时传入的实例数不能超过此配置值
+
+  const char* preferred_domain;  ///< 首选加速节点域名（可选），NULL 表示不指定
+  bool enable_passive_probe;     ///< 是否启用被动探测，默认 false
 } TcrSessionConfig;
 
 /**
@@ -438,6 +441,10 @@ static inline TcrSessionConfig tcr_session_config_default(void) {
 
   // 默认最大同时拉流实例数为100
   config.concurrentStreamingInstances = 1;
+
+  // 探测相关配置默认值
+  config.preferred_domain = NULL;
+  config.enable_passive_probe = false;
 
   return config;
 }
@@ -784,12 +791,15 @@ typedef enum {
 
   /**
    * @brief 实例断开连接通知。
-   * 当使用tcr_session_access_multi_stream连接多个实例时，如果某些实例断开了连接，将触发此事件。
+   * 该事件在以下情况下触发：
+   * 1. 调用tcr_session_access_multi_stream连接多个实例时，服务端返回部分实例无法访问
+   * 2. 串流过程中某些实例断开了连接
+   *
    * 客户端可以自行选择是否提示用户有实例断开，或者重新调用tcr_session_access_multi_stream重新连接。
    * 事件数据类型JSON格式字符串：
    * @code{.json}
    * {
-   *     "user_list": [string]  // 断开连接的实例ID列表
+   *     "instanceIds": [string]  // 断开连接或无法访问的实例ID列表
    * }
    * @endcode
    * @note 该事件仅在多实例场景（tcr_session_access_multi_stream）下触发
@@ -847,7 +857,31 @@ typedef enum {
    * @note 该事件仅在多实例场景（tcr_session_access_multi_stream）下触发。
    */
   TCR_SESSION_EVENT_TRACK_STUCK = 18,
+
 } TcrSessionEvent;
+
+/**
+ * @brief 单个加速节点的探测质量信息
+ */
+typedef struct TcrProbeNodeInfo {
+  const char* zone;         ///< 节点标识，如 "ap-shanghai-3"
+  const char* domain;       ///< 节点域名
+  double rtt_ms;            ///< 往返延迟 (ms)
+  double jitter_ms;         ///< 抖动 (ms)
+  double packet_loss_rate;  ///< 丢包率 (0.0~1.0)
+  double quality_score;     ///< 综合评分 (0~100，越高越好)
+  int64_t connect_time_ms;  ///< 连接建立耗时 (ms)
+} TcrProbeNodeInfo;
+
+/**
+ * @brief 主动探测结果
+ */
+typedef struct TcrProbeResult {
+  TcrProbeNodeInfo* nodes;  ///< 节点数组（按 quality_score 降序排列）
+  int node_count;           ///< 节点数量
+  int64_t timestamp_ms;     ///< 结果生成时间戳
+  bool is_ready;            ///< 是否所有节点都已完成探测
+} TcrProbeResult;
 
 /**
  * @brief 日志级别

@@ -240,20 +240,20 @@ void StreamingViewModel::updateCheckedInstanceIds(const QVariantList& instanceId
   }
 
   // 【步骤1】将新增实例加入群控组
-  // SDK API: tcr_instance_join_group(instance, instanceIds, count)
+  // SDK API: tcr_session_join_group(session, instanceIds, count)
   if (!addedInstanceIds.isEmpty()) {
     auto result = VariantListConverter::convert(addedInstanceIds);
     if (!result.pointers.empty()) {
-      tcr_instance_join_group(m_instance, result.pointers.data(), static_cast<int32_t>(result.pointers.size()));
+      tcr_session_join_group(m_session, result.pointers.data(), static_cast<int32_t>(result.pointers.size()));
     }
   }
 
   // 【步骤2】更新同步列表
-  // SDK API: tcr_instance_set_sync_list(instance, instanceIds, count)
+  // SDK API: tcr_session_set_sync_list(session, instanceIds, count)
   if (!instanceIds.isEmpty()) {
     auto result = VariantListConverter::convert(instanceIds);
     if (!result.pointers.empty()) {
-      tcr_instance_set_sync_list(m_instance, result.pointers.data(), static_cast<int32_t>(result.pointers.size()));
+      tcr_session_set_sync_list(m_session, result.pointers.data(), static_cast<int32_t>(result.pointers.size()));
     }
   }
 }
