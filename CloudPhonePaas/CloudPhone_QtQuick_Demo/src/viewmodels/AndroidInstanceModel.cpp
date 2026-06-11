@@ -2,31 +2,27 @@
 
 #include "services/ApiService.h"
 #include "utils/Logger.h"
+#include "viewmodels/MultiStreamViewModel.h"
 
 // 静态成员初始化
 InstanceImageProvider* AndroidInstanceModel::s_imageProvider = new InstanceImageProvider();
 
 AndroidInstanceModel::AndroidInstanceModel(ApiService* apiService, BatchTaskOperator* op, QObject* parent)
-    : QObject(parent), m_apiService(apiService), m_imageDownloader(new InstanceImageDownloader(op, this)) {
+    : QObject(parent), m_apiService(apiService) {
   // 连接信号
   connect(m_apiService, &ApiService::loginSuccess, this, &AndroidInstanceModel::onLoginSuccess);
   connect(m_apiService, &ApiService::instancesReceived, this, &AndroidInstanceModel::onInstancesReceived);
-
-  // 连接下载器的图片下载完成信号
-  connect(m_imageDownloader, &InstanceImageDownloader::imageDownloaded, this, &AndroidInstanceModel::onImageDownloaded);
 }
 
-AndroidInstanceModel::~AndroidInstanceModel() { m_imageDownloader->stopDownloading(); }
-
-// 设置下载实例列表
-void AndroidInstanceModel::setDownloadInstances(const QStringList& instanceIds) {
-  m_imageDownloader->updateInstanceList(instanceIds);
-  Logger::info(QString("Set download instances: %1").arg(instanceIds.join(",")));
+AndroidInstanceModel::~AndroidInstanceModel() {
+  if (m_multiStreamViewModel) {
+    m_multiStreamViewModel->closeSession();
+  }
 }
 
-void AndroidInstanceModel::pauseImageDownload() { m_imageDownloader->pauseDownloading(); }
-
-void AndroidInstanceModel::resumeImageDownload() { m_imageDownloader->resumeDownloading(); }
+void AndroidInstanceModel::setMultiStreamViewModel(MultiStreamViewModel* viewModel) {
+  m_multiStreamViewModel = viewModel;
+}
 
 QVariantList AndroidInstanceModel::instances() const {
   QVariantList list;
@@ -73,34 +69,31 @@ void AndroidInstanceModel::onInstancesReceived(const QList<AndroidInstance>& ins
               return;
             }
 
-            // 先只下载前10个实例的图片, 剩下的随着滚动位置按需下载
-            QStringList firstTenInstances = instanceIds.mid(0, 10);
-            m_imageDownloader->startDownloading(firstTenInstances);
+            // 5. 通过MultiStreamViewModel创建多实例视频流会话
+            if (m_multiStreamViewModel) {
+              m_multiStreamViewModel->initialize(instanceIds, accessInfo, token);
+              // 使用全部实例数量作为并发拉流数（后续可通过可见性动态切换）
+              m_multiStreamViewModel->connectMultipleInstances(instanceIds, instanceIds.size());
+            }
+
             emit instancesChanged();  // 通知QML刷新视图
           });
 }
 
 void AndroidInstanceModel::refreshInstances() {
   Logger::debug("AndroidInstanceModel::refreshInstances");
-  // 1. 停止当前图片下载
-  m_imageDownloader->stopDownloading();
 
-  // 2. 清空图片缓存
-  s_imageProvider->clearCache();
+  // 1. 关闭当前多实例流会话
+  if (m_multiStreamViewModel) {
+    m_multiStreamViewModel->closeSession();
+  }
 
-  // 3. 清空本地实例列表
+  // 2. 清空本地实例列表
   m_instances.clear();
   emit instancesChanged();
 
-  // 4. 重新拉取实例列表
+  // 3. 重新拉取实例列表
   m_apiService->describeAndroidInstances(0, 200);
-}
-
-void AndroidInstanceModel::onImageDownloaded(const QString& instanceId, const QImage& image) {
-  // 更新图片缓存
-  s_imageProvider->updateImage(instanceId, image);
-  // 发出图片更新信号
-  emit imageUpdated(instanceId);
 }
 
 InstanceImageProvider* AndroidInstanceModel::imageProvider() { return s_imageProvider; }
