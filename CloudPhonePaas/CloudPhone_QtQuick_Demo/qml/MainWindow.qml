@@ -154,13 +154,6 @@ Window {
         id: gridView
         ScrollBar.vertical: ScrollBar {
             policy: ScrollBar.AlwaysOn
-            onPressedChanged: {
-                if (!pressed) {
-                    var visibleIds = gridView.updateVisibleInstances();
-                    androidInstanceModel.setDownloadInstances(visibleIds);
-                    androidInstanceModel.resumeImageDownload();
-                }
-            }
         }
         anchors.top: parent.top
         anchors.topMargin: 50
@@ -172,41 +165,53 @@ Window {
         cellWidth: 320
         cellHeight: 569
         model: androidInstanceModel.instances
-        property bool isScrolling: false
-        property var visibleInstanceIds: []
+
+        // 滚动停止后更新可见实例，通知MultiStreamViewModel切换拉流
+        Timer {
+            id: scrollStopTimer
+            interval: 500
+            repeat: false
+            onTriggered: {
+                gridView.updateVisibleInstances();
+            }
+        }
+
+        onMovingChanged: {
+            if (!moving) {
+                scrollStopTimer.restart();
+            }
+        }
+
         function updateVisibleInstances() {
-            var newVisibleInstances = [];
+            var visibleIds = [];
+            var invisibleIds = [];
             var columns = Math.floor(width / cellWidth);
             if (columns < 1) columns = 1;
-            var rows = Math.floor(height / cellHeight);
-            if (rows < 1) rows = 1;
             var firstVisibleIndex = Math.floor(contentY / cellHeight) * columns;
             if (firstVisibleIndex < 0) firstVisibleIndex = 0;
             var visibleRowCount = Math.ceil(height / cellHeight) + 1;
             var lastVisibleIndex = firstVisibleIndex + visibleRowCount * columns - 1;
             if (lastVisibleIndex >= model.count) lastVisibleIndex = model.count - 1;
-            for (var i = firstVisibleIndex; i <= lastVisibleIndex; i++) {
+
+            for (var i = 0; i < model.count; i++) {
                 if (model[i]) {
-                    newVisibleInstances.push(model[i].AndroidInstanceId);
+                    var id = model[i].AndroidInstanceId;
+                    if (i >= firstVisibleIndex && i <= lastVisibleIndex) {
+                        visibleIds.push(id);
+                    } else {
+                        invisibleIds.push(id);
+                    }
                 }
             }
-            visibleInstanceIds = newVisibleInstances;
-            return newVisibleInstances;
+            multiStreamViewModel.onVisibilityChanged(visibleIds, invisibleIds);
         }
-        onMovementStarted: {
-            isScrolling = true;
-            androidInstanceModel.pauseImageDownload();
-        }
-        onMovementEnded: {
-            isScrolling = false;
-            var visibleIds = updateVisibleInstances();
-            androidInstanceModel.setDownloadInstances(visibleIds);
-            androidInstanceModel.resumeImageDownload();
-        }
+
         delegate: Rectangle {
             width: 310
             height: 559
             border.color: "gray"
+
+            // 点击卡片打开单实例全质量视频窗口
             MouseArea {
                 anchors.fill: parent
                 onClicked: {
@@ -235,53 +240,53 @@ Window {
                     }
                 }
             }
-            Image {
-                id: instanceImage
+
+            // 视频渲染项（替代原来的截图Image）
+            VideoRenderItem {
+                id: videoRenderItem
+                objectName: "videoRenderItem_" + modelData.AndroidInstanceId
                 anchors.fill: parent
-                source: "image://instance/" + modelData.AndroidInstanceId
-                fillMode: Image.PreserveAspectCrop
-                Connections {
-                    target: androidInstanceModel
-                    function onImageUpdated(instanceId) {
-                        if (instanceId === modelData.AndroidInstanceId) {
-                            var oldSource = instanceImage.source;
-                            instanceImage.source = "";
-                            instanceImage.source = oldSource;
+
+                Component.onCompleted: {
+                    multiStreamViewModel.registerVideoRenderItem(
+                        modelData.AndroidInstanceId, videoRenderItem)
+                }
+            }
+
+            // 选择复选框
+            CheckBox { 
+                anchors.right: parent.right
+                anchors.top: parent.top
+                checked: mainWindow.checkedInstanceIds.indexOf(modelData.AndroidInstanceId) !== -1
+                onCheckedChanged: {
+                    if (checked) {
+                        if (mainWindow.checkedInstanceIds.indexOf(modelData.AndroidInstanceId) === -1)
+                            mainWindow.checkedInstanceIds.push(modelData.AndroidInstanceId);
+                    } else {
+                        if (mainWindow.groupStreamingViewModels.length > 0
+                            && mainWindow.checkedInstanceIds.length === 2
+                            && mainWindow.checkedInstanceIds.indexOf(modelData.AndroidInstanceId) !== -1) {
+                            checked = true;
+                            dialogs.genericTipDialog.close();
+                            dialogs.genericTipDialog.tipTitle = "操作提示"
+                            dialogs.genericTipDialog.tipMessage = "正在进行同步操作, 无法取消"
+                            dialogs.genericTipDialog.open();
+                            return;
+                        }
+                        var idx = mainWindow.checkedInstanceIds.indexOf(modelData.AndroidInstanceId);
+                        if (idx !== -1)
+                            mainWindow.checkedInstanceIds.splice(idx, 1);
+                    }
+                    for (var i = 0; i < mainWindow.groupStreamingViewModels.length; ++i) {
+                        var vm = mainWindow.groupStreamingViewModels[i];
+                        if (vm) {
+                            vm.updateCheckedInstanceIds(mainWindow.checkedInstanceIds);
                         }
                     }
                 }
             }
-        CheckBox { 
-            anchors.right: parent.right
-            anchors.top: parent.top
-            checked: mainWindow.checkedInstanceIds.indexOf(modelData.AndroidInstanceId) !== -1
-            onCheckedChanged: {
-                if (checked) {
-                    if (mainWindow.checkedInstanceIds.indexOf(modelData.AndroidInstanceId) === -1)
-                        mainWindow.checkedInstanceIds.push(modelData.AndroidInstanceId);
-                } else {
-                    if (mainWindow.groupStreamingViewModels.length > 0
-                        && mainWindow.checkedInstanceIds.length === 2
-                        && mainWindow.checkedInstanceIds.indexOf(modelData.AndroidInstanceId) !== -1) {
-                        checked = true;
-                        dialogs.genericTipDialog.close();
-                        dialogs.genericTipDialog.tipTitle = "操作提示"
-                        dialogs.genericTipDialog.tipMessage = "正在进行同步操作, 无法取消"
-                        dialogs.genericTipDialog.open();
-                        return;
-                    }
-                    var idx = mainWindow.checkedInstanceIds.indexOf(modelData.AndroidInstanceId);
-                    if (idx !== -1)
-                        mainWindow.checkedInstanceIds.splice(idx, 1);
-                }
-                for (var i = 0; i < mainWindow.groupStreamingViewModels.length; ++i) {
-                    var vm = mainWindow.groupStreamingViewModels[i];
-                    if (vm) {
-                        vm.updateCheckedInstanceIds(mainWindow.checkedInstanceIds);
-                    }
-                }
-            }
-        }
+
+            // 实例信息底部栏
             Rectangle {
                 anchors.bottom: parent.bottom
                 width: parent.width

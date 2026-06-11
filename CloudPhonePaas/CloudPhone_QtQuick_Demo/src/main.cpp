@@ -13,6 +13,7 @@
 #include "viewmodels/AndroidInstanceModel.h"
 #include "viewmodels/BatchTaskOperatorModel.h"
 #include "viewmodels/LoginViewModel.h"
+#include "viewmodels/MultiStreamViewModel.h"
 #include "viewmodels/StreamingViewModel.h"
 #ifdef _WIN32
 #  include "utils/CrashDumpHandler.h"
@@ -58,8 +59,12 @@ int main(int argc, char* argv[]) {
   /// 创建登录视图模型，封装登录逻辑
   LoginViewModel* loginViewModel = new LoginViewModel(apiService, &app);
 
-  /// 创建云手机实例模型，管理实例列表及图片下载
+  /// 创建云手机实例模型，管理实例列表及多实例视频流
   AndroidInstanceModel* androidInstanceModel = new AndroidInstanceModel(apiService, tcrOperator, &app);
+
+  /// 创建多实例流媒体视图模型，管理GridView中的子流视频
+  MultiStreamViewModel* multiStreamViewModel = new MultiStreamViewModel(&app);
+  androidInstanceModel->setMultiStreamViewModel(multiStreamViewModel);
 
   /// 创建批量任务操作模型，供QML界面调用批量操作
   BatchTaskOperatorModel* batchTaskOperatorModel = new BatchTaskOperatorModel(tcrOperator, &app);
@@ -72,6 +77,7 @@ int main(int argc, char* argv[]) {
   engine.rootContext()->setContextProperty("androidInstanceModel", androidInstanceModel);
   engine.rootContext()->setContextProperty("batchTaskOperator", tcrOperator);
   engine.rootContext()->setContextProperty("batchTaskOperatorModel", batchTaskOperatorModel);
+  engine.rootContext()->setContextProperty("multiStreamViewModel", multiStreamViewModel);
 
   // -------------------- QML自定义类型与图像提供者注册 --------------------
   /// 注册自定义图像提供者，用于实例的图片显示
@@ -83,6 +89,9 @@ int main(int argc, char* argv[]) {
 
   /// 注册流媒体视图模型，供QML使用
   qmlRegisterType<StreamingViewModel>("CustomComponents", 1, 0, "StreamingViewModel");
+
+  /// 注册多实例流媒体视图模型，供QML使用
+  qmlRegisterType<MultiStreamViewModel>("CustomComponents", 1, 0, "MultiStreamViewModel");
 
   /// 注册 StreamConfig 单例，供QML使用
   qmlRegisterSingletonType<StreamConfig>("CustomComponents", 1, 0, "StreamConfig",

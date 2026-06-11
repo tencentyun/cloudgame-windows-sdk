@@ -10,9 +10,9 @@
 
 #include "core/BatchTaskOperator.h"
 #include "InstanceImageProvider.h"
-#include "utils/InstanceImageDownloader.h"
 
 class ApiService;
+class MultiStreamViewModel;
 
 /**
  * @brief 表示单个云手机实例的信息结构体(仅包含云API返回的一部分字段)
@@ -26,9 +26,10 @@ struct AndroidInstance {
 };
 
 /**
- * @brief 云手机实例模型，管理实例列表及图片下载
+ * @brief 云手机实例模型，管理实例列表及多实例视频流
  *
- * 该模型负责与ApiService交互，获取云手机实例列表，并通过InstanceImageDownloader异步下载实例图片。
+ * 该模型负责与ApiService交互，获取云手机实例列表，
+ * 并通过MultiStreamViewModel管理多实例子流视频。
  * 同时提供QML属性和方法，供前端界面调用。
  */
 class AndroidInstanceModel : public QObject {
@@ -60,20 +61,10 @@ class AndroidInstanceModel : public QObject {
   static InstanceImageProvider* imageProvider();
 
   /**
-   * @brief 暂停图片下载
+   * @brief 设置多实例流媒体ViewModel
+   * @param viewModel MultiStreamViewModel指针
    */
-  Q_INVOKABLE void pauseImageDownload();
-
-  /**
-   * @brief 恢复图片下载
-   */
-  Q_INVOKABLE void resumeImageDownload();
-
-  /**
-   * @brief 设置需要下载图片的实例ID列表
-   * @param instanceIds 实例ID列表
-   */
-  Q_INVOKABLE void setDownloadInstances(const QStringList& instanceIds);
+  void setMultiStreamViewModel(MultiStreamViewModel* viewModel);
 
   /**
    * @brief 刷新实例列表（重新拉取并清空缓存）
@@ -85,12 +76,6 @@ class AndroidInstanceModel : public QObject {
    * @brief 实例列表发生变化时发出
    */
   void instancesChanged();
-
-  /**
-   * @brief 某个实例图片更新时发出
-   * @param instanceId 实例ID
-   */
-  void imageUpdated(const QString& instanceId);
 
  private slots:
   /**
@@ -106,17 +91,10 @@ class AndroidInstanceModel : public QObject {
    */
   void onInstancesReceived(const QList<AndroidInstance>& instances, int totalCount);
 
-  /**
-   * @brief 图片下载完成后回调
-   * @param instanceId 实例ID
-   * @param image 下载的图片
-   */
-  void onImageDownloaded(const QString& instanceId, const QImage& image);
-
  private:
-  ApiService* m_apiService;                       ///< API服务指针
-  QList<AndroidInstance> m_instances;             ///< 当前实例列表
-  bool m_tcrConfigured = false;                   ///< TCR SDK是否已配置
-  InstanceImageDownloader* m_imageDownloader;     ///< 图片下载器
-  static InstanceImageProvider* s_imageProvider;  ///< 静态图像提供者实例
+  ApiService* m_apiService;                                ///< API服务指针
+  QList<AndroidInstance> m_instances;                      ///< 当前实例列表
+  bool m_tcrConfigured = false;                            ///< TCR SDK是否已配置
+  MultiStreamViewModel* m_multiStreamViewModel = nullptr;  ///< 多实例流媒体ViewModel
+  static InstanceImageProvider* s_imageProvider;           ///< 静态图像提供者实例
 };
