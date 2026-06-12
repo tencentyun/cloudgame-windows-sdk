@@ -199,7 +199,7 @@ void ApiService::createAndroidInstancesAccessToken(const QStringList& androidIns
   }
   data["AndroidInstanceIds"] = idsArray;
   data["ExpirationDuration"] = "24h";
-  data["Mode"] = "STANDARD";
+  data["Mode"] = "ACCELERATED";
 
   sendRequest("/CreateAndroidInstancesAccessToken", data, [this](const QJsonObject& response) {
     QString accessInfo = response["AccessInfo"].toString();

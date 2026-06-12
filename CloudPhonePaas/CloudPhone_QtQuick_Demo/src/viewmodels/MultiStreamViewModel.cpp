@@ -83,6 +83,7 @@ void MultiStreamViewModel::initialize(const QStringList& instanceIds, const QStr
   TcrConfig config = tcr_config_default();
   config.token = tokenStr.c_str();
   config.accessInfo = accessInfoStr.c_str();
+  config.sdkType = CloudPhonePaas;
 
   // 步骤2：获取 TcrClient 全局单例句柄
   TcrClientHandle client = tcr_client_get_instance();
