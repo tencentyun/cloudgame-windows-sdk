@@ -74,6 +74,7 @@
 | [tcr_session_get_camera_device_count](#tcr_session_get_camera_device_count) | 获取摄像头设备数量 |
 | [tcr_session_get_camera_device](#tcr_session_get_camera_device) | 获取摄像头设备信息 |
 | [tcr_session_enable_local_microphone](#tcr_session_enable_local_microphone) | 启用/禁用本地麦克风 |
+| [tcr_session_disable_local_microphone](#tcr_session_disable_local_microphone) | 禁用本地麦克风 |
 | [tcr_session_is_local_microphone_enabled](#tcr_session_is_local_microphone_enabled) | 查询本地麦克风是否启用 |
 | [tcr_session_get_microphone_device_count](#tcr_session_get_microphone_device_count) | 获取麦克风设备数量 |
 | [tcr_session_get_microphone_device](#tcr_session_get_microphone_device) | 获取麦克风设备信息 |
@@ -1023,6 +1024,17 @@ bool tcr_session_enable_local_microphone(TcrSessionHandle session, bool enable);
   - `enable`：`true` 启用，`false` 禁用。
 - **返回值**：成功返回 `true`。
 
+#### tcr_session_disable_local_microphone
+
+禁用本地麦克风。
+
+```cpp
+void tcr_session_disable_local_microphone(TcrSessionHandle session);
+```
+
+- **参数**：
+  - `session`：会话句柄。
+
 #### tcr_session_is_local_microphone_enabled
 
 查询本地麦克风是否已启用。
@@ -1757,12 +1769,13 @@ typedef enum {
     TCR_SESSION_EVENT_SYSTEM_USAGE = 9,
     TCR_SESSION_EVENT_CLIPBOARD_EVENT = 10,
     TCR_SESSION_EVENT_NOTIFICATION_EVENT = 11,
-    TCR_SESSION_EVENT_IME_STATUS_CHANGE = 12,
-    TCR_SESSION_EVENT_REMOTE_DESKTOP_INFO = 13,
-    TCR_SESSION_EVENT_RECONNECTING = 14,
-    TCR_SESSION_EVENT_STREAMING_DISCONNECT = 15,
-    TCR_SESSION_EVENT_STREAMING_SWITCH_FAILED = 16,
-    TCR_SESSION_EVENT_SERVER_STREAMING_STARTED = 17,
+    TCR_SESSION_EVENT_TOKEN_EXPIRED = 12,
+    TCR_SESSION_EVENT_IME_STATUS_CHANGE = 13,
+    TCR_SESSION_EVENT_REMOTE_DESKTOP_INFO = 14,
+    TCR_SESSION_EVENT_RECONNECTING = 15,
+    TCR_SESSION_EVENT_STREAMING_DISCONNECT = 16,
+    TCR_SESSION_EVENT_STREAMING_SWITCH_FAILED = 17,
+    TCR_SESSION_EVENT_SERVER_STREAMING_STARTED = 18,
 } TcrSessionEvent;
 ```
 
@@ -1781,10 +1794,11 @@ typedef enum {
 | `TCR_SESSION_EVENT_SYSTEM_USAGE` | 云端系统资源使用率 | JSON，包含 `cpu_usage`、`mem_usage`、`gpu_usage` |
 | `TCR_SESSION_EVENT_CLIPBOARD_EVENT` | 云端剪贴板变化 | JSON，包含 `text` |
 | `TCR_SESSION_EVENT_NOTIFICATION_EVENT` | 新通知事件 | JSON，包含 `package_name`、`title`、`text` |
+| `TCR_SESSION_EVENT_TOKEN_EXPIRED` | 云端实例Token过期 | JSON，包含 `instanceId`。后续使用相同Token将无法访问对应实例，但不会断开当前连接 |
 | `TCR_SESSION_EVENT_IME_STATUS_CHANGE` | 输入法状态变化 | JSON，包含 `ime_type`（`cloud` / `local`） |
 | `TCR_SESSION_EVENT_REMOTE_DESKTOP_INFO` | 云桌面屏幕信息 | JSON，包含 `screen_width`、`screen_height`、`screen_left`、`screen_top` |
 | `TCR_SESSION_EVENT_RECONNECTING` | 正在重连 | 无数据 |
-| `TCR_SESSION_EVENT_STREAMING_DISCONNECT` | 多流场景实例断开 | JSON，包含 `user_list` |
+| `TCR_SESSION_EVENT_STREAMING_DISCONNECT` | 多流场景实例断开 | JSON，包含 `instanceIds` |
 | `TCR_SESSION_EVENT_STREAMING_SWITCH_FAILED` | 多流切流失败 | JSON，包含 `failed_list` |
 | `TCR_SESSION_EVENT_SERVER_STREAMING_STARTED` | 服务端开始推流 | 无数据 |
 
