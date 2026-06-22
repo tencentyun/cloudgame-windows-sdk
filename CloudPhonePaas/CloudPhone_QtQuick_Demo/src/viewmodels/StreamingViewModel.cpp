@@ -507,6 +507,10 @@ void StreamingViewModel::SessionEventCallback(void* user_data, TcrSessionEvent e
   else if (event == TCR_SESSION_EVENT_SCREEN_CONFIG_CHANGE) {
     self->handleScreenConfigChange(eventDataCopy);
   }
+  // 【事件6：Token过期】
+  else if (event == TCR_SESSION_EVENT_TOKEN_EXPIRED) {
+    self->handleTokenExpired(eventDataCopy);
+  }
 }
 
 void StreamingViewModel::handleSessionConnected() {
@@ -594,6 +598,19 @@ void StreamingViewModel::handleScreenConfigChange(const QString& eventData) {
 
   // 发射信号通知 QML 层屏幕方向变化
   emit screenOrientationChanged(isLandscape);
+}
+
+void StreamingViewModel::handleTokenExpired(const QString& eventData) {
+  Logger::info("[handleTokenExpired] Token 过期: " + eventData);
+
+  QJsonDocument doc = QJsonDocument::fromJson(eventData.toUtf8());
+  QString instanceId;
+  if (doc.isObject()) {
+    instanceId = doc.object().value("instanceId").toString();
+  }
+
+  Logger::info(QString("[handleTokenExpired] 实例ID: %1").arg(instanceId));
+  emit tokenExpired(instanceId);
 }
 
 qreal StreamingViewModel::mapCloudRotationToClient(const QString& cloudDegree) {

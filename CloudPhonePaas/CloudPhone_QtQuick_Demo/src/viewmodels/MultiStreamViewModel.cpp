@@ -526,6 +526,17 @@ void MultiStreamViewModel::SessionEventCallback(void* user_data, TcrSessionEvent
       emit self->clientStatsChanged();
       break;
 
+    case TCR_SESSION_EVENT_TOKEN_EXPIRED: {
+      QJsonDocument doc = QJsonDocument::fromJson(eventDataCopy.toUtf8());
+      QString instanceId;
+      if (doc.isObject()) {
+        instanceId = doc.object().value("instanceId").toString();
+      }
+      Logger::info(QString("[SessionEventCallback] Token 过期, 实例ID: %1").arg(instanceId));
+      emit self->tokenExpired(instanceId);
+      break;
+    }
+
     default:
       Logger::debug(QString("[SessionEventCallback] 收到事件: %1, 数据: %2").arg(event).arg(eventDataCopy));
       break;

@@ -383,4 +383,14 @@ Window {
             dialogs.genericTipDialog.open()
         }
     }
+
+    // 监听多实例场景下的Token过期事件
+    Connections {
+        target: multiStreamViewModel
+        function onTokenExpired(instanceId) {
+            dialogs.genericTipDialog.tipTitle = "实例已到期"
+            dialogs.genericTipDialog.tipMessage = "实例 " + instanceId + " 已到期，无法继续使用。"
+            dialogs.genericTipDialog.open()
+        }
+    }
 }

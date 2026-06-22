@@ -248,5 +248,24 @@ ApplicationWindow {
                 popupInputField.forceActiveFocus()
             }
         }
+        function onTokenExpired(instanceId) {
+            tokenExpiredDialog.tokenExpiredInstanceId = instanceId
+            tokenExpiredDialog.open()
+        }
+    }
+
+    // Token过期提示弹窗
+    Dialog {
+        id: tokenExpiredDialog
+        property string tokenExpiredInstanceId: ""
+        title: "实例已到期"
+        standardButtons: Dialog.Ok
+        modal: true
+
+        Label {
+            text: "实例 " + tokenExpiredDialog.tokenExpiredInstanceId + " 已到期，无法继续使用。"
+            wrapMode: Text.WordWrap
+            width: 300
+        }
     }
 }

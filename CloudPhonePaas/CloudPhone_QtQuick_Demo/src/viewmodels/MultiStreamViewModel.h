@@ -195,6 +195,14 @@ class MultiStreamViewModel : public QObject {
    */
   void requestIdChanged();
 
+  /**
+   * @brief Token 过期信号
+   * @param instanceId 过期的实例ID
+   *
+   * 当收到 TCR_SESSION_EVENT_TOKEN_EXPIRED 事件时触发
+   */
+  void tokenExpired(const QString& instanceId);
+
  private:
   // ==================== 内部数据结构 ====================
 

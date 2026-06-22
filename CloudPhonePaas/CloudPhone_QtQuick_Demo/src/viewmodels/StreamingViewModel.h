@@ -180,6 +180,14 @@ class StreamingViewModel : public QObject {
    */
   void screenOrientationChanged(bool isLandscape);
 
+  /**
+   * @brief Token 过期信号
+   * @param instanceId 过期的实例ID
+   *
+   * 当收到 TCR_SESSION_EVENT_TOKEN_EXPIRED 事件时触发
+   */
+  void tokenExpired(const QString& instanceId);
+
  public slots:
   // ==================== 触摸输入 ====================
 
@@ -426,6 +434,12 @@ class StreamingViewModel : public QObject {
    * @param eventData 事件数据（JSON格式）
    */
   void handleScreenConfigChange(const QString& eventData);
+
+  /**
+   * @brief 处理Token过期事件
+   * @param eventData 事件数据（JSON格式，包含 instanceId 字段）
+   */
+  void handleTokenExpired(const QString& eventData);
 
   /**
    * @brief 映射云端旋转角度到客户端旋转角度
