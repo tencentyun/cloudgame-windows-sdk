@@ -83,6 +83,7 @@ add_custom_command(TARGET CloudPhone_QtQuick POST_BUILD
 TcrConfig config;
 config.Token = tokenResult.token.c_str();           // 业务后台获取的 Token
 config.AccessInfo = tokenResult.accessInfo.c_str(); // 业务后台获取的 AccessInfo
+config.sdkType = CloudPhonePaas;
 
 TcrClientHandle tcrClient = tcr_client_get_instance();
 TcrErrorCode err = tcr_client_init(tcrClient, &config);
