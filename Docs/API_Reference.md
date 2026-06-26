@@ -53,6 +53,8 @@
 | [tcr_video_frame_release](#tcr_video_frame_release) | 释放视频帧引用 |
 | [tcr_video_frame_buffer_is_d3d11](#tcr_video_frame_buffer_is_d3d11) | 判断缓冲区是否为 D3D11 类型 |
 | [tcr_video_frame_buffer_get_d3d11_texture](#tcr_video_frame_buffer_get_d3d11_texture) | 获取 D3D11 纹理指针 |
+| [tcr_video_frame_convert_to_bgra](#tcr_video_frame_convert_to_bgra) | 将 I420 视频帧转换为 BGRA 格式并可选缩放 |
+| [tcr_bgra_buffer_free](#tcr_bgra_buffer_free) | 释放 BGRA buffer |
 
 ### 数据通道接口
 
@@ -856,6 +858,50 @@ void* tcr_video_frame_buffer_get_d3d11_texture(const TcrVideoFrameBuffer* buffer
   - `buffer`：视频帧缓冲区，且必须为 D3D11 类型。
 - **返回值**：底层 `ID3D11Texture2D*` 指针；失败返回 `NULL`。
 
+#### tcr_video_frame_convert_to_bgra
+
+将 I420 格式的视频帧转换为 BGRA 格式，可同时缩放到指定分辨率。
+
+```cpp
+TcrBGRABuffer* tcr_video_frame_convert_to_bgra(
+    TcrVideoFrameHandle frame_handle,
+    int32_t output_width,
+    int32_t output_height
+);
+```
+
+- **参数**：
+  - `frame_handle`：视频帧句柄（由 `on_frame` 回调传入）。
+  - `output_width`：输出宽度（像素），传 `0` 表示保持原始宽度。
+  - `output_height`：输出高度（像素），传 `0` 表示保持原始高度。
+- **返回值**：成功返回 `TcrBGRABuffer*`；失败（如帧为 D3D11 纹理格式）返回 `NULL`。
+- **说明**：
+  - 仅支持软件解码路径的 I420 格式帧。D3D11 纹理帧不支持此转换。
+  - 返回的 buffer 独立于 `frame_handle` 的生命周期，使用完毕后必须调用 `tcr_bgra_buffer_free` 释放。
+- **示例**：
+
+```cpp
+void on_frame(void* user_data, TcrVideoFrameHandle frame) {
+    TcrBGRABuffer* bgra = tcr_video_frame_convert_to_bgra(frame, 0, 0);
+    if (bgra) {
+        // 使用 bgra->data, bgra->width, bgra->height 渲染
+        tcr_bgra_buffer_free(bgra);
+    }
+}
+```
+
+#### tcr_bgra_buffer_free
+
+释放 `tcr_video_frame_convert_to_bgra` 返回的 BGRA buffer。
+
+```cpp
+void tcr_bgra_buffer_free(TcrBGRABuffer* buffer);
+```
+
+- **参数**：
+  - `buffer`：需要释放的 `TcrBGRABuffer` 指针，传 `NULL` 无操作。
+- **说明**：每次成功调用 `tcr_video_frame_convert_to_bgra` 后必须对应调用此函数释放。
+
 ### 数据通道接口
 
 #### tcr_session_create_data_channel
@@ -1574,6 +1620,24 @@ typedef struct {
     TcrVideoRotation rotation;
 } TcrVideoFrame;
 ```
+
+### TcrBGRABuffer
+
+```cpp
+typedef struct {
+    uint8_t* data;
+    int32_t stride;
+    int32_t width;
+    int32_t height;
+} TcrBGRABuffer;
+```
+
+- **说明**：
+  - 通过 `tcr_video_frame_convert_to_bgra()` 获取，包含已转换的 BGRA 像素数据。
+  - 像素格式为 32 位 BGRA（B-G-R-A 字节顺序，每个通道 8 位）。
+  - `data`：BGRA 像素数据指针。
+  - `stride`：行跨度（字节数），等于 `width * 4`。
+  - 使用完毕后必须调用 `tcr_bgra_buffer_free()` 释放。
 
 ### TcrVideoFrameCallback / TcrVideoFrameObserver
 
