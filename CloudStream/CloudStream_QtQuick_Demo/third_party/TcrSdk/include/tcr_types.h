@@ -337,6 +337,20 @@ typedef struct TcrVideoFrameBuffer {
 } TcrVideoFrameBuffer;
 
 /**
+ * @brief BGRA格式的视频帧缓冲区
+ *
+ * 通过 tcr_video_frame_convert_to_bgra() 获取，包含已转换的 BGRA 像素数据。
+ * 像素格式为 32 位 BGRA（B-G-R-A 字节顺序，每个通道 8 位）。
+ * 使用完毕后必须调用 tcr_bgra_buffer_free() 释放。
+ */
+typedef struct {
+  uint8_t* data;   ///< BGRA 像素数据指针 (B-G-R-A 字节顺序)
+  int32_t stride;  ///< 行跨度(字节数)，等于 width * 4
+  int32_t width;   ///< 视频帧宽度(像素)
+  int32_t height;  ///< 视频帧高度(像素)
+} TcrBGRABuffer;
+
+/**
  * @brief 视频帧结构体
  */
 typedef struct {
@@ -756,6 +770,22 @@ typedef enum {
   TCR_SESSION_EVENT_NOTIFICATION_EVENT = 11,
 
   /**
+   * @brief 云端实例Token过期事件。
+   *
+   * 该事件表示实例的访问Token已到期。后续使用相同Token将无法访问对应实例，
+   * 但当前已建立的连接不会自动断开。如果业务方需要在Token过期后释放资源，
+   * 应自行释放会话断开连接。
+   *
+   * 事件数据类型JSON格式字符串：
+   * @code{.json}
+   * {
+   *      "instanceId":string  // 过期的实例ID
+   * }
+   * @endcode
+   */
+  TCR_SESSION_EVENT_TOKEN_EXPIRED = 12,
+
+  /**
    * @brief 云端输入法状态变更。
    * 事件数据类型JSON格式字符串：
    * @code{.json}
@@ -764,7 +794,7 @@ typedef enum {
    * }
    * @endcode
    */
-  TCR_SESSION_EVENT_IME_STATUS_CHANGE = 12,
+  TCR_SESSION_EVENT_IME_STATUS_CHANGE = 13,
 
   /**
    * @brief 云端桌面屏幕信息。
@@ -781,13 +811,13 @@ typedef enum {
    * @note 该事件常用于云端桌面场景。
    *       如果是云手机场景，请使用 TCR_SESSION_EVENT_SCREEN_CONFIG_CHANGE 事件。
    */
-  TCR_SESSION_EVENT_REMOTE_DESKTOP_INFO = 13,
+  TCR_SESSION_EVENT_REMOTE_DESKTOP_INFO = 14,
 
   /**
    * @brief 连接正在重连。
    * 该事件无关联数据。
    */
-  TCR_SESSION_EVENT_RECONNECTING = 14,
+  TCR_SESSION_EVENT_RECONNECTING = 15,
 
   /**
    * @brief 实例断开连接通知。
@@ -804,7 +834,7 @@ typedef enum {
    * @endcode
    * @note 该事件仅在多实例场景（tcr_session_access_multi_stream）下触发
    */
-  TCR_SESSION_EVENT_STREAMING_DISCONNECT = 15,
+  TCR_SESSION_EVENT_STREAMING_DISCONNECT = 16,
 
   /**
    * @brief 实例切换失败通知。
@@ -823,7 +853,7 @@ typedef enum {
    * @endcode
    * @note 该事件仅在多实例场景（tcr_session_access_multi_stream）下触发
    */
-  TCR_SESSION_EVENT_STREAMING_SWITCH_FAILED = 16,
+  TCR_SESSION_EVENT_STREAMING_SWITCH_FAILED = 17,
 
   /**
    * @brief 服务端推流成功事件。
@@ -831,7 +861,7 @@ typedef enum {
    *
    * 该事件无关联数据。
    */
-  TCR_SESSION_EVENT_SERVER_STREAMING_STARTED = 17,
+  TCR_SESSION_EVENT_SERVER_STREAMING_STARTED = 18,
 
   /**
    * @brief 视频轨道卡顿事件（批量）。
@@ -856,7 +886,7 @@ typedef enum {
    *
    * @note 该事件仅在多实例场景（tcr_session_access_multi_stream）下触发。
    */
-  TCR_SESSION_EVENT_TRACK_STUCK = 18,
+  TCR_SESSION_EVENT_TRACK_STUCK = 19,
 
 } TcrSessionEvent;
 

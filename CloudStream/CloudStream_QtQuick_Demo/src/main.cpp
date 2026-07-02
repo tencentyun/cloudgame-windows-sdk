@@ -9,14 +9,16 @@
 #include <QQmlContext>
 #include <QResource>
 
-#include "services/ApiService.h"
-#include "services/NetworkService.h"
-#include "utils/Logger.h"
 #include "core/AppConfig.h"
+#include "core/input/InputCaptureItem.h"
 #include "core/StreamConfig.h"
 #include "core/video/VideoRenderItem.h"
 #include "core/video/VideoRenderPaintedItem.h"
+#include "services/ApiService.h"
+#include "services/NetworkService.h"
 #include "tcr_c_api.h"
+#include "utils/Logger.h"
+#include "viewmodels/DesktopViewModel.h"
 #include "viewmodels/InstanceTokenViewModel.h"
 #include "viewmodels/MultiStreamViewModel.h"
 #include "viewmodels/StreamingViewModel.h"
@@ -67,6 +69,12 @@ int main(int argc, char *argv[]) {
 
   /// 注册多实例流媒体视图模型，供QML使用
   qmlRegisterType<MultiStreamViewModel>("CustomComponents", 1, 0, "MultiStreamViewModel");
+
+  /// 注册云桌面会话视图模型（与 StreamingViewModel 平级，对应 InstanceTokenWindow 选「云桌面」场景）
+  qmlRegisterType<DesktopViewModel>("CustomComponents", 1, 0, "DesktopViewModel");
+
+  /// 注册云桌面键鼠捕获组件（覆盖在渲染层之上拦截键鼠事件，当前仅云桌面场景使用）
+  qmlRegisterType<InputCaptureItem>("CustomComponents", 1, 0, "InputCaptureItem");
 
   /// 注册StreamConfig单例，供QML使用
   qmlRegisterSingletonType<StreamConfig>("CustomComponents", 1, 0, "StreamConfig",

@@ -21,6 +21,13 @@ class ApiService;
  *
  * 本类封装了云串流的完整生命周期管理，展示了如何使用 TcrSdk C API。
  *
+ * ==================== 适用场景 ====================
+ * 本类的触摸/按键/设备控制接口（sendTouchEvent、onBackClicked、onHomeClicked、
+ * sendMouseScrollEvent、摄像头/麦克风等）仅适用于云手机（Android）场景。
+ * SDK 的 tcr_session_touchscreen_touch() / tcr_session_send_keyboard_event() 等
+ * 接口面向 Android 实例设计，云桌面（Windows）场景不适用。
+ * 云桌面场景请使用 DesktopViewModel + 自定义数据通道（参见 docs/desktop_input_protocol.md）。
+ *
  * ==================== SDK 使用流程 ====================
  *
  * 【阶段1：初始化】

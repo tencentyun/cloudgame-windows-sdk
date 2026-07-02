@@ -133,6 +133,42 @@ ApplicationWindow {
                 }
             }
 
+            // 业务场景选择区域
+            // 决定点击「创建访问令牌」后进入哪个窗口：
+            //   - 云手机（默认）：进入 MainWindow（多画面 GridView，点击方格进入 StreamingWindow 大窗口）
+            //   - 云桌面：进入 DesktopWindow（单画面 16:9 横屏，键鼠直接操作云端桌面）
+            // 两者底层串流/音视频/数据通道使用同一份 TcrSdk，核心差异在控制输入路径：
+            //   - 云手机：通过 SDK 内置的触摸/按键接口（tcr_session_touchscreen_touch 等）控制云端 Android 实例
+            //   - 云桌面：云端为 Windows 系统，上述接口不适用，客户端自行捕获键鼠事件后
+            //     通过自定义数据通道（tcr_data_channel_send）发送 JSON 格式输入消息
+            // 详见 docs/desktop_input_protocol.md。
+            GroupBox {
+                title: "业务场景"
+                Layout.fillWidth: true
+
+                RowLayout {
+                    anchors.fill: parent
+                    spacing: 20
+
+                    RadioButton {
+                        id: cloudPhoneRadio
+                        text: "云手机"
+                        checked: true
+                        font.pixelSize: 14
+                    }
+
+                    RadioButton {
+                        id: cloudDesktopRadio
+                        text: "云桌面"
+                        font.pixelSize: 14
+                    }
+
+                    Item {
+                        Layout.fillWidth: true
+                    }
+                }
+            }
+
             // 实例ID输入区域
             GroupBox {
                 title: "实例ID列表"
@@ -248,37 +284,81 @@ ApplicationWindow {
         }
     }
 
-    property var mainWindowRef: null   // 主窗口引用
+    property var mainWindowRef: null    // 云手机场景：MainWindow 引用
+    property var desktopWindowRef: null // 云桌面场景：DesktopWindow 引用
+
+    // 当前业务场景：cloudPhone | cloudDesktop
+    // 单一真相源，由 RadioButton 决定，onAccessTokenCreated 路由读它
+    property string scenario: cloudPhoneRadio.checked ? "cloudPhone" : "cloudDesktop"
 
     // 处理ViewModel信号
     Connections {
         target: instanceAccessViewModel
 
         function onAccessTokenCreated(accessInfo, token) {
-            if (!mainWindowRef) {
-                var component = Qt.createComponent("MainWindow.qml");
-                if (component.status === Component.Ready) {
-                    mainWindowRef = component.createObject(null, {
-                        "instanceIds": instanceIdsField.text.trim().split(","),
-                        "accessInfo": accessInfo,
-                        "token": token
-                    });
-                    if (mainWindowRef) {
-                        mainWindowRef.visible = true;
-                        instanceAccessWindow.hide();
+            var idList = instanceIdsField.text.trim().split(",")
+            if (scenario === "cloudDesktop") {
+                // 云桌面路径：创建 DesktopViewModel + DesktopWindow，只渲染第一个实例
+                // 必须先 initialize（tcr_client_init）再 connectSession，
+                // 否则 createSession 会失败（错误: please init first）
+                if (!desktopWindowRef) {
+                    var vm = Qt.createQmlObject(
+                        'import CustomComponents 1.0; DesktopViewModel {}',
+                        instanceAccessWindow
+                    )
+                    vm.initialize(idList, accessInfo, token)
+                    var component = Qt.createComponent("DesktopWindow.qml")
+                    if (component.status === Component.Ready) {
+                        desktopWindowRef = component.createObject(null, {
+                            "instanceIds": idList,
+                            "accessInfo": accessInfo,
+                            "token": token,
+                            "desktopViewModel": vm
+                        })
+                        if (desktopWindowRef) {
+                            desktopWindowRef.visible = true
+                            instanceAccessWindow.hide()
+                        } else {
+                            console.error("创建云桌面窗口对象失败")
+                        }
                     } else {
-                        console.error("创建主窗口对象失败");
+                        console.error("创建云桌面窗口失败:", component.errorString())
                     }
                 } else {
-                    console.error("创建主窗口失败:", component.errorString());
+                    // 已存在云桌面窗口，直接显示
+                    desktopWindowRef.instanceIds = idList
+                    desktopWindowRef.accessInfo   = accessInfo
+                    desktopWindowRef.token        = token
+                    desktopWindowRef.visible      = true
+                    instanceAccessWindow.hide()
                 }
             } else {
-                // 已存在主窗口，直接显示
-                mainWindowRef.instanceIds = instanceIdsField.text.trim().split(",");
-                mainWindowRef.accessInfo   = accessInfo;
-                mainWindowRef.token        = token;
-                mainWindowRef.visible      = true;
-                instanceAccessWindow.hide();
+                // 云手机路径：进入 MainWindow（多画面 GridView）
+                if (!mainWindowRef) {
+                    var component = Qt.createComponent("MainWindow.qml");
+                    if (component.status === Component.Ready) {
+                        mainWindowRef = component.createObject(null, {
+                            "instanceIds": idList,
+                            "accessInfo": accessInfo,
+                            "token": token
+                        });
+                        if (mainWindowRef) {
+                            mainWindowRef.visible = true;
+                            instanceAccessWindow.hide();
+                        } else {
+                            console.error("创建主窗口对象失败");
+                        }
+                    } else {
+                        console.error("创建主窗口失败:", component.errorString());
+                    }
+                } else {
+                    // 已存在主窗口，直接显示
+                    mainWindowRef.instanceIds = idList;
+                    mainWindowRef.accessInfo   = accessInfo;
+                    mainWindowRef.token        = token;
+                    mainWindowRef.visible      = true;
+                    instanceAccessWindow.hide();
+                }
             }
         }
 

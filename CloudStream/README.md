@@ -216,10 +216,6 @@ tcr_session_access_multi_stream(tcrSession, instances, 3);
 const char* new_streaming[] = {"cai-xxx-002", "cai-xxx-003"};
 tcr_session_switch_streaming_instances(tcrSession, new_streaming, 2);
 
-// 暂停/恢复指定实例的出流
-const char* pause_ids[] = {"cai-xxx-001"};
-tcr_session_pause_streaming(tcrSession, "video", pause_ids, 1);
-tcr_session_resume_streaming(tcrSession, "video", pause_ids, 1);
 ```
 
 ##### 在视频帧回调中区分不同实例的流
@@ -232,7 +228,7 @@ static void VideoFrameCallback(void* user_data, TcrVideoFrameHandle frame_handle
 }
 ```
 
-#### 单实例连接（大流）
+#### 单实例连接单控（大流）
 
 ```cpp
 TcrSessionConfig session_config = tcr_session_config_default();
@@ -268,11 +264,6 @@ static void VideoFrameCallback(void* user_data, TcrVideoFrameHandle frame_handle
     if (!buffer) return;
 
     switch (buffer->type) {
-        case TCR_VIDEO_BUFFER_TYPE_D3D11:
-            // 硬件解码（仅 Windows）：使用 RGBA 格式的 D3D11 纹理渲染
-            // SDK 已完成 YUV 到 RGB 转换，可直接作为颜色纹理使用
-            render_d3d11_rgba_texture(&buffer->buffer.d3d11);
-            break;
         case TCR_VIDEO_BUFFER_TYPE_I420:
             // 软件解码（Windows/macOS/Linux）：使用 I420 数据渲染
             // 需要在 shader 中进行 YUV 到 RGB 的颜色空间转换
@@ -306,9 +297,6 @@ static void SessionEventCallback(void* user_data, TcrSessionEvent event, const c
         case TCR_SESSION_EVENT_STATE_CLOSED:
             // 会话已关闭
             break;
-        case TCR_SESSION_EVENT_CLIENT_STATS:
-            // 性能数据更新（JSON 格式）
-            break;
         // 处理其他事件...
     }
 }
@@ -329,7 +317,9 @@ tcr_session_set_observer(tcrSession, &session_observer);
 
 ### 4.4 操作及交互
 
-#### 实时控制
+#### 云手机场景（Android）
+
+SDK 提供内置的触摸/按键接口，仅适用于云手机（Android）实例：
 
 ```cpp
 // 模拟返回键
@@ -341,6 +331,53 @@ tcr_session_touchscreen_touch(tcrSession, 100, 200, 0, 720, 1280, 0);
 
 // 多点触摸（支持多个触摸点同时操作）
 tcr_session_touchscreen_touch_ex(tcrSession, 100, 200, 0, /*finger_id=*/0, 1080, 1920, timestamp, nullptr, 0);
+```
+
+#### 云桌面场景（Windows）
+
+> **重要**：当云端为 Windows 系统时，上述触摸/按键接口不适用。
+> 客户端需自行定义输入消息格式，通过自定义数据通道发送键鼠事件。
+
+1. 创建自定义数据通道并设置观察者：
+
+```cpp
+TcrDataChannelObserver observer = tcr_data_channel_observer_default();
+observer.user_data = this;
+observer.on_connected = OnDataChannelConnected;
+observer.on_error = OnDataChannelError;
+observer.on_message = OnDataChannelMessage;
+
+TcrDataChannelHandle channel = tcr_session_create_data_channel_with_label(
+    tcrSession, "desktop_input", &observer);
+```
+
+2. 捕获本地键鼠事件，序列化为 JSON 后发送：
+
+```cpp
+// 示例：发送键盘按下事件
+QJsonObject payload;
+payload["type"] = "keydown";
+payload["key"] = "a";
+payload["code"] = "KeyA";
+QJsonArray mods;
+mods << "shift";
+payload["modifiers"] = mods;
+
+QJsonDocument doc(payload);
+QByteArray data = doc.toJson(QJsonDocument::Compact);
+tcr_data_channel_send(channel, reinterpret_cast<const uint8_t*>(data.constData()), data.size());
+```
+
+> 完整的输入消息格式定义见 Demo 工程的 [desktop_input_protocol.md](CloudStream_QtQuick_Demo/docs/desktop_input_protocol.md)。
+
+3. 接收云端回传的消息（observer 的 `on_message` 回调）：
+
+```cpp
+void OnDataChannelMessage(void* user_data, int32_t port, const uint8_t* data, size_t size) {
+    QByteArray rawData(reinterpret_cast<const char*>(data), static_cast<int>(size));
+    // 处理云端回传的 JSON 消息
+    QString json = QString::fromUtf8(rawData);
+}
 ```
 
 #### 麦克风控制
@@ -364,111 +401,6 @@ TcrMicrophoneConfig mic_config;
 // macOS:   填入 TcrMicrophoneDeviceInfo.device_name
 strncpy(mic_config.device_id, selected_device_id, sizeof(mic_config.device_id) - 1);
 tcr_session_enable_microphone_with_config(tcrSession, &mic_config);
-```
-
-### 4.5 网络探测与连接优化
-
-SDK 提供网络探测能力，支持**主动探测**和**被动探测**两种模式，帮助业务评估各加速节点的网络质量（RTT、抖动、丢包率等），从而选择最优节点以优化连接体验。
-
-#### 主动探测 vs 被动探测
-
-| | 主动探测 | 被动探测 |
-|---|---|---|
-| **触发方式** | 业务主动调用 `tcr_client_start_probe` | 创建会话时通过 `TcrSessionConfig.enable_passive_probe = true` 开启 |
-| **使用时机** | 会话建立前，用于预选最优节点 | 会话串流过程中，持续评估当前连接质量 |
-| **是否需要 Session** | 不需要，仅需 Client 初始化完成 | 需要，随会话生命周期自动运行 |
-| **结果获取方式** | 通过回调函数返回 `TcrProbeResult` | SDK 内部使用，自动优化连接路径 |
-| **适用场景** | 展示网络质量面板、让用户选择节点、指定 `preferred_domain` | 自动感知网络变化并优化 |
-
-#### 探测结果数据结构
-
-```cpp
-// 单个节点的探测质量信息
-typedef struct TcrProbeNodeInfo {
-    const char* zone;         // 节点标识，如 "ap-shanghai-3"
-    const char* domain;       // 节点域名
-    double rtt_ms;            // 往返延迟 (ms)
-    double jitter_ms;         // 抖动 (ms)
-    double packet_loss_rate;  // 丢包率 (0.0~1.0)
-    double quality_score;     // 综合评分 (0~100，越高越好)
-    int64_t connect_time_ms;  // 连接建立耗时 (ms)
-} TcrProbeNodeInfo;
-
-// 探测结果
-typedef struct TcrProbeResult {
-    TcrProbeNodeInfo* nodes;  // 节点数组（按 quality_score 降序排列）
-    int node_count;           // 节点数量
-    int64_t timestamp_ms;     // 结果生成时间戳
-    bool is_ready;            // 是否所有节点都已完成探测
-} TcrProbeResult;
-```
-
-#### 主动探测
-
-主动探测用于在创建会话前探测各加速节点的网络质量，业务可根据探测结果选择最优节点。
-
-**前提条件：**
-- 需先调用 `tcr_client_init` 完成 Client 初始化
-- 无需创建 Session 即可发起探测
-- 同一时刻只能有一次主动探测在进行
-
-**启动探测：**
-
-```cpp
-// 探测结果回调（在 SDK 内部线程触发，注意线程安全）
-void OnProbeResult(void* user_data, const TcrProbeResult* result) {
-    printf("探测结果: %d 个节点, is_ready=%d\n", result->node_count, result->is_ready);
-
-    for (int i = 0; i < result->node_count; i++) {
-        const TcrProbeNodeInfo* node = &result->nodes[i];
-        printf("  [%d] zone=%s, domain=%s, rtt=%.1fms, jitter=%.1fms, loss=%.2f%%, score=%.1f\n",
-               i, node->zone, node->domain, node->rtt_ms, node->jitter_ms,
-               node->packet_loss_rate * 100, node->quality_score);
-    }
-
-    // 如需在回调外持有结果，需要克隆
-    if (result->is_ready) {
-        TcrProbeResult* cloned = tcr_probe_result_clone(result);
-        // 将 cloned 传递到其他线程使用...
-        // 使用完毕后释放：tcr_probe_result_release(cloned);
-    }
-}
-
-// 启动探测（首次结果就绪后回调，之后每 2 秒更新一次）
-TcrErrorCode err = tcr_client_start_probe(tcrClient, OnProbeResult, nullptr);
-if (err != TCR_SUCCESS) {
-    // 启动失败（如已在探测中、Client 未初始化）
-}
-```
-
-**停止探测：**
-
-```cpp
-// 停止探测并释放探测连接资源，停止后不再触发回调
-tcr_client_stop_probe(tcrClient);
-```
-
-**将探测结果应用到会话（指定首选节点）：**
-
-```cpp
-// 根据主动探测结果，将最优节点的 domain 设置为会话的首选加速节点
-TcrSessionConfig session_config = tcr_session_config_default();
-session_config.preferred_domain = best_node_domain;  // 探测结果中 quality_score 最高的节点 domain
-TcrSessionHandle tcrSession = tcr_client_create_session(tcrClient, &session_config);
-```
-
-#### 被动探测
-
-被动探测在会话串流期间自动运行，SDK 内部持续评估连接质量并自动优化传输路径，业务无需手动处理探测结果。
-
-```cpp
-TcrSessionConfig session_config = tcr_session_config_default();
-session_config.enable_passive_probe = true;  // 启用被动探测
-
-// 可选：结合主动探测结果指定首选节点
-session_config.preferred_domain = "best-node.example.com";
-
-TcrSessionHandle tcrSession = tcr_client_create_session(tcrClient, &session_config);
 ```
 
 #### 完整使用流程示例
@@ -506,15 +438,7 @@ const char* instanceIds[] = {"cai-xxx-001"};
 tcr_session_access(tcrSession, instanceIds, 1, false);
 ```
 
-#### 注意事项
-
-- **主动探测回调线程安全**：回调在 SDK 内部线程触发，如需更新 UI 请切换到主线程
-- **探测结果生命周期**：回调中的 `result` 指针仅在回调期间有效，如需持有需调用 `tcr_probe_result_clone()` 克隆，使用完毕后必须调用 `tcr_probe_result_release()` 释放内存
-- **带宽开销**：探测会占用一定网络带宽
-- **被动探测开销**：被动探测在会话期间自动运行，开销极小，适合长连接场景持续优化
-- **preferred_domain 使用**：该字段为可选项，NULL 表示不指定，SDK 会自动选择节点；设置后 SDK 优先连接指定节点
-
-### 4.6 资源释放
+### 4.5 资源释放
 
 ```cpp
 // 1. 先将 observer 置空，避免悬空回调

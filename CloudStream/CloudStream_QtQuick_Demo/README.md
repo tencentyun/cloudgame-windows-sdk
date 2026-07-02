@@ -1,17 +1,23 @@
 # CloudStream_QtQuick_Demo
 
-基于 Qt Quick 的云手机 TcrSdk 客户端演示工程
+基于 Qt Quick 的 TcrSdk 串流能力 客户端演示工程（云手机 + 云桌面）
 
 ## 项目简介
 
-CloudStream_QtQuick_Demo 是一个基于 Qt 6/QML 的云手机串流客户端演示工程，集成了 [TcrSdk](https://cg-sdk-1258344699.cos.ap-nanjing.myqcloud.com/CloudDeviceWinSDK/docs/release_note.html) 云手机 SDK，支持多视频流渲染、触摸/按键控制等功能。支持 **Windows**、**macOS** 和 **Linux** 平台，便于企业或开发者参考如何使用 TcrSdk 以及与业务后台进行交互。
+CloudStream_QtQuick_Demo 是一个基于 Qt 6/QML 的 TcrSdk 客户端演示工程，集成了 TcrSdk SDK，演示**云手机**和**云桌面**两种业务场景下的串流功能。支持 **Windows**、**macOS** 和 **Linux** 平台，便于企业或开发者参考如何使用 TcrSdk 以及与业务后台进行交互。
+
+> **注意**：云手机和云桌面的串流/音视频/数据通道底层使用**同一份 TcrSdk**，核心差异在控制输入路径：
+> - **云手机**（Android）：通过 SDK 内置的触摸/按键接口（`tcr_session_touchscreen_touch` 等）控制云端实例
+> - **云桌面**（Windows）：SDK 内置接口不适用，客户端自行捕获键鼠事件后通过自定义数据通道（`tcr_data_channel_send`）发送 JSON 格式输入消息
+> 
+> 详见协议示例 [docs/desktop_input_protocol.md](docs/desktop_input_protocol.md)。
 
 ## 主要功能
 
-- **实例展示**：卡片展示云手机实例画面
-- **视频串流**：支持单实例和多实例同步视频流渲染与交互
+- **云手机支持**：卡片展示云手机实例画面，支持单实例和多实例同步视频流渲染与交互
+- **云桌面支持**：单画面 16:9 横屏渲染，通过自定义数据通道发送键鼠事件操作云端 Windows 桌面
 - **自定义渲染**：基于 OpenGL Shader 的 YUV 视频渲染
-- **麦克风/摄像头**：支持本地麦克风和摄像头设备的枚举与切换
+- **麦克风/摄像头**：支持本地麦克风和摄像头设备的枚举与切换（云手机场景）
 - **性能统计**：实时显示串流性能数据（FPS、延迟、码率等）
 - **跨平台支持**：Windows（MSVC）、macOS（Apple Silicon / Intel）与 Linux（x86_64）
 
@@ -26,20 +32,22 @@ CloudStream_QtQuick_Demo 是一个基于 Qt 6/QML 的云手机串流客户端演
 │   └── TcrSdkLinux.cmake             # Linux SDK 链接配置
 ├── Info.plist.in                     # macOS 隐私权限声明模板（摄像头/麦克风）
 ├── config.json                       # 业务配置文件（baseUrl、instanceIds 等）
-├── docs/                             # 文档图片
+├── docs/                             # 文档
+│   ├── desktop_input_protocol.md     # 云桌面输入数据通道 JSON 协议
 │   └── images/
 ├── qml/                              # QML 界面文件
-│   ├── InstanceTokenWindow.qml       # 启动页，演示如何通过实例ID获取AccessToken
-│   ├── MainWindow.qml                # 主界面（云手机实例卡片展示）
-│   ├── StreamingWindow.qml           # 串流窗口（连接云机实例并进行交互）
+│   ├── InstanceTokenWindow.qml       # 启动页，演示如何获取 AccessToken + 选择业务场景
+│   ├── MainWindow.qml                # 云手机主界面（多实例卡片 GridView）
+│   ├── StreamingWindow.qml           # 云手机串流大窗口（触摸/按键控制）
+│   ├── DesktopWindow.qml             # 云桌面串流窗口（键鼠捕获 + 自定义数据通道）
 │   └── components/                   # QML 复用组件
-│       ├── CameraDeviceDialog.qml    # 摄像头设备选择对话框
-│       ├── ControlButtonArea.qml     # 串流控制按钮区域
+│       ├── CameraDeviceDialog.qml    # 摄像头设备选择对话框（云手机场景）
+│       ├── ControlButtonArea.qml     # 云手机控制按钮区域（Home/音量/摄像头等）
 │       ├── Dialogs.qml               # 通用对话框
-│       ├── MicrophoneDeviceDialog.qml# 麦克风设备选择对话框
+│       ├── MicrophoneDeviceDialog.qml# 麦克风设备选择对话框（云手机场景）
 │       ├── StatsOverlay.qml          # 性能统计浮层
 │       ├── StreamSettingsDialog.qml  # 串流参数设置对话框
-│       └── VideoRenderArea.qml       # 视频渲染区域组件
+│       └── VideoRenderArea.qml       # 视频渲染区域组件（云手机场景，含触摸 MouseArea）
 ├── README.md                         # 本文档
 ├── shaders/                          # OpenGL 着色器
 │   ├── yuv.frag                      # YUV 片段着色器
@@ -49,6 +57,8 @@ CloudStream_QtQuick_Demo 是一个基于 Qt 6/QML 的云手机串流客户端演
 │   ├── core/                         # 业务核心
 │   │   ├── AppConfig.h/cpp           # 应用配置（读取 config.json）
 │   │   ├── StreamConfig.h/cpp        # 串流参数配置
+│   │   ├── input/                    # 键鼠捕获（云桌面场景）
+│   │   │   └── InputCaptureItem.h/cpp# 通用键鼠捕获 QQuickItem
 │   │   └── video/                    # 视频渲染相关
 │   │       ├── Frame.h/cpp           # 视频帧数据结构
 │   │       ├── VideoRenderItem.h/cpp # QQuickItem 视频渲染组件（SceneGraph）
@@ -69,8 +79,9 @@ CloudStream_QtQuick_Demo 是一个基于 Qt 6/QML 的云手机串流客户端演
 │   │   └── YuvFrameDumper.h/cpp      # YUV 帧导出调试工具
 │   └── viewmodels/                   # QML 绑定的 ViewModel
 │       ├── InstanceTokenViewModel.h/cpp  # 获取 AccessToken，驱动启动页
-│       ├── MultiStreamViewModel.h/cpp    # 多实例串流管理
-│       └── StreamingViewModel.h/cpp      # 单实例串流交互控制
+│       ├── MultiStreamViewModel.h/cpp    # 云手机多实例串流管理
+│       ├── StreamingViewModel.h/cpp      # 云手机单实例串流交互控制
+│       └── DesktopViewModel.h/cpp        # 云桌面会话管理（自定义数据通道输入）
 └── third_party/
     └── TcrSdk/                       # 云手机 SDK（含头文件及各平台库）
         ├── include/                  # 公共头文件（跨平台）

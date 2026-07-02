@@ -180,6 +180,59 @@ TCRSDK_API void tcr_video_frame_add_ref(TcrVideoFrameHandle frame_handle);
  */
 TCRSDK_API void tcr_video_frame_release(TcrVideoFrameHandle frame_handle);
 
+// ==================== 视频帧格式转换接口 ====================
+
+/**
+ * @brief 将当前视频帧转换为 BGRA 格式，可指定输出尺寸
+ *
+ * 该函数将 I420 格式的视频帧转换为 BGRA 格式，并可选择性地缩放到指定分辨率。
+ * 仅支持软件解码路径的 I420 格式帧。硬件解码的 D3D11 纹理帧不支持，会返回 NULL 并打印错误日志。
+ *
+ * @param frame_handle  视频帧句柄（由 on_frame 回调传入）
+ * @param output_width  输出宽度(像素)，传 0 表示保持原始宽度
+ * @param output_height 输出高度(像素)，传 0 表示保持原始高度
+ * @return 成功返回 TcrBGRABuffer 指针，使用完毕后必须调用 tcr_bgra_buffer_free() 释放；
+ *         如果帧格式不是 I420（如 D3D11 纹理），返回 NULL
+ *
+ * @warning 返回的 TcrBGRABuffer 指针独立于 frame_handle 的生命周期，
+ *          但 frame_handle 必须在调用此函数时保持有效（即在 on_frame 回调内调用）。
+ *          如需在回调外使用，请先调用 tcr_video_frame_add_ref 延长 frame_handle 的生命周期。
+ *
+ * @warning 每次成功调用后必须对应调用 tcr_bgra_buffer_free() 释放，否则内存泄漏。
+ *
+ * @example 不缩放
+ * @code
+ * void on_frame(void* user_data, TcrVideoFrameHandle frame) {
+ *     TcrBGRABuffer* bgra = tcr_video_frame_convert_to_bgra(frame, 0, 0);
+ *     if (bgra) {
+ *         render_bgra(bgra->data, bgra->stride, bgra->width, bgra->height);
+ *         tcr_bgra_buffer_free(bgra);
+ *     }
+ * }
+ * @endcode
+ *
+ * @example 缩放到窗口大小
+ * @code
+ * void on_frame(void* user_data, TcrVideoFrameHandle frame) {
+ *     TcrBGRABuffer* bgra = tcr_video_frame_convert_to_bgra(frame,
+ *         get_window_width(), get_window_height());
+ *     if (bgra) {
+ *         render_bgra(bgra->data, bgra->stride, bgra->width, bgra->height);
+ *         tcr_bgra_buffer_free(bgra);
+ *     }
+ * }
+ * @endcode
+ */
+TCRSDK_API TcrBGRABuffer* tcr_video_frame_convert_to_bgra(TcrVideoFrameHandle frame_handle, int32_t output_width,
+                                                          int32_t output_height);
+
+/**
+ * @brief 释放 tcr_video_frame_convert_to_bgra 返回的 BGRA buffer
+ *
+ * @param buffer 需要释放的 TcrBGRABuffer 指针，传 NULL 无操作
+ */
+TCRSDK_API void tcr_bgra_buffer_free(TcrBGRABuffer* buffer);
+
 // 会话事件观察者结构体
 typedef struct TcrSessionObserver {
   void* user_data;
@@ -796,6 +849,24 @@ TCRSDK_API void tcr_instance_free_result(TcrAndroidInstance op, char* output);
 TCRSDK_API TcrDataChannelHandle tcr_session_create_data_channel(TcrSessionHandle session, int32_t port,
                                                                 const TcrDataChannelObserver* observer,
                                                                 const char* type = "android");
+
+/**
+ * @brief 创建一个由调用者指定 label 的数据通道
+ *
+ * 与 tcr_session_create_data_channel 不同，本接口不会在内部按 "prefix + 端口号" 拼接 label。通道打开后会立即通过
+ * observer.on_connected 通知，port 参数为 0。
+ *
+ * @param session 会话句柄
+ * @param label 自定义 label，必须非空，且不能为内部保留标签（例如 "ack"/"km"/"hb"/"cd"/"svr"/"cloud_device"）
+ * @param observer 数据通道观察者结构体指针
+ *
+ * @section 生命周期管理说明
+ * - 同 tcr_session_create_data_channel，observer 生命周期需覆盖整个通道使用周期
+ *
+ * @return 数据通道句柄，失败返回 NULL
+ */
+TCRSDK_API TcrDataChannelHandle tcr_session_create_data_channel_with_label(TcrSessionHandle session, const char* label,
+                                                                           const TcrDataChannelObserver* observer);
 
 /**
  * @brief 通过自定义数据通道发送数据
