@@ -58,8 +58,12 @@ void VideoRenderPaintedItem::paint(QPainter* painter) {
     QRectF targetRect = boundingRect();
     painter->save();
 
-    // 计算渲染尺寸（保持宽高比）
-    QSizeF renderSize = m_transformHelper.calculateRenderSize(targetRect.size(), m_image.size());
+    // 计算渲染尺寸：云桌面/云手机已 setRotationAngle/setVideoSize 时优先用云端画布尺寸，
+    // 否则 fallback 到视频帧尺寸（保持宽高比）
+    const int helperW = m_transformHelper.videoWidth();
+    const int helperH = m_transformHelper.videoHeight();
+    QSizeF sourceSize = (helperW > 0 && helperH > 0) ? QSizeF(helperW, helperH) : m_image.size();
+    QSizeF renderSize = m_transformHelper.calculateRenderSize(targetRect.size(), sourceSize);
 
     // 如果有旋转，需要应用旋转变换
     if (m_transformHelper.rotationAngle() != 0.0) {
@@ -72,8 +76,11 @@ void VideoRenderPaintedItem::paint(QPainter* painter) {
       // 绘制图像
       painter->drawImage(drawRect, m_image);
     } else {
-      // 无旋转：直接绘制
-      QRectF drawRect(0, 0, renderSize.width(), renderSize.height());
+      // 无旋转：等比缩放后居中绘制，确保画面始终位于视图中心
+      // （之前是贴左上角，当窗口/视频宽高比不一致时会留黑边且偏在一侧）
+      qreal x = (targetRect.width() - renderSize.width()) / 2.0;
+      qreal y = (targetRect.height() - renderSize.height()) / 2.0;
+      QRectF drawRect(x, y, renderSize.width(), renderSize.height());
       painter->drawImage(drawRect, m_image);
     }
 
@@ -155,6 +162,20 @@ void VideoRenderPaintedItem::setRotationAngle(qreal angle, int videoWidth, int v
   if (m_transformHelper.setRotation(angle, videoWidth, videoHeight)) {
     update();
   }
+}
+
+void VideoRenderPaintedItem::setVideoSize(int videoWidth, int videoHeight) {
+  if (videoWidth <= 0 || videoHeight <= 0) {
+    Logger::warning(
+        QString("[VideoRenderPaintedItem] setVideoSize invalid size: %1x%2").arg(videoWidth).arg(videoHeight));
+    return;
+  }
+  // 仅在尺寸发生变化时触发重绘，避免收到重复 REMOTE_DESKTOP_INFO 时无意义刷新
+  if (m_transformHelper.videoWidth() == videoWidth && m_transformHelper.videoHeight() == videoHeight) {
+    return;
+  }
+  m_transformHelper.setVideoSize(videoWidth, videoHeight);
+  update();
 }
 
 void VideoRenderPaintedItem::setStreamingViewModel(QObject* viewModel) {

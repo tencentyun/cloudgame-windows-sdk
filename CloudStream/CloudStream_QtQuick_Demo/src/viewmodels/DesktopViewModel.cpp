@@ -66,6 +66,12 @@ void DesktopViewModel::setVideoRenderItem(VideoRenderPaintedItem* item) {
     connect(this, &DesktopViewModel::newVideoFrame, m_videoRenderItem, &VideoRenderPaintedItem::setFrame,
             static_cast<Qt::ConnectionType>(Qt::QueuedConnection | Qt::UniqueConnection));
     Logger::info(QString("[setVideoRenderItem] 已连接渲染组件: %1").arg(m_videoRenderItem->objectName()));
+
+    // item 就绪时若已收到过 REMOTE_DESKTOP_INFO（m_desktopWidth/Height > 0），立即补一次同步，
+    // 避免 item 晚于 REMOTE_DESKTOP_INFO 创建时遗漏云端画布尺寸
+    if (m_desktopWidth > 0 && m_desktopHeight > 0) {
+      m_videoRenderItem->setVideoSize(m_desktopWidth, m_desktopHeight);
+    }
   } else {
     Logger::info("[setVideoRenderItem] 渲染组件已置空");
   }
@@ -394,6 +400,11 @@ void DesktopViewModel::handleRemoteDesktopInfo(const QString& eventData) {
     m_desktopHeight = newHeight;
     Logger::info(QString("[handleRemoteDesktopInfo] 云端桌面分辨率: %1x%2").arg(m_desktopWidth).arg(m_desktopHeight));
     emit desktopInfoChanged();
+
+    // 同步给渲染 item，让 paint() 用云端画布比例（而非视频帧尺寸）等比缩放并居中绘制
+    if (auto item = m_videoRenderItem) {
+      item->setVideoSize(m_desktopWidth, m_desktopHeight);
+    }
   } else {
     Logger::warning(QString("[handleRemoteDesktopInfo] 分辨率无效: %1x%2").arg(newWidth).arg(newHeight));
   }

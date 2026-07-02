@@ -21,6 +21,11 @@ bool VideoTransformHelper::setRotation(qreal angle, int videoWidth, int videoHei
   return true;
 }
 
+void VideoTransformHelper::setVideoSize(int videoWidth, int videoHeight) {
+  m_videoWidth = videoWidth;
+  m_videoHeight = videoHeight;
+}
+
 bool VideoTransformHelper::isValidRotationAngle(qreal angle) {
   return qFuzzyCompare(angle, 0.0) || qFuzzyCompare(angle, 90.0) || qFuzzyCompare(angle, 180.0) ||
          qFuzzyCompare(angle, 270.0);

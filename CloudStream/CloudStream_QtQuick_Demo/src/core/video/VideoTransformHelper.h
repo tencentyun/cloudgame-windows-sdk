@@ -78,6 +78,16 @@ class VideoTransformHelper {
   int videoWidth() const { return m_videoWidth; }
   int videoHeight() const { return m_videoHeight; }
 
+  /**
+   * @brief 仅设置云端画布尺寸（不涉及旋转），用于无旋转场景
+   * @param videoWidth 云端画布宽度
+   * @param videoHeight 云端画布高度
+   *
+   * 云桌面场景下云端不会下发 SCREEN_CONFIG_CHANGE 但会下发 REMOTE_DESKTOP_INFO，
+   * 此时没有旋转概念，需要独立把云端画布尺寸喂给 helper。
+   */
+  void setVideoSize(int videoWidth, int videoHeight);
+
   static bool isValidRotationAngle(qreal angle);
 
   // ==================== 尺寸计算 ====================

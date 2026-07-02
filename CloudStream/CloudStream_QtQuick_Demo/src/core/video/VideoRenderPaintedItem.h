@@ -58,6 +58,17 @@ class VideoRenderPaintedItem : public QQuickPaintedItem {
    */
   void setRotationAngle(qreal angle, int videoWidth = 0, int videoHeight = 0);
 
+  /**
+   * @brief 设置云端画布尺寸（不涉及旋转）
+   * @param videoWidth 云端画布宽度（像素）
+   * @param videoHeight 云端画布高度（像素）
+   *
+   * 云桌面场景下云端不下发 SCREEN_CONFIG_CHANGE，但会通过 REMOTE_DESKTOP_INFO 下发
+   * 云端桌面分辨率。DesktopViewModel 收到该事件后调用本接口，让 paint() 用云端画布比例
+   * （而非视频解码帧尺寸）等比缩放并居中绘制，避免窗口与云端分辨率比例不一致时黑边贴边。
+   */
+  void setVideoSize(int videoWidth, int videoHeight);
+
  public slots:
   /**
    * @brief 设置新的视频帧
