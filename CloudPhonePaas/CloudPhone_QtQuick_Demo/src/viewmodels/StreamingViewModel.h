@@ -212,6 +212,17 @@ class StreamingViewModel : public QObject {
    */
   void sendMouseScrollEvent(float delta);
 
+  // ==================== 键盘输入 ====================
+
+  /**
+   * @brief 发送键盘事件到云端
+   * @param keycode Windows 原生按键码（scan code），云端自动转换为云手机按键码
+   * @param pressed true=按下, false=抬起
+   *
+   * 对应 SDK API：tcr_session_send_keyboard_event()
+   */
+  void onKeyEvent(int keycode, bool pressed);
+
   // ==================== 系统按键 ====================
 
   /**

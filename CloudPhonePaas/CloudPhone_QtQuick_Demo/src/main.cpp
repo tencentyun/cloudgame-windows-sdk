@@ -50,6 +50,9 @@ int main(int argc, char* argv[]) {
   networkService->setRequestHost("ap-shenzhen");
   networkService->setOrigin("https://mouhong.test-cai-experience.crtrcloud.com");
 
+  // 对应web的 https://cs.test-cai-experience.crtrcloud.com/login 页面
+  // networkService->setOrigin("https://crtr.test-cai-experience.crtrcloud.com");
+
   /// 创建API服务对象，封装所有与云手机API的交互
   ApiService* apiService = new ApiService(networkService, &app);
 

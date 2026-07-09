@@ -38,7 +38,7 @@ QVariantList AndroidInstanceModel::instances() const {
 
 void AndroidInstanceModel::onLoginSuccess(const QString& userType) {
   m_apiService->describeAndroidInstances(
-      0, 200, {"cai-251197962-fe2dgk1whnc", "cai-251197962-fe2d8bl30r9", "cai-251197962-fe2dwhmadow"});
+      0, 200, {"cai-251197962-fe2d8imcyfh", "cai-251197962-fe2df5kvpil", "cai-251197962-fe2dhv9ztl8"});
 }
 
 void AndroidInstanceModel::onInstancesReceived(const QList<AndroidInstance>& instances, int totalCount) {

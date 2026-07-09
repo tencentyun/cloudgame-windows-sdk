@@ -333,6 +333,18 @@ void StreamingViewModel::sendMouseScrollEvent(float delta) {
   }
 }
 
+// ==================== 键盘输入 ====================
+
+void StreamingViewModel::onKeyEvent(int keycode, bool pressed) {
+  if (!isSessionReady()) {
+    return;
+  }
+
+  // SDK API: tcr_session_send_keyboard_event(session, keycode, down)
+  // 发送 Windows 原生 scan code，云端自动转换为云手机按键码
+  tcr_session_send_keyboard_event(m_session, keycode, pressed);
+}
+
 // ==================== 系统按键 ====================
 
 // 辅助函数：发送按键事件（按下+抬起）

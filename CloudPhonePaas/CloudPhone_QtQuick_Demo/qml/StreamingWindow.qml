@@ -25,6 +25,18 @@ ApplicationWindow {
             id: videoArea
             width: 576
             height: 1024
+            focus: true
+            activeFocusOnTab: true
+
+            // 键盘事件捕获，发送 Windows 原生 scan code 到云端
+            Keys.onPressed: (event) => {
+                streamingViewModel.onKeyEvent(event.nativeScanCode, true)
+                event.accepted = true
+            }
+            Keys.onReleased: (event) => {
+                streamingViewModel.onKeyEvent(event.nativeScanCode, false)
+                event.accepted = true
+            }
 
             // loading遮罩
             Rectangle {
@@ -73,6 +85,7 @@ ApplicationWindow {
                     }
 
                     onPressed: {
+                        videoArea.forceActiveFocus()
                         sendMouseEvent(mouse, 0)
                     }
                     onPositionChanged: {
