@@ -28,13 +28,13 @@ ApplicationWindow {
             focus: true
             activeFocusOnTab: true
 
-            // 键盘事件捕获，发送 Windows 原生 scan code 到云端
+            // 键盘事件捕获，发送 Qt Key 到云端（云端自动转为云手机按键）
             Keys.onPressed: (event) => {
-                streamingViewModel.onKeyEvent(event.nativeScanCode, true)
+                streamingViewModel.onKeyEvent(event.key, true)
                 event.accepted = true
             }
             Keys.onReleased: (event) => {
-                streamingViewModel.onKeyEvent(event.nativeScanCode, false)
+                streamingViewModel.onKeyEvent(event.key, false)
                 event.accepted = true
             }
 

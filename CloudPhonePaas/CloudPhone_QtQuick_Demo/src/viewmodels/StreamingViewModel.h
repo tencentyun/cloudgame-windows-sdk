@@ -65,6 +65,7 @@ class BatchTaskOperator;
 class StreamingViewModel : public QObject {
   Q_OBJECT
   Q_PROPERTY(QString clientStats READ clientStats NOTIFY clientStatsChanged)
+  Q_PROPERTY(QString imeType READ imeType NOTIFY imeTypeChanged)
 
  public:
   explicit StreamingViewModel(QObject* parent = nullptr);
@@ -109,6 +110,12 @@ class StreamingViewModel : public QObject {
    * @return 包含帧率、码率、延迟等信息的 JSON 字符串
    */
   QString clientStats() const { return m_clientStats; }
+
+  /**
+   * @brief 获取当前输入法类型
+   * @return "cloud"=云端输入法, "local"=本地输入法
+   */
+  QString imeType() const { return m_imeType; }
 
   /**
    * @brief 获取当前实例的统计数据（单实例模式）
@@ -188,6 +195,12 @@ class StreamingViewModel : public QObject {
    */
   void tokenExpired(const QString& instanceId);
 
+  /**
+   * @brief 输入法类型变化信号（由 TCR_SESSION_EVENT_IME_STATUS_CHANGE 事件触发）
+   * @param imeType 输入法类型（"cloud"=云端输入法, "local"=本地输入法）
+   */
+  void imeTypeChanged(const QString& imeType);
+
  public slots:
   // ==================== 触摸输入 ====================
 
@@ -216,12 +229,15 @@ class StreamingViewModel : public QObject {
 
   /**
    * @brief 发送键盘事件到云端
-   * @param keycode Windows 原生按键码（scan code），云端自动转换为云手机按键码
+   * @param qtKey Qt 按键枚举值，内部自动映射为标准 keycode
    * @param pressed true=按下, false=抬起
+   *
+   * 映射规则：Qt 特殊键（Key_Backspace/Key_Delete 等）映射到标准 keycode.info 值，
+   * 普通字符键的 Qt 值与标准 keycode 一致，直接透传。
    *
    * 对应 SDK API：tcr_session_send_keyboard_event()
    */
-  void onKeyEvent(int keycode, bool pressed);
+  void onKeyEvent(int qtKey, bool pressed);
 
   // ==================== 系统按键 ====================
 
@@ -351,6 +367,18 @@ class StreamingViewModel : public QObject {
    */
   Q_INVOKABLE void enableMicrophoneWithDevice(const QString& deviceId);
 
+  // ==================== 输入法切换 ====================
+
+  /**
+   * @brief 切换到本地输入法
+   */
+  Q_INVOKABLE void setLocalIME();
+
+  /**
+   * @brief 切换到云端输入法
+   */
+  Q_INVOKABLE void setCloudIME();
+
  private:
   // ==================== 成员变量 ====================
 
@@ -376,6 +404,7 @@ class StreamingViewModel : public QObject {
   QStringList m_groupInstanceIds;              ///< 群控模式下的实例 ID 列表
   bool m_sessionConnected = false;             ///< 会话连接状态标志
   QString m_clientStats;                       ///< 客户端统计数据（JSON 格式）
+  QString m_imeType = "cloud";                 ///< 输入法类型（"local"=本地输入法, "cloud"=云端输入法）
 
   // ==================== 内部方法 ====================
 
@@ -451,6 +480,12 @@ class StreamingViewModel : public QObject {
    * @param eventData 事件数据（JSON格式，包含 instanceId 字段）
    */
   void handleTokenExpired(const QString& eventData);
+
+  /**
+   * @brief 处理输入法状态变化事件
+   * @param eventData 事件数据（JSON格式，包含 ime_type 字段）
+   */
+  void handleImeStatusChange(const QString& eventData);
 
   /**
    * @brief 映射云端旋转角度到客户端旋转角度

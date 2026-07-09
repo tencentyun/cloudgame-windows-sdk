@@ -335,13 +335,120 @@ void StreamingViewModel::sendMouseScrollEvent(float delta) {
 
 // ==================== 键盘输入 ====================
 
-void StreamingViewModel::onKeyEvent(int keycode, bool pressed) {
+void StreamingViewModel::onKeyEvent(int qtKey, bool pressed) {
   if (!isSessionReady()) {
     return;
   }
 
+  // 将 Qt Key 枚举值映射为标准 keycode（与 keycode.info 一致）
+  int32_t keycode = qtKey;
+  switch (qtKey) {
+    case Qt::Key_Backspace:
+      keycode = 8;
+      break;
+    case Qt::Key_Tab:
+      keycode = 9;
+      break;
+    case Qt::Key_Return:
+    case Qt::Key_Enter:
+      keycode = 13;
+      break;
+    case Qt::Key_Shift:
+      keycode = 16;
+      break;
+    case Qt::Key_Control:
+      keycode = 17;
+      break;
+    case Qt::Key_Alt:
+      keycode = 18;
+      break;
+    case Qt::Key_Pause:
+      keycode = 19;
+      break;
+    case Qt::Key_CapsLock:
+      keycode = 20;
+      break;
+    case Qt::Key_Escape:
+      keycode = 27;
+      break;
+    case Qt::Key_Space:
+      keycode = 32;
+      break;
+    case Qt::Key_PageUp:
+      keycode = 33;
+      break;
+    case Qt::Key_PageDown:
+      keycode = 34;
+      break;
+    case Qt::Key_End:
+      keycode = 35;
+      break;
+    case Qt::Key_Home:
+      keycode = 36;
+      break;
+    case Qt::Key_Left:
+      keycode = 37;
+      break;
+    case Qt::Key_Up:
+      keycode = 38;
+      break;
+    case Qt::Key_Right:
+      keycode = 39;
+      break;
+    case Qt::Key_Down:
+      keycode = 40;
+      break;
+    case Qt::Key_Insert:
+      keycode = 45;
+      break;
+    case Qt::Key_Delete:
+      keycode = 46;
+      break;
+    case Qt::Key_Meta:
+      keycode = 91;
+      break;
+    case Qt::Key_F1:
+      keycode = 112;
+      break;
+    case Qt::Key_F2:
+      keycode = 113;
+      break;
+    case Qt::Key_F3:
+      keycode = 114;
+      break;
+    case Qt::Key_F4:
+      keycode = 115;
+      break;
+    case Qt::Key_F5:
+      keycode = 116;
+      break;
+    case Qt::Key_F6:
+      keycode = 117;
+      break;
+    case Qt::Key_F7:
+      keycode = 118;
+      break;
+    case Qt::Key_F8:
+      keycode = 119;
+      break;
+    case Qt::Key_F9:
+      keycode = 120;
+      break;
+    case Qt::Key_F10:
+      keycode = 121;
+      break;
+    case Qt::Key_F11:
+      keycode = 122;
+      break;
+    case Qt::Key_F12:
+      keycode = 123;
+      break;
+    default:
+      // 普通字符键的 Qt Key 值与标准 keycode 一致，直接使用
+      break;
+  }
+
   // SDK API: tcr_session_send_keyboard_event(session, keycode, down)
-  // 发送 Windows 原生 scan code，云端自动转换为云手机按键码
   tcr_session_send_keyboard_event(m_session, keycode, pressed);
 }
 
@@ -522,6 +629,10 @@ void StreamingViewModel::SessionEventCallback(void* user_data, TcrSessionEvent e
   // 【事件6：Token过期】
   else if (event == TCR_SESSION_EVENT_TOKEN_EXPIRED) {
     self->handleTokenExpired(eventDataCopy);
+  }
+  // 【事件7：输入法状态变化】
+  else if (event == TCR_SESSION_EVENT_IME_STATUS_CHANGE) {
+    self->handleImeStatusChange(eventDataCopy);
   }
 }
 
@@ -877,4 +988,44 @@ QString StreamingViewModel::getInstanceStats() const {
   }
 
   return QString::fromUtf8(doc.toJson(QJsonDocument::Indented));
+}
+
+// ==================== 输入法切换 ====================
+
+void StreamingViewModel::handleImeStatusChange(const QString& eventData) {
+  QJsonDocument doc = QJsonDocument::fromJson(eventData.toUtf8());
+  if (!doc.isObject()) {
+    Logger::warning("[handleImeStatusChange] 输入法状态数据解析失败");
+    return;
+  }
+
+  QString imeType = doc.object().value("ime_type").toString();
+  if (imeType.isEmpty()) {
+    Logger::warning("[handleImeStatusChange] ime_type 字段为空");
+    return;
+  }
+
+  if (m_imeType != imeType) {
+    m_imeType = imeType;
+    Logger::info(QString("[handleImeStatusChange] 输入法类型变更为: %1").arg(imeType));
+    emit imeTypeChanged(m_imeType);
+  }
+}
+
+void StreamingViewModel::setLocalIME() {
+  if (!isSessionReady()) {
+    Logger::debug("[setLocalIME] session not ready");
+    return;
+  }
+  // SDK API: 切换为本地输入法
+  tcr_session_switch_ime(m_session, "local");
+}
+
+void StreamingViewModel::setCloudIME() {
+  if (!isSessionReady()) {
+    Logger::debug("[setCloudIME] session not ready");
+    return;
+  }
+  // SDK API: 切换为云端输入法
+  tcr_session_switch_ime(m_session, "cloud");
 }
