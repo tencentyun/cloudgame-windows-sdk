@@ -184,9 +184,8 @@ ApplicationWindow {
 
                     TextField {
                         id: inputField
-                        text: "被粘贴的文本"
-                        validator: IntValidator { bottom: 1; top: 60 }
-                        width: 60
+                        placeholderText: "输入要发送的文本"
+                        width: 200
                     }
                 }
 

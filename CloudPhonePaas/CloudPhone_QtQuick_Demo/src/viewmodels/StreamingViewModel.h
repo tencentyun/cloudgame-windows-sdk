@@ -367,6 +367,18 @@ class StreamingViewModel : public QObject {
    */
   Q_INVOKABLE void enableMicrophoneWithDevice(const QString& deviceId);
 
+  // ==================== 文本输入 ====================
+
+  /**
+   * @brief 将文本发送到云端输入框（追加模式）
+   * @param text 要发送的文本内容
+   *
+   * 对应 SDK API：tcr_session_input_text(session, content, "append")
+   * @note 调用前需确保已收到 TCR_SESSION_EVENT_IME_STATUS_CHANGE 事件，
+   *       且 ime_type 为 "local"
+   */
+  Q_INVOKABLE void onClickPaste(const QString& text);
+
   // ==================== 输入法切换 ====================
 
   /**

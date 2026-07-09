@@ -990,6 +990,26 @@ QString StreamingViewModel::getInstanceStats() const {
   return QString::fromUtf8(doc.toJson(QJsonDocument::Indented));
 }
 
+// ==================== 文本输入 ====================
+
+void StreamingViewModel::onClickPaste(const QString& text) {
+  if (!isSessionReady()) {
+    Logger::debug("[onClickPaste] session not ready");
+    return;
+  }
+
+  if (text.isEmpty()) {
+    Logger::debug("[onClickPaste] text is empty");
+    return;
+  }
+
+  // SDK API: tcr_session_input_text(session, content, mode)
+  // 使用追加模式将文本发送到云端输入框
+  QByteArray textBytes = text.toUtf8();
+  tcr_session_input_text(m_session, textBytes.constData(), "append");
+  Logger::info(QString("[onClickPaste] 发送文本到云端(追加模式): %1").arg(text));
+}
+
 // ==================== 输入法切换 ====================
 
 void StreamingViewModel::handleImeStatusChange(const QString& eventData) {
