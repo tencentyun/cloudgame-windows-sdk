@@ -3,6 +3,22 @@
 <!-- FORMAT_VERSION: 1.0 -->
 
 ---
+## [1.27.1] - 2026-07-09
+
+### Bugfix
+- 解决批量操作失败的问题
+
+
+### Download
+
+| Platform | Arch | Package |
+|----------|------|---------|
+| Windows | x86 & x64 | [TcrSdk-Windows-Debug-1.27.1-20260709-d38ebca8.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Windows-Debug-1.27.1-20260709-d38ebca8.zip) |
+| Windows | x86 & x64 | [TcrSdk-Windows-Release-1.27.1-20260709-d38ebca8.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Windows-Release-1.27.1-20260709-d38ebca8.zip) |
+| Macos | universal | [TcrSdk-Macos-universal-1.27.1-20260709-d38ebca8.zip](https://cg-sdk-1258344699.cos.ap-nanjing.myqcloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Macos-universal-1.27.1-20260709-d38ebca8.zip) |
+| Linux | x86_64 | [TcrSdk-Linux-x86_64-1.27.1-20260709-d38ebca8.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Linux-x86_64-1.27.1-20260709-d38ebca8.zip) |
+
+---
 ## [1.27.0] - 2026-07-02
 
 ### Features
