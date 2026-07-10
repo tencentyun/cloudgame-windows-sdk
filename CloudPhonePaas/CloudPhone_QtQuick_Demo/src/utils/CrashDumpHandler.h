@@ -19,8 +19,8 @@
 #  undef ERROR
 #endif
 
-#include <dbghelp.h>
 #include <windows.h>
+#include <dbghelp.h>
 
 /**
  * @brief 崩溃转储处理类
