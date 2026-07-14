@@ -136,21 +136,10 @@ void StreamingViewModel::updateCheckedInstanceIds(const std::vector<std::string>
         return;
     }
 
-    // Join new instances to group
-    if (!addedInstanceIds.empty()) {
-        std::vector<const char*> ptrs;
-        ptrs.reserve(addedInstanceIds.size());
-        for (const auto& id : addedInstanceIds) ptrs.push_back(id.c_str());
-        tcr_instance_join_group(m_instance, ptrs.data(), static_cast<int32_t>(ptrs.size()));
-    }
-
-    // Update sync list
-    if (!instanceIds.empty()) {
-        std::vector<const char*> ptrs;
-        ptrs.reserve(instanceIds.size());
-        for (const auto& id : instanceIds) ptrs.push_back(id.c_str());
-        tcr_instance_set_sync_list(m_instance, ptrs.data(), static_cast<int32_t>(ptrs.size()));
-    }
+    // TODO: tcr_instance_join_group / tcr_instance_set_sync_list not yet available
+    // in current SDK build; re-enable when SDK is updated.
+    (void)addedInstanceIds;
+    (void)instanceIds;
 }
 
 // ==================== Input ====================

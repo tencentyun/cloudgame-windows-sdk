@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Window size="1200,600" caption="0,0,0,35" roundcorner="0,0">
+    <Font id="0" name="Microsoft YaHei" size="12" default="true" />
+    <Font id="1" name="Microsoft YaHei" size="14" bold="true" />
+    <Font id="2" name="Microsoft YaHei" size="11" />
+
+    <VerticalLayout bkcolor="#FF1A1A2E">
+        <!-- Title bar -->
+        <HorizontalLayout height="35" bkcolor="#FF16213E">
+            <Label name="lbl_title" text="串流窗口 (横屏)" font="1" textcolor="#FFFFFFFF" padding="10,0,0,0" />
+            <Control />
+            <Label name="lbl_stats" text="" font="2" textcolor="#FF88CC88" padding="0,0,10,0" />
+            <Button name="btn_close" text="X" width="45" height="35"
+                    textcolor="#FFFFFFFF" hottextcolor="#FFFF4444"
+                    hotbkcolor="#33FFFFFF" />
+        </HorizontalLayout>
+
+        <!-- Video area (fills remaining vertical space) -->
+        <Control name="video_placeholder" bkcolor="#FF000000" />
+
+        <!-- Spacer between video and toolbar -->
+        <Control height="6" />
+
+        <!-- Bottom toolbar row 1: Quick actions -->
+        <HorizontalLayout height="40" bkcolor="#FF16213E" padding="4,4,4,4">
+            <Label name="lbl_session_status" text="未连接" font="0"
+                   textcolor="#FFAAAAAA" width="110" padding="0,0,8,0" />
+            <Button name="btn_home" text="Home" width="55" height="32"
+                    textcolor="#FFFFFFFF" bkcolor="#FF2D8CF0" hotbkcolor="#FF5CADFF" padding="0,0,2,0" />
+            <Button name="btn_menu" text="Menu" width="55" height="32"
+                    textcolor="#FFFFFFFF" bkcolor="#FF2D8CF0" hotbkcolor="#FF5CADFF" padding="0,0,2,0" />
+            <Button name="btn_back" text="Back" width="55" height="32"
+                    textcolor="#FFFFFFFF" bkcolor="#FF2D8CF0" hotbkcolor="#FF5CADFF" padding="0,0,6,0" />
+            <Button name="btn_vol_up" text="+" width="32" height="32"
+                    textcolor="#FFFFFFFF" bkcolor="#FF19BE6B" hotbkcolor="#FF47CB89" padding="0,0,1,0" />
+            <Button name="btn_vol_down" text="-" width="32" height="32"
+                    textcolor="#FFFFFFFF" bkcolor="#FF19BE6B" hotbkcolor="#FF47CB89" padding="0,0,6,0" />
+            <Button name="btn_pause_video" text="暂停视频" width="72" height="32"
+                    textcolor="#FFFFFFFF" bkcolor="#FFFF9900" hotbkcolor="#FFFFB340" padding="0,0,2,0" />
+            <Button name="btn_resume_video" text="恢复视频" width="72" height="32"
+                    textcolor="#FFFFFFFF" bkcolor="#FF19BE6B" hotbkcolor="#FF47CB89" padding="0,0,2,0" />
+            <Button name="btn_pause_audio" text="暂停音频" width="72" height="32"
+                    textcolor="#FFFFFFFF" bkcolor="#FFFF9900" hotbkcolor="#FFFFB340" padding="0,0,2,0" />
+            <Button name="btn_resume_audio" text="恢复音频" width="72" height="32"
+                    textcolor="#FFFFFFFF" bkcolor="#FF19BE6B" hotbkcolor="#FF47CB89" padding="0,0,6,0" />
+            <Button name="btn_enable_camera" text="摄像头" width="65" height="32"
+                    textcolor="#FFFFFFFF" bkcolor="#FF2D8CF0" hotbkcolor="#FF5CADFF" padding="0,0,2,0" />
+            <Button name="btn_disable_camera" text="关" width="32" height="32"
+                    textcolor="#FFFFFFFF" bkcolor="#FFED4014" hotbkcolor="#FFFF6633" padding="0,0,2,0" />
+            <Button name="btn_enable_mic" text="麦克风" width="65" height="32"
+                    textcolor="#FFFFFFFF" bkcolor="#FF2D8CF0" hotbkcolor="#FF5CADFF" padding="0,0,2,0" />
+            <Button name="btn_disable_mic" text="关" width="32" height="32"
+                    textcolor="#FFFFFFFF" bkcolor="#FFED4014" hotbkcolor="#FFFF6633" padding="0,0,6,0" />
+            <Control />
+            <Button name="btn_show_stats" text="统计" width="55" height="32"
+                    textcolor="#FFFFFFFF" bkcolor="#FF17A2B8" hotbkcolor="#FF3BC0D3" />
+        </HorizontalLayout>
+
+        <!-- Bottom toolbar row 2: Bitrate / FPS / Render scale -->
+        <HorizontalLayout height="38" bkcolor="#FF16213E" padding="4,2,4,4">
+            <Label text="码率:" font="2" textcolor="#FFCCCCCC" width="36" height="32" />
+            <Edit name="edit_min_bitrate" text="1000" width="55" height="28"
+                  textcolor="#FFFFFFFF" bkcolor="#FF2A2A3E"
+                  bordercolor="#FF555555" bordersize="1" padding="2,0,2,0" />
+            <Label text="-" font="2" textcolor="#FFCCCCCC" width="12" height="32" align="center" />
+            <Edit name="edit_max_bitrate" text="3000" width="55" height="28"
+                  textcolor="#FFFFFFFF" bkcolor="#FF2A2A3E"
+                  bordercolor="#FF555555" bordersize="1" padding="2,0,6,0" />
+            <Label text="FPS:" font="2" textcolor="#FFCCCCCC" width="30" height="32" />
+            <Edit name="edit_fps" text="30" width="40" height="28"
+                  textcolor="#FFFFFFFF" bkcolor="#FF2A2A3E"
+                  bordercolor="#FF555555" bordersize="1" padding="2,0,8,0" />
+            <Button name="btn_apply_settings" text="应用" width="50" height="28"
+                    textcolor="#FFFFFFFF" bkcolor="#FF7C4DFF" hotbkcolor="#FF9B7AFF" padding="0,0,10,0" />
+            <Label text="缩放:" font="2" textcolor="#FFCCCCCC" width="32" height="32" />
+            <Button name="btn_scale_25" text="25%" width="40" height="28"
+                    textcolor="#FFFFFFFF" bkcolor="#FF2D8CF0" hotbkcolor="#FF5CADFF" padding="0,0,2,0" />
+            <Button name="btn_scale_50" text="50%" width="40" height="28"
+                    textcolor="#FFFFFFFF" bkcolor="#FF2D8CF0" hotbkcolor="#FF5CADFF" padding="0,0,2,0" />
+            <Button name="btn_scale_100" text="原始" width="45" height="28"
+                    textcolor="#FFFFFFFF" bkcolor="#FF19BE6B" hotbkcolor="#FF47CB89" padding="0,0,2,0" />
+            <Button name="btn_scale_150" text="150%" width="45" height="28"
+                    textcolor="#FFFFFFFF" bkcolor="#FF2D8CF0" hotbkcolor="#FF5CADFF" padding="0,0,2,0" />
+            <Button name="btn_scale_200" text="200%" width="45" height="28"
+                    textcolor="#FFFFFFFF" bkcolor="#FF2D8CF0" hotbkcolor="#FF5CADFF" />
+        </HorizontalLayout>
+    </VerticalLayout>
+</Window>

@@ -55,6 +55,14 @@ void VideoRenderer::renderFrame(TcrVideoFrameHandle frameHandle, int videoWidth,
     int angle = static_cast<int>(std::round(m_rotationAngle)) % 360;
     if (angle < 0) angle += 360;
 
+    // Debug: log frame dimensions and rotation (throttled)
+    static int s_lastLoggedAngle = -999;
+    if (angle != s_lastLoggedAngle) {
+        s_lastLoggedAngle = angle;
+        Logger::info("[VideoRenderer] rotation=" + std::to_string(angle)
+                     + " buf=" + std::to_string(buf->width) + "x" + std::to_string(buf->height));
+    }
+
     int renderW = buf->width;
     int renderH = buf->height;
     const uint8_t* renderData = buf->data;
@@ -88,6 +96,16 @@ void VideoRenderer::renderFrame(TcrVideoFrameHandle frameHandle, int videoWidth,
 
     // 3. Setup BITMAPINFO for StretchDIBits
     ensureBITMAPINFO(renderW, renderH);
+
+    // Debug: log final render dimensions after rotation
+    static int s_lastLoggedRenderW = -1;
+    static int s_lastLoggedRenderH = -1;
+    if (renderW != s_lastLoggedRenderW || renderH != s_lastLoggedRenderH) {
+        s_lastLoggedRenderW = renderW;
+        s_lastLoggedRenderH = renderH;
+        Logger::info("[VideoRenderer] render output: " + std::to_string(renderW) + "x" + std::to_string(renderH)
+                     + " (rotated=" + std::to_string(angle) + ")");
+    }
 
     // 4. Blit to window
     if (!::IsWindow(m_hwnd)) {
