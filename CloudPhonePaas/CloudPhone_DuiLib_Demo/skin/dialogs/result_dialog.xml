@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Window size="500,400" caption="0,0,0,35" roundcorner="0,0">
+    <Font id="0" name="Microsoft YaHei" size="12" default="true" />
+    <Font id="1" name="Microsoft YaHei" size="14" bold="true" />
+    <Font id="2" name="Consolas" size="11" />
+
+    <VerticalLayout bkcolor="#FFFFFFFF">
+        <!-- Title bar -->
+        <HorizontalLayout height="35" bkcolor="#FF2D8CF0">
+            <Label name="lbl_title" text="任务结果" font="1" textcolor="#FFFFFFFF" padding="10,0,0,0" />
+            <Control />
+        </HorizontalLayout>
+
+        <!-- Content -->
+        <VerticalLayout padding="15,10,15,10">
+            <RichEdit name="edit_result" readonly="true" multiline="true" vscrollbar="true"
+                      bordersize="1" bordercolor="#FFCCCCCC"
+                      textpadding="8,6,8,6" font="2" />
+            <Control height="10" />
+
+            <!-- OK button -->
+            <HorizontalLayout height="36">
+                <Control />
+                <Button name="btn_ok" width="100" height="32" text="确定"
+                        font="0" textcolor="#FFFFFFFF"
+                        bkcolor="#FF2D8CF0" hotbkcolor="#FF5CADFF"
+                        pushedbkcolor="#FF1A6FD4" borderround="4,4" />
+                <Control />
+            </HorizontalLayout>
+        </VerticalLayout>
+    </VerticalLayout>
+</Window>

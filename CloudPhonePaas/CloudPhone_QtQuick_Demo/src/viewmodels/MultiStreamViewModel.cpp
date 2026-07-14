@@ -301,7 +301,7 @@ void MultiStreamViewModel::connectMultipleInstances(const QStringList& allInstan
   config.stream_profile.fps = streamConfig->subStreamFps();
   config.stream_profile.max_bitrate = streamConfig->subStreamMaxBitrate();
   config.stream_profile.min_bitrate = streamConfig->subStreamMinBitrate();
-  config.enable_audio = false;
+  // config.enable_audio = false;
 
   // 设置并发拉流实例数量
   config.concurrentStreamingInstances = concurrentStreamingInstances;

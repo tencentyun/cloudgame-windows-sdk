@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Window size="400,300" caption="0,0,0,35" roundcorner="0,0">
+    <Font id="0" name="Microsoft YaHei" size="12" default="true" />
+    <Font id="1" name="Microsoft YaHei" size="14" bold="true" />
+    <Font id="2" name="Microsoft YaHei" size="11" />
+
+    <VerticalLayout bkcolor="#FFFFFFFF">
+        <!-- Title bar -->
+        <HorizontalLayout height="35" bkcolor="#FF2D8CF0">
+            <Label text="登录" font="1" textcolor="#FFFFFFFF" padding="10,0,0,0" />
+            <Control />
+            <Button name="btn_close" text="X" width="45" height="35"
+                    textcolor="#FFFFFFFF" hottextcolor="#FFFF4444"
+                    hotbkcolor="#33FFFFFF" />
+        </HorizontalLayout>
+
+        <!-- Login form centered -->
+        <VerticalLayout>
+            <Control height="30" />
+
+            <!-- Form area with padding -->
+            <HorizontalLayout>
+                <Control width="50" />
+                <VerticalLayout>
+                    <!-- User ID -->
+                    <Edit name="edit_userid" height="32" padding="0,0,0,10"
+                          tiptext="请输入账号" tipcolor="#FF999999" text="cyy"
+                          bordersize="1" bordercolor="#FFCCCCCC"
+                          textpadding="8,4,8,4" font="0" />
+
+                    <!-- Password -->
+                    <Edit name="edit_password" height="32" padding="0,0,0,15"
+                          password="true"
+                          tiptext="请输入密码" tipcolor="#FF999999" text="123456"
+                          bordersize="1" bordercolor="#FFCCCCCC"
+                          textpadding="8,4,8,4" font="0" />
+
+                    <!-- Login button -->
+                    <Button name="btn_login" height="38" text="登录"
+                            font="1" textcolor="#FFFFFFFF"
+                            bkcolor="#FF2D8CF0" hotbkcolor="#FF5CADFF"
+                            pushedbkcolor="#FF1A6FD4"
+                            borderround="4,4" />
+
+                    <Control height="8" />
+
+                    <!-- Status label (error messages etc.) -->
+                    <Label name="lbl_status" height="20" text=""
+                           font="2" textcolor="#FFFF4444" align="center" />
+                </VerticalLayout>
+                <Control width="50" />
+            </HorizontalLayout>
+
+            <Control />
+        </VerticalLayout>
+    </VerticalLayout>
+</Window>

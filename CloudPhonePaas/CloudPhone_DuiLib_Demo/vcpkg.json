@@ -1,0 +1,13 @@
+{
+  "name": "cloudphone-duilib-demo",
+  "version-string": "1.0.0",
+  "dependencies": [
+    {
+      "name": "curl",
+      "features": ["ssl"]
+    },
+    "jsoncpp",
+    "libyuv",
+    "spdlog"
+  ]
+}

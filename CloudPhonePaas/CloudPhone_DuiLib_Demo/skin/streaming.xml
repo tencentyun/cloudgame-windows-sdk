@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Window size="900,700" caption="0,0,0,35" roundcorner="0,0">
+    <Font id="0" name="Microsoft YaHei" size="12" default="true" />
+    <Font id="1" name="Microsoft YaHei" size="14" bold="true" />
+    <Font id="2" name="Microsoft YaHei" size="11" />
+
+    <VerticalLayout bkcolor="#FF1A1A2E">
+        <!-- Title bar -->
+        <HorizontalLayout height="35" bkcolor="#FF16213E">
+            <Label name="lbl_title" text="串流窗口" font="1" textcolor="#FFFFFFFF" padding="10,0,0,0" />
+            <Control />
+            <Label name="lbl_stats" text="" font="2" textcolor="#FF88CC88" padding="0,0,10,0" />
+            <Button name="btn_close" text="X" width="45" height="35"
+                    textcolor="#FFFFFFFF" hottextcolor="#FFFF4444"
+                    hotbkcolor="#33FFFFFF" />
+        </HorizontalLayout>
+
+        <!-- Main content: video area + control panel -->
+        <HorizontalLayout>
+            <!-- Left: video area — fixed width 374px to match 9:16 portrait ratio at 665px height -->
+            <VerticalLayout width="374">
+                <Control name="video_placeholder" bkcolor="#FF000000" />
+            </VerticalLayout>
+
+            <!-- Right: scrollable button panel -->
+            <VerticalLayout bkcolor="#FF1A1A2E" padding="8,8,8,8">
+                <ScrollBar />
+
+                <!-- Session status -->
+                <Label name="lbl_session_status" text="未连接" font="0"
+                       textcolor="#FFAAAAAA" height="24" padding="0,0,0,4" />
+
+                <!-- System keys -->
+                <Label text="系统按键" font="1" textcolor="#FFFFFFFF" height="24" padding="0,8,0,4" />
+
+                <HorizontalLayout height="36" padding="0,2,0,2">
+                    <Button name="btn_home" text="Home" height="32"
+                            textcolor="#FFFFFFFF" bkcolor="#FF2D8CF0"
+                            hotbkcolor="#FF5CADFF" padding="0,0,4,0" />
+                    <Button name="btn_menu" text="Menu" height="32"
+                            textcolor="#FFFFFFFF" bkcolor="#FF2D8CF0"
+                            hotbkcolor="#FF5CADFF" padding="0,0,4,0" />
+                    <Button name="btn_back" text="Back" height="32"
+                            textcolor="#FFFFFFFF" bkcolor="#FF2D8CF0"
+                            hotbkcolor="#FF5CADFF" />
+                </HorizontalLayout>
+
+                <HorizontalLayout height="36" padding="0,2,0,2">
+                    <Button name="btn_vol_up" text="音量+" height="32"
+                            textcolor="#FFFFFFFF" bkcolor="#FF19BE6B"
+                            hotbkcolor="#FF47CB89" padding="0,0,4,0" />
+                    <Button name="btn_vol_down" text="音量-" height="32"
+                            textcolor="#FFFFFFFF" bkcolor="#FF19BE6B"
+                            hotbkcolor="#FF47CB89" />
+                </HorizontalLayout>
+
+                <!-- Video stream control -->
+                <Label text="视频流控制" font="1" textcolor="#FFFFFFFF" height="24" padding="0,8,0,4" />
+
+                <HorizontalLayout height="36" padding="0,2,0,2">
+                    <Button name="btn_pause_video" text="暂停视频" height="32"
+                            textcolor="#FFFFFFFF" bkcolor="#FFFF9900"
+                            hotbkcolor="#FFFFB340" padding="0,0,4,0" />
+                    <Button name="btn_resume_video" text="恢复视频" height="32"
+                            textcolor="#FFFFFFFF" bkcolor="#FF19BE6B"
+                            hotbkcolor="#FF47CB89" />
+                </HorizontalLayout>
+
+                <!-- Audio stream control -->
+                <Label text="音频流控制" font="1" textcolor="#FFFFFFFF" height="24" padding="0,8,0,4" />
+
+                <HorizontalLayout height="36" padding="0,2,0,2">
+                    <Button name="btn_pause_audio" text="暂停音频" height="32"
+                            textcolor="#FFFFFFFF" bkcolor="#FFFF9900"
+                            hotbkcolor="#FFFFB340" padding="0,0,4,0" />
+                    <Button name="btn_resume_audio" text="恢复音频" height="32"
+                            textcolor="#FFFFFFFF" bkcolor="#FF19BE6B"
+                            hotbkcolor="#FF47CB89" />
+                </HorizontalLayout>
+
+                <!-- Camera / Microphone -->
+                <Label text="设备控制" font="1" textcolor="#FFFFFFFF" height="24" padding="0,8,0,4" />
+
+                <HorizontalLayout height="36" padding="0,2,0,2">
+                    <Button name="btn_enable_camera" text="开摄像头" height="32"
+                            textcolor="#FFFFFFFF" bkcolor="#FF2D8CF0"
+                            hotbkcolor="#FF5CADFF" padding="0,0,4,0" />
+                    <Button name="btn_disable_camera" text="关摄像头" height="32"
+                            textcolor="#FFFFFFFF" bkcolor="#FFED4014"
+                            hotbkcolor="#FFFF6633" />
+                </HorizontalLayout>
+
+                <HorizontalLayout height="36" padding="0,2,0,2">
+                    <Button name="btn_enable_mic" text="开麦克风" height="32"
+                            textcolor="#FFFFFFFF" bkcolor="#FF2D8CF0"
+                            hotbkcolor="#FF5CADFF" padding="0,0,4,0" />
+                    <Button name="btn_disable_mic" text="关麦克风" height="32"
+                            textcolor="#FFFFFFFF" bkcolor="#FFED4014"
+                            hotbkcolor="#FFFF6633" />
+                </HorizontalLayout>
+
+                <!-- Bitrate / FPS settings -->
+                <Label text="画质设置" font="1" textcolor="#FFFFFFFF" height="24" padding="0,8,0,4" />
+
+                <HorizontalLayout height="28" padding="0,2,0,2">
+                    <Label text="最小码率:" font="2" textcolor="#FFCCCCCC" width="70" />
+                    <Edit name="edit_min_bitrate" text="1000" height="24"
+                          textcolor="#FFFFFFFF" bkcolor="#FF2A2A3E"
+                          bordercolor="#FF555555" bordersize="1"
+                          padding="2,0,4,0" />
+                </HorizontalLayout>
+
+                <HorizontalLayout height="28" padding="0,2,0,2">
+                    <Label text="最大码率:" font="2" textcolor="#FFCCCCCC" width="70" />
+                    <Edit name="edit_max_bitrate" text="3000" height="24"
+                          textcolor="#FFFFFFFF" bkcolor="#FF2A2A3E"
+                          bordercolor="#FF555555" bordersize="1"
+                          padding="2,0,4,0" />
+                </HorizontalLayout>
+
+                <HorizontalLayout height="28" padding="0,2,0,2">
+                    <Label text="帧率FPS:" font="2" textcolor="#FFCCCCCC" width="70" />
+                    <Edit name="edit_fps" text="30" height="24"
+                          textcolor="#FFFFFFFF" bkcolor="#FF2A2A3E"
+                          bordercolor="#FF555555" bordersize="1"
+                          padding="2,0,4,0" />
+                </HorizontalLayout>
+
+                <Button name="btn_apply_settings" text="应用设置" height="32"
+                        textcolor="#FFFFFFFF" bkcolor="#FF7C4DFF"
+                        hotbkcolor="#FF9B7AFF" padding="0,4,0,2" />
+
+                <!-- Render scale -->
+                <Label text="渲染缩放" font="1" textcolor="#FFFFFFFF" height="24" padding="0,8,0,4" />
+
+                <HorizontalLayout height="32" padding="0,2,0,2">
+                    <Button name="btn_scale_25" text="25%" height="28" width="45"
+                            textcolor="#FFFFFFFF" bkcolor="#FF2D8CF0"
+                            hotbkcolor="#FF5CADFF" padding="0,0,2,0" />
+                    <Button name="btn_scale_50" text="50%" height="28" width="45"
+                            textcolor="#FFFFFFFF" bkcolor="#FF2D8CF0"
+                            hotbkcolor="#FF5CADFF" padding="0,0,2,0" />
+                    <Button name="btn_scale_100" text="原始" height="28" width="45"
+                            textcolor="#FFFFFFFF" bkcolor="#FF19BE6B"
+                            hotbkcolor="#FF47CB89" padding="0,0,2,0" />
+                    <Button name="btn_scale_150" text="150%" height="28" width="45"
+                            textcolor="#FFFFFFFF" bkcolor="#FF2D8CF0"
+                            hotbkcolor="#FF5CADFF" padding="0,0,2,0" />
+                    <Button name="btn_scale_200" text="200%" height="28" width="45"
+                            textcolor="#FFFFFFFF" bkcolor="#FF2D8CF0"
+                            hotbkcolor="#FF5CADFF" />
+                </HorizontalLayout>
+
+                <!-- Stats -->
+                <Label text="统计信息" font="1" textcolor="#FFFFFFFF" height="24" padding="0,8,0,4" />
+
+                <Button name="btn_show_stats" text="显示统计" height="32"
+                        textcolor="#FFFFFFFF" bkcolor="#FF17A2B8"
+                        hotbkcolor="#FF3BC0D3" padding="0,2,0,2" />
+
+                <!-- Spacer -->
+                <Control />
+            </VerticalLayout>
+        </HorizontalLayout>
+    </VerticalLayout>
+</Window>

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Window size="1660,879" caption="0,0,0,35" roundcorner="0,0">
+    <Font id="0" name="Microsoft YaHei" size="12" default="true" />
+    <Font id="1" name="Microsoft YaHei" size="14" bold="true" />
+    <Font id="2" name="Microsoft YaHei" size="11" />
+    <Font id="3" name="Microsoft YaHei" size="10" />
+
+    <VerticalLayout bkcolor="#FFF0F0F0">
+        <!-- Title bar -->
+        <HorizontalLayout height="35" bkcolor="#FF2D8CF0">
+            <Label text="主窗口" font="1" textcolor="#FFFFFFFF" padding="10,0,0,0" />
+            <Control />
+            <Button name="btn_minimize" text="-" width="45" height="35"
+                    textcolor="#FFFFFFFF" hottextcolor="#FFCCCCCC"
+                    hotbkcolor="#33FFFFFF" />
+            <Button name="btn_close" text="X" width="45" height="35"
+                    textcolor="#FFFFFFFF" hottextcolor="#FFFF4444"
+                    hotbkcolor="#33FFFFFF" />
+        </HorizontalLayout>
+
+        <!-- Toolbar -->
+        <HorizontalLayout height="45" bkcolor="#FFFFFFFF" padding="10,5,10,5">
+            <Button name="btn_refresh" text="刷新列表" width="90" height="35"
+                    font="0" textcolor="#FFFFFFFF"
+                    bkcolor="#FF2D8CF0" hotbkcolor="#FF5CADFF"
+                    borderround="4,4" />
+            <Control width="10" />
+            <Button name="btn_sync" text="同步操作" width="90" height="35"
+                    font="0" textcolor="#FFFFFFFF"
+                    bkcolor="#FF2D8CF0" hotbkcolor="#FF5CADFF"
+                    borderround="4,4" />
+            <Control width="10" />
+            <Button name="btn_batch" text="批量操作" width="90" height="35"
+                    font="0" textcolor="#FFFFFFFF"
+                    bkcolor="#FF2D8CF0" hotbkcolor="#FF5CADFF"
+                    borderround="4,4" />
+            <Control />
+            <!-- Status label -->
+            <Label name="lbl_status" text="" font="2" textcolor="#FF666666"
+                   width="300" align="right" padding="0,0,10,0" />
+        </HorizontalLayout>
+
+        <!-- Instance grid list area -->
+        <TileLayout name="tile_instances" padding="10,10,10,10"
+                    itemsize="160,338" columns="9"
+                    vscrollbar="true"
+                    bkcolor="#FFF0F0F0" />
+    </VerticalLayout>
+</Window>
