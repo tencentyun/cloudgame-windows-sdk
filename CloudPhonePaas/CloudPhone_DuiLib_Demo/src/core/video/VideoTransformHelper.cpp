@@ -46,10 +46,10 @@ void VideoTransformHelper::transformTouchCoordinates(int x, int y, int viewWidth
         outY = y * m_videoHeight / viewHeight;
         break;
     case 90:
-        // Client rotated CW 90°: view width corresponds to videoHeight, view height to videoWidth
-        // (x, y) -> ((viewHeight - y) * videoW / viewHeight, x * videoH / viewWidth)
-        outX = (viewHeight - y) * m_videoWidth / viewHeight;
-        outY = x * m_videoHeight / viewWidth;
+        // Client rotated CW 90° (cloud rotated CCW 90°, i.e. 270°)
+        // view x maps to cloud y, view y (reversed) maps to cloud x
+        outX = y * m_videoWidth / viewHeight;
+        outY = (viewWidth - x) * m_videoHeight / viewWidth;
         break;
     case 180:
         // Rotated 180°
@@ -57,10 +57,10 @@ void VideoTransformHelper::transformTouchCoordinates(int x, int y, int viewWidth
         outY = (viewHeight - y) * m_videoHeight / viewHeight;
         break;
     case 270:
-        // Client rotated CCW 90° (i.e. CW 270°)
-        // (x, y) -> (y * videoW / viewHeight, (viewWidth - x) * videoH / viewWidth)
-        outX = y * m_videoWidth / viewHeight;
-        outY = (viewWidth - x) * m_videoHeight / viewWidth;
+        // Client rotated CCW 90° (cloud rotated CW 90°, i.e. 90°)
+        // view y (reversed) maps to cloud x, view x maps to cloud y
+        outX = (viewHeight - y) * m_videoWidth / viewHeight;
+        outY = x * m_videoHeight / viewWidth;
         break;
     default:
         outX = x;

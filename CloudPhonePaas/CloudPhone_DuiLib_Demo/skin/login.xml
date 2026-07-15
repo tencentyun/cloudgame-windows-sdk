@@ -24,14 +24,14 @@
                 <VerticalLayout>
                     <!-- User ID -->
                     <Edit name="edit_userid" height="32" padding="0,0,0,10"
-                          tiptext="请输入账号" tipcolor="#FF999999" text="cyy"
+                          tiptext="请输入账号" tipcolor="#FF999999" text="cyy_guest"
                           bordersize="1" bordercolor="#FFCCCCCC"
                           textpadding="8,4,8,4" font="0" />
 
                     <!-- Password -->
                     <Edit name="edit_password" height="32" padding="0,0,0,15"
                           password="true"
-                          tiptext="请输入密码" tipcolor="#FF999999" text="123456"
+                          tiptext="请输入密码" tipcolor="#FF999999" text="test.666"
                           bordersize="1" bordercolor="#FFCCCCCC"
                           textpadding="8,4,8,4" font="0" />
 

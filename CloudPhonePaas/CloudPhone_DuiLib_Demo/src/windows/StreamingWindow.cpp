@@ -44,22 +44,26 @@ CDuiString StreamingWindow::GetSkinFolder() {
     return _T("skin");
 }
 
+// ==================== Control Binding ====================
+
+void StreamingWindow::rebindControls() {
+    m_lblSessionStatus = static_cast<CLabelUI*>(m_PaintManager.FindControl(_T("lbl_session_status")));
+    m_lblStats         = static_cast<CLabelUI*>(m_PaintManager.FindControl(_T("lbl_stats")));
+    m_editMinBitrate   = static_cast<CEditUI*>(m_PaintManager.FindControl(_T("edit_min_bitrate")));
+    m_editMaxBitrate   = static_cast<CEditUI*>(m_PaintManager.FindControl(_T("edit_max_bitrate")));
+    m_editFps          = static_cast<CEditUI*>(m_PaintManager.FindControl(_T("edit_fps")));
+    m_btnScale25       = static_cast<CButtonUI*>(m_PaintManager.FindControl(_T("btn_scale_25")));
+    m_btnScale50       = static_cast<CButtonUI*>(m_PaintManager.FindControl(_T("btn_scale_50")));
+    m_btnScale100      = static_cast<CButtonUI*>(m_PaintManager.FindControl(_T("btn_scale_100")));
+    m_btnScale150      = static_cast<CButtonUI*>(m_PaintManager.FindControl(_T("btn_scale_150")));
+    m_btnScale200      = static_cast<CButtonUI*>(m_PaintManager.FindControl(_T("btn_scale_200")));
+}
+
 // ==================== Init ====================
 
 void StreamingWindow::InitWindow() {
     // Find DuiLib controls
-    m_lblSessionStatus = static_cast<CLabelUI*>(m_PaintManager.FindControl(_T("lbl_session_status")));
-    m_lblStats = static_cast<CLabelUI*>(m_PaintManager.FindControl(_T("lbl_stats")));
-    m_editMinBitrate = static_cast<CEditUI*>(m_PaintManager.FindControl(_T("edit_min_bitrate")));
-    m_editMaxBitrate = static_cast<CEditUI*>(m_PaintManager.FindControl(_T("edit_max_bitrate")));
-    m_editFps = static_cast<CEditUI*>(m_PaintManager.FindControl(_T("edit_fps")));
-
-    // Render scale buttons
-    m_btnScale25  = static_cast<CButtonUI*>(m_PaintManager.FindControl(_T("btn_scale_25")));
-    m_btnScale50  = static_cast<CButtonUI*>(m_PaintManager.FindControl(_T("btn_scale_50")));
-    m_btnScale100 = static_cast<CButtonUI*>(m_PaintManager.FindControl(_T("btn_scale_100")));
-    m_btnScale150 = static_cast<CButtonUI*>(m_PaintManager.FindControl(_T("btn_scale_150")));
-    m_btnScale200 = static_cast<CButtonUI*>(m_PaintManager.FindControl(_T("btn_scale_200")));
+    rebindControls();
 
     // Create video child window inside the video_placeholder area
     createVideoChildWindow();
@@ -100,10 +104,10 @@ void StreamingWindow::InitWindow() {
                      std::string(isLandscape ? "landscape" : "portrait") +
                      " rotation=" + std::to_string(static_cast<int>(rotationAngle)) +
                      " " + std::to_string(w) + "x" + std::to_string(h));
-        // Apply rotation to renderer
         if (m_renderer) {
             m_renderer->setRotationAngle(rotationAngle);
         }
+        applyOrientation(isLandscape);
     };
 
     // Start streaming session
@@ -117,6 +121,83 @@ void StreamingWindow::InitWindow() {
     m_PaintManager.SetInitSize(rcClient.right - rcClient.left, rcClient.bottom - rcClient.top);
     m_PaintManager.NeedUpdate();
     syncVideoWindowPos();
+}
+
+// ==================== Orientation Switch ====================
+
+void StreamingWindow::applyOrientation(bool isLandscape) {
+    if (m_isLandscape == isLandscape) return;
+    m_isLandscape = isLandscape;
+
+    // Null out control pointers before rebuilding tree
+    m_lblSessionStatus = nullptr;
+    m_lblStats = nullptr;
+    m_editMinBitrate = nullptr;
+    m_editMaxBitrate = nullptr;
+    m_editFps = nullptr;
+    m_btnScale25 = nullptr;
+    m_btnScale50 = nullptr;
+    m_btnScale100 = nullptr;
+    m_btnScale150 = nullptr;
+    m_btnScale200 = nullptr;
+
+    // 1. Resize window HWND
+    HWND hwnd = GetHWND();
+    RECT rc;
+    ::GetWindowRect(hwnd, &rc);
+    int newW = isLandscape ? 1200 : 900;
+    int newH = isLandscape ? 600 : 700;
+    ::SetWindowPos(hwnd, NULL, rc.left, rc.top, newW, newH, SWP_NOZORDER);
+
+    // 2. Rebuild DuiLib control tree from the new skin file
+    // AttachDialog will replace the old root; the old tree is discarded.
+    CDialogBuilder builder;
+    LPCTSTR skinFile = isLandscape ? _T("streaming_landscape.xml") : _T("streaming.xml");
+    CControlUI* root = builder.Create(skinFile, UINT(0), nullptr, &m_PaintManager);
+    if (root) {
+        m_PaintManager.AttachDialog(root);
+    } else {
+        Logger::error("[applyOrientation] failed to create root control from " +
+                      std::string(isLandscape ? "streaming_landscape.xml" : "streaming.xml"));
+        return;
+    }
+
+    // 3. Re-bind all control pointers (same names in both skins)
+    rebindControls();
+
+    // 4. Force DuiLib to repaint the new control tree
+    m_PaintManager.NeedUpdate();
+    ::InvalidateRect(hwnd, NULL, FALSE);
+    ::UpdateWindow(hwnd);
+
+    // 5. Position video child window based on layout geometry (bypass DuiLib GetPos
+    //    which may not be valid yet on a freshly AttachDialog'd tree)
+    if (m_videoHwnd) {
+        RECT rcClient;
+        ::GetClientRect(hwnd, &rcClient);
+        int cx = rcClient.right - rcClient.left;
+        int cy = rcClient.bottom - rcClient.top;
+
+        // Layout constants (keep in sync with both skin XMLs)
+        const int TITLE_H = 35;
+        const int TOOLBAR_H = isLandscape ? 78 : 0;  // landscape: 2 rows (40+38)
+        const int GAP = 6;  // space between video and toolbar
+
+        int vx = 0;
+        int vy = TITLE_H;
+        int vw = isLandscape ? cx : 374;
+        int vh = cy - TITLE_H - TOOLBAR_H - GAP;
+
+        if (vw > 0 && vh > 0) {
+            ::MoveWindow(m_videoHwnd, vx, vy, vw, vh, TRUE);
+            Logger::info("[StreamingWindow] video child window positioned: (" +
+                         std::to_string(vx) + "," + std::to_string(vy) +
+                         ") " + std::to_string(vw) + "x" + std::to_string(vh));
+        }
+    }
+
+    Logger::info("[StreamingWindow] orientation switched to " +
+                 std::string(isLandscape ? "landscape" : "portrait"));
 }
 
 // ==================== Video Child Window ====================

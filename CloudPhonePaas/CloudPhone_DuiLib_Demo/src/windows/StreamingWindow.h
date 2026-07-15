@@ -54,8 +54,13 @@ private:
     int m_videoWidth = 0;
     int m_videoHeight = 0;
 
+    // Orientation state (portrait / landscape)
+    bool m_isLandscape = false;
+
     void createVideoChildWindow();
+    void rebindControls();
     void syncVideoWindowPos();
+    void applyOrientation(bool isLandscape);
     void onVideoFrameReceived(std::shared_ptr<struct VideoFrameData> frame);
 
     // Mouse event helpers for the video child window
