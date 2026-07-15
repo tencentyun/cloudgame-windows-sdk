@@ -51,6 +51,16 @@ void AppConfig::load(const QString& filePath) {
   if (obj.contains("instanceIds") && obj["instanceIds"].isString()) {
     m_instanceIds = obj["instanceIds"].toString();
   }
+  if (obj.contains("appId")) {
+    QJsonValue val = obj["appId"];
+    if (val.isString()) {
+      m_appId = val.toString();
+    } else if (val.isDouble()) {
+      m_appId = QString::number(static_cast<qlonglong>(val.toDouble()));
+    }
+  } else {
+    m_appId = "";
+  }
 }
 
 // ----------------------------------------------------------------------------
@@ -95,6 +105,7 @@ void AppConfig::switchConfig(const QString& configName) {
   emit baseUrlChanged();
   emit apiPathChanged();
   emit instanceIdsChanged();
+  emit appIdChanged();
 }
 
 // ----------------------------------------------------------------------------
@@ -106,7 +117,8 @@ QString AppConfig::apiPath() const { return m_apiPath; }
 
 QString AppConfig::instanceIds() const { return m_instanceIds; }
 
+QString AppConfig::appId() const { return m_appId; }
+
 QStringList AppConfig::configNames() const { return m_configNames; }
 
 QString AppConfig::currentConfigName() const { return m_currentConfigName; }
-

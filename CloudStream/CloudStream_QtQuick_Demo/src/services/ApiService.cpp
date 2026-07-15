@@ -140,6 +140,12 @@ void ApiService::createAndroidInstancesAccessToken(const QStringList& androidIns
   }
   data["AndroidInstanceIds"] = instanceIdsArray;
 
+  // 如果配置了 appId，添加到请求中
+  QString appId = AppConfig::instance()->appId();
+  if (!appId.isEmpty()) {
+    data["AppId"] = appId.toLongLong();
+  }
+
   // 发送请求并处理响应
   sendRequest(
       AppConfig::instance()->apiPath(), data,

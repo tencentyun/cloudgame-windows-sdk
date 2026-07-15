@@ -27,6 +27,7 @@ class AppConfig : public QObject {
   QString baseUrl() const;
   QString apiPath() const;
   QString instanceIds() const;
+  QString appId() const;
 
   /** 扫描到的配置名列表（不含后缀），不含"默认"条目 */
   QStringList configNames() const;
@@ -44,6 +45,7 @@ class AppConfig : public QObject {
   void baseUrlChanged();
   void apiPathChanged();
   void instanceIdsChanged();
+  void appIdChanged();
   void configNamesChanged();
   void currentConfigNameChanged();
 
@@ -66,6 +68,7 @@ class AppConfig : public QObject {
   QString m_baseUrl = "https://test-accelerator-biz-server.cai.crtrcloud.com";
   QString m_apiPath = "/CreateAndroidInstancesAccessToken";
   QString m_instanceIds = "";
+  QString m_appId = "";
 
   QStringList m_configNames;
   QString m_currentConfigName = "";  // 空字符串表示使用默认 config.json
