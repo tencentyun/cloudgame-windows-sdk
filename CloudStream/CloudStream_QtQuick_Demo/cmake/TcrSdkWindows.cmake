@@ -7,8 +7,9 @@
 # 链接 Windows 系统库（用于 CrashDumpHandler）
 target_link_libraries(${PROJECT_NAME} PRIVATE dbghelp)
 
-# 检测目标架构
-if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+# 检测目标架构（优先用 -A 指定的生成器平台，回退到指针宽度）
+# 用 -A x64 时编译器探测可能尚未完成，CMAKE_SIZEOF_VOID_P 此刻为空，故先看 CMAKE_GENERATOR_PLATFORM
+if(CMAKE_GENERATOR_PLATFORM STREQUAL "x64" OR CMAKE_SIZEOF_VOID_P EQUAL 8)
     set(TCRSDK_ARCH x64)
 else()
     set(TCRSDK_ARCH Win32)
