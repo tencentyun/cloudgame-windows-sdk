@@ -311,6 +311,8 @@ void MultiStreamViewModel::connectMultipleInstances(const QStringList& allInstan
                    .arg(config.stream_profile.max_bitrate)
                    .arg(config.concurrentStreamingInstances));
 
+  config.enable_passive_probe = true;
+
   // 步骤2：创建会话
   m_session = tcr_client_create_session(m_tcrClient, &config);
 
