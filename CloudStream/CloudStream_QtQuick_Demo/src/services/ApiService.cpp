@@ -146,6 +146,12 @@ void ApiService::createAndroidInstancesAccessToken(const QStringList& androidIns
     data["AppId"] = appId.toLongLong();
   }
 
+  // 如果配置了 Mode，添加到请求中
+  QString mode = AppConfig::instance()->mode();
+  if (!mode.isEmpty()) {
+    data["Mode"] = mode;
+  }
+
   // 发送请求并处理响应
   sendRequest(
       AppConfig::instance()->apiPath(), data,

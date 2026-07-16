@@ -61,6 +61,11 @@ void AppConfig::load(const QString& filePath) {
   } else {
     m_appId = "";
   }
+  if (obj.contains("Mode") && obj["Mode"].isString()) {
+    m_mode = obj["Mode"].toString();
+  } else {
+    m_mode = "";
+  }
 }
 
 // ----------------------------------------------------------------------------
@@ -106,6 +111,7 @@ void AppConfig::switchConfig(const QString& configName) {
   emit apiPathChanged();
   emit instanceIdsChanged();
   emit appIdChanged();
+  emit modeChanged();
 }
 
 // ----------------------------------------------------------------------------
@@ -118,6 +124,8 @@ QString AppConfig::apiPath() const { return m_apiPath; }
 QString AppConfig::instanceIds() const { return m_instanceIds; }
 
 QString AppConfig::appId() const { return m_appId; }
+
+QString AppConfig::mode() const { return m_mode; }
 
 QStringList AppConfig::configNames() const { return m_configNames; }
 
