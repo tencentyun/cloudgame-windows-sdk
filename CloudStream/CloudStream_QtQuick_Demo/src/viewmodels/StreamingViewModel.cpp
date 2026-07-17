@@ -197,7 +197,7 @@ void StreamingViewModel::createAndInitSession() {
   config.stream_profile.fps = streamConfig->mainStreamFps();                 // 帧率
   config.stream_profile.max_bitrate = streamConfig->mainStreamMaxBitrate();  // 最大码率
   config.stream_profile.min_bitrate = streamConfig->mainStreamMinBitrate();  // 最小码率
-
+  config.enable_passive_probe = true;
   Logger::info(QString("[createAndInitSession] 使用大流串流参数 - 宽度:%1, 帧率:%2, 码率:%3-%4")
                    .arg(config.stream_profile.video_width)
                    .arg(config.stream_profile.fps)
