@@ -779,6 +779,34 @@ void StreamingViewModel::enableMicrophoneWithDevice(const QString& deviceId) {
   }
 }
 
+// ==================== 远端音频播放控制（本地静音） ====================
+
+void StreamingViewModel::setRemoteAudioPlaybackEnabled(bool enabled) {
+  if (m_remoteAudioPlaybackEnabled == enabled) {
+    return;  // 状态未变化，无需处理
+  }
+
+  m_remoteAudioPlaybackEnabled = enabled;
+
+  if (!isSessionReady()) {
+    Logger::debug(QString("[setRemoteAudioPlaybackEnabled] session not ready, 状态已缓存: %1").arg(enabled));
+    emit remoteAudioPlaybackEnabledChanged(enabled);
+    return;
+  }
+
+  if (enabled) {
+    // 恢复远端音频播放
+    tcr_session_resume_streaming(m_session, "audio");
+    Logger::info("[setRemoteAudioPlaybackEnabled] 恢复远端音频播放");
+  } else {
+    // 暂停远端音频播放（本地静音）
+    tcr_session_pause_streaming(m_session, "audio");
+    Logger::info("[setRemoteAudioPlaybackEnabled] 暂停远端音频播放（本地静音）");
+  }
+
+  emit remoteAudioPlaybackEnabledChanged(enabled);
+}
+
 QString StreamingViewModel::getInstanceStats() const {
   if (m_clientStats.isEmpty()) {
     return QString();

@@ -19,6 +19,9 @@ Item {
 
     // 麦克风设备列表请求信号
     signal microphoneDeviceListRequested(var devices)
+
+    // 本地静音状态变化信号
+    signal muteStateChanged(bool muted)
     
     // 按钮数据模型
     ListModel {
@@ -131,10 +134,31 @@ Item {
             root.showStatsChanged(checked)
         }
     }
+
+    // 本地静音控制复选框
+    CheckBox {
+        id: muteCheckBox
+        text: "本地静音"
+        checked: !streamingViewModel.isRemoteAudioPlaybackEnabled()
+        
+        anchors {
+            top: statsCheckBox.bottom
+            left: parent.left
+            right: parent.right
+            margins: 10
+        }
+        
+        height: 40
+        
+        onCheckedChanged: {
+            streamingViewModel.setRemoteAudioPlaybackEnabled(!checked)
+            root.muteStateChanged(checked)
+        }
+    }
     
     ScrollView {
         anchors {
-            top: statsCheckBox.bottom
+            top: muteCheckBox.bottom
             left: parent.left
             right: parent.right
             bottom: parent.bottom

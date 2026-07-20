@@ -70,6 +70,8 @@ class ApiService;
 class StreamingViewModel : public QObject {
   Q_OBJECT
   Q_PROPERTY(QString clientStats READ clientStats NOTIFY clientStatsChanged)
+  Q_PROPERTY(bool remoteAudioPlaybackEnabled READ isRemoteAudioPlaybackEnabled WRITE setRemoteAudioPlaybackEnabled
+                 NOTIFY remoteAudioPlaybackEnabledChanged)
 
  public:
   explicit StreamingViewModel(QObject* parent = nullptr);
@@ -168,6 +170,12 @@ class StreamingViewModel : public QObject {
    * 当收到 TCR_SESSION_EVENT_SCREEN_CONFIG_CHANGE 事件时触发
    */
   void screenOrientationChanged(bool isLandscape);
+
+  /**
+   * @brief 远端音频播放状态变化信号
+   * @param enabled true=远端音频正在播放, false=远端音频已静音
+   */
+  void remoteAudioPlaybackEnabledChanged(bool enabled);
 
  public slots:
   // ==================== 触摸输入 ====================
@@ -311,6 +319,22 @@ class StreamingViewModel : public QObject {
    *   - tcr_session_get_microphone_device()：获取设备信息
    */
   Q_INVOKABLE QStringList getMicrophoneDeviceList();
+
+  /**
+   * @brief 设置远端音频播放状态（本地静音）
+   * @param enabled true=开启远端音频播放, false=静音远端音频
+   *
+   * 对应 SDK API：
+   *   - enabled=true:  tcr_session_resume_streaming(session, "audio")
+   *   - enabled=false: tcr_session_pause_streaming(session, "audio")
+   */
+  Q_INVOKABLE void setRemoteAudioPlaybackEnabled(bool enabled);
+
+  /**
+   * @brief 获取远端音频播放状态
+   * @return true=正在播放远端音频, false=远端音频已静音
+   */
+  Q_INVOKABLE bool isRemoteAudioPlaybackEnabled() const { return m_remoteAudioPlaybackEnabled; }
 
   /**
    * @brief 启用指定的麦克风设备
@@ -479,7 +503,8 @@ class StreamingViewModel : public QObject {
    */
   static void VideoFrameCallback(void* user_data, TcrVideoFrameHandle frame);
 
-  qreal m_currentRotationAngle = 0.0;  // 保存当前旋转角度，用于新实例创建时应用
-  int m_currentVideoWidth = 0;         // 保存当前视频流宽度，用于新实例创建时应用
-  int m_currentVideoHeight = 0;        // 保存当前视频流高度，用于新实例创建时应用
+  qreal m_currentRotationAngle = 0.0;        // 保存当前旋转角度，用于新实例创建时应用
+  int m_currentVideoWidth = 0;               // 保存当前视频流宽度，用于新实例创建时应用
+  int m_currentVideoHeight = 0;              // 保存当前视频流高度，用于新实例创建时应用
+  bool m_remoteAudioPlaybackEnabled = true;  // 远端音频播放状态，默认开启
 };

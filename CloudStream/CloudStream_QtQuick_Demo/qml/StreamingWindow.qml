@@ -40,6 +40,9 @@ ApplicationWindow {
     
     // 新增：统计数据显示状态
     property bool showStatsOverlay: false
+
+    // 本地静音状态
+    property bool isMuted: false
     
     // 使用 Connections 显式连接信号
     Connections {
@@ -92,6 +95,7 @@ ApplicationWindow {
                 isLandscape: false
                 showStatsOverlay: streamingWindow.showStatsOverlay
                 onShowStatsChanged: streamingWindow.showStatsOverlay = showStats
+                onMuteStateChanged: streamingWindow.isMuted = muted
                 onCameraDeviceListRequested: function(devices) {
                     cameraDeviceDialog.deviceList = devices
                     cameraDeviceDialog.open()
@@ -128,6 +132,7 @@ ApplicationWindow {
                 isLandscape: true
                 showStatsOverlay: streamingWindow.showStatsOverlay
                 onShowStatsChanged: streamingWindow.showStatsOverlay = showStats
+                onMuteStateChanged: streamingWindow.isMuted = muted
                 onCameraDeviceListRequested: function(devices) {
                     cameraDeviceDialog.deviceList = devices
                     cameraDeviceDialog.open()
