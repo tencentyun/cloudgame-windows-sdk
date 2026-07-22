@@ -149,7 +149,7 @@ TcrClientHandle tcr_client_get_instance();
 
 #### tcr_client_prepare
 
-预初始化客户端并提前建立网络连接。
+预初始化客户端并提前建立长网络连接（仅 CloudStream 有效）。
 
 ```cpp
 void tcr_client_prepare(TcrClientHandle client, bool testEnv = false);
@@ -158,7 +158,8 @@ void tcr_client_prepare(TcrClientHandle client, bool testEnv = false);
 - **参数**：
   - `client`：客户端句柄。
   - `testEnv`：是否使用测试环境，默认 `false`。
-- **说明**：可在 `tcr_client_init` 之前调用，用于提前完成网络准备。
+- **说明**：可在 `tcr_client_init` 之前调用，用于提前完成底层网络准备。
+  CloudPhonePaas 场景不支持。
 
 #### tcr_client_init
 

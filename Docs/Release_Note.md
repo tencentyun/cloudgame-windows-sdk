@@ -410,7 +410,7 @@
 ## [1.21.3] - 2026-02-04
 
 ### Features
-- 新增接口`tcr_client_prepare`支持预先建立连接以优化首帧
+- 新增接口`tcr_client_prepare`支持预先建立连接以优化首帧（仅CloudStream有效）
 
 ### Download
 
