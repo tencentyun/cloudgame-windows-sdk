@@ -227,6 +227,24 @@ TCRSDK_API TcrBGRABuffer* tcr_video_frame_convert_to_bgra(TcrVideoFrameHandle fr
                                                           int32_t output_height);
 
 /**
+ * @brief 将当前视频帧转换为 ARGB 格式，可指定输出尺寸
+ *
+ * 与 tcr_video_frame_convert_to_bgra 功能相同，但输出 ARGB 字节序（A-R-G-B）。
+ * 返回的 buffer 使用完毕后必须调用 tcr_bgra_buffer_free() 释放。
+ *
+ * @param frame_handle  视频帧句柄（由 on_frame 回调传入）
+ * @param output_width  输出宽度(像素)，传 0 表示保持原始宽度
+ * @param output_height 输出高度(像素)，传 0 表示保持原始高度
+ * @return 成功返回 TcrBGRABuffer 指针，使用完毕后必须调用 tcr_bgra_buffer_free() 释放；
+ *         如果帧格式不是 I420，返回 NULL
+ *
+ * @warning 返回的指针独立于 frame_handle 的生命周期，但 frame_handle 必须在调用时有效。
+ * @warning 每次成功调用后必须对应调用 tcr_bgra_buffer_free() 释放，否则内存泄漏。
+ */
+TCRSDK_API TcrBGRABuffer* tcr_video_frame_convert_to_argb(TcrVideoFrameHandle frame_handle, int32_t output_width,
+                                                          int32_t output_height);
+
+/**
  * @brief 释放 tcr_video_frame_convert_to_bgra 返回的 BGRA buffer
  *
  * @param buffer 需要释放的 TcrBGRABuffer 指针，传 NULL 无操作
@@ -1040,12 +1058,15 @@ TCRSDK_API void tcr_session_switch_streaming_instances(TcrSessionHandle session,
                                                        int32_t streamingLength);
 
 /**
- * @brief 暂停媒体流（如视频流），通常用于临时挂起
+ * @brief 暂停云端下发的媒体流（发送控制消息到云端，让云端停止下发音频/视频）。
  * @param session 会话句柄
  * @param media_type 媒体类型，可选，取值为 "audio"、"video" 或空字符串；空字符串时暂停音视频流
  * @param instanceIds 实例ID数组，可选，为NULL时对所有实例生效
  * @param instance_count 实例ID数组长度，当instanceIds为NULL时此参数无效
  *
+ * @note 该接口作用于云端下发：会通过数据通道通知云端停止推送对应媒体，而非仅暂停本地播放。
+ *   如果只想在本地暂停播放远端音频（不通知云端、RTP 流照常接收），请使用
+ *   tcr_session_set_remote_audio_playback_enabled(session, false)。
  * @note 参数instanceIds和instance_count只在调用tcr_session_access_multi_stream连接多个实例的情况下才有意义：
  *   - 如果instanceIds为NULL或instance_count为0，则对所有已连接的实例生效
  *   - 如果传入了具体的实例ID列表，则只对指定的实例ID生效
@@ -1055,12 +1076,15 @@ TCRSDK_API void tcr_session_pause_streaming(TcrSessionHandle session, const char
                                             const char** instanceIds = nullptr, int32_t instance_count = 0);
 
 /**
- * @brief 恢复媒体流（如视频流），与暂停配合使用
+ * @brief 恢复云端下发的媒体流（发送控制消息到云端，让云端恢复下发音频/视频），与暂停配合使用。
  * @param session 会话句柄
  * @param media_type 媒体类型，可选，取值为 "audio"、"video" 或空字符串；空字符串时恢复音视频流
  * @param instanceIds 实例ID数组，可选，为NULL时对所有实例生效
  * @param instance_count 实例ID数组长度，当instanceIds为NULL时此参数无效
  *
+ * @note 该接口作用于云端下发：会通过数据通道通知云端恢复推送对应媒体，而非仅恢复本地播放。
+ *   如果只想在本地恢复播放远端音频，请使用
+ *   tcr_session_set_remote_audio_playback_enabled(session, true)。
  * @note 参数instanceIds和instance_count只在调用tcr_session_access_multi_stream连接多个实例的情况下才有意义：
  *   - 如果instanceIds为NULL或instance_count为0，则对所有已连接的实例生效
  *   - 如果传入了具体的实例ID列表，则只对指定的实例ID生效
@@ -1246,7 +1270,7 @@ TCRSDK_API void tcr_session_switch_mic(TcrSessionHandle session, const char* sta
  * 类似于真实物理键盘的操作。例如，模拟输入字母“A”时，应先调用一次 down=true，再调用一次 down=false。
  *
  * @param session 会话句柄
- * @param keycode 按键码（可参考 https://www.toptal.com/developers/keycode 或 Android KeyEvent 定义）
+ * @param keycode 按键码（使用Windows按键码，可参考 https://www.toptal.com/developers/keycode）
  * @param down    true 表示按下（KeyDown），false 表示抬起（KeyUp）
  *
  * 常用云手机按键 keycode 对照表（十进制）：
@@ -1439,6 +1463,26 @@ TCRSDK_API bool tcr_session_enable_local_microphone(TcrSessionHandle session, bo
  * @return 是否已启用，true表示已启用
  */
 TCRSDK_API bool tcr_session_is_local_microphone_enabled(TcrSessionHandle session);
+
+/**
+ * @brief 设置是否在本地播放远端（云端）音频。
+ *
+ * 该接口仅控制本地播放行为：enable=false 时在本地将远端音频静音（丢弃解码后的音频帧），
+ * enable=true 时恢复播放。它不会通知云端，云端仍然照常下发音频、RTP 音频流仍在接收。
+ * 若需要让云端停止下发音频，请改用 tcr_session_pause_streaming(session, "audio")。
+ *
+ * @param session 会话句柄
+ * @param enable  true 恢复本地播放，false 暂停本地播放
+ * @return 是否设置成功，true表示成功
+ */
+TCRSDK_API bool tcr_session_set_remote_audio_playback_enabled(TcrSessionHandle session, bool enable);
+
+/**
+ * @brief 查询当前是否在本地播放远端（云端）音频。
+ * @param session 会话句柄
+ * @return true 表示正在本地播放，false 表示已在本地暂停播放
+ */
+TCRSDK_API bool tcr_session_is_remote_audio_playback_enabled(TcrSessionHandle session);
 
 /**
  * @brief 获取可用麦克风设备数量

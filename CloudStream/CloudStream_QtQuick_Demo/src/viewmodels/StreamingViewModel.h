@@ -229,6 +229,15 @@ class StreamingViewModel : public QObject {
    */
   void onVolumDown();
 
+  /**
+   * @brief 键盘事件处理（来自 QML Keys.onPressed / Keys.onReleased）
+   * @param qtKey Qt Key 枚举值
+   * @param pressed true=按下, false=抬起
+   *
+   * 内部将 Qt Key 映射为标准 keycode 后调用 tcr_session_send_keyboard_event()
+   */
+  Q_INVOKABLE void onKeyEvent(int qtKey, bool pressed);
+
   // ==================== 流控制 ====================
 
   /**
@@ -403,7 +412,7 @@ class StreamingViewModel : public QObject {
   bool isSessionReady() const;
 
   /**
-   * @brief 发送按键事件（按下+抬起）
+   * @brief 发送按键事件（按下+抬起），用于系统按键（Back/Home/Menu等）
    * @param keycode Android按键码
    */
   void sendKeyEvent(int32_t keycode);

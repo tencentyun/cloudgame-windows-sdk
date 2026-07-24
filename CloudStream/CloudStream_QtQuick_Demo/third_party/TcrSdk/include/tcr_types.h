@@ -378,6 +378,15 @@ typedef struct {
 } TcrStreamProfile;
 
 /**
+ * @brief 会话模式枚举
+ * 仅云手机PaaS平台支持
+ */
+typedef enum {
+  TCR_SESSION_MODE_SHARED = 0,     ///< 共享模式（默认），不踢掉其他客户端连接
+  TCR_SESSION_MODE_EXCLUSIVE = 1,  ///< 独占模式，连接建立时踢掉同一云手机实例的其他客户端连接
+} TcrSessionMode;
+
+/**
  * @brief 会话配置结构体
  * 用于配置会话的各种参数
  */
@@ -407,6 +416,8 @@ typedef struct {
 
   const char* preferred_domain;  ///< 首选加速节点域名（可选），NULL 表示不指定
   bool enable_passive_probe;     ///< 是否启用被动探测，默认 false
+  TcrSessionMode session_mode;   ///< 会话模式，默认 TCR_SESSION_MODE_SHARED（共享模式）
+                                 ///< @note 仅云手机PaaS平台支持
 } TcrSessionConfig;
 
 /**
@@ -419,6 +430,7 @@ typedef struct {
  * - stream_profile: 所有参数设为0，表示不指定具体的流参数
  * - user_id: 设为NULL，使用者需要根据实际情况设置
  * - enable_audio: 设为true，默认启用音频功能
+ * - session_mode: 设为TCR_SESSION_MODE_SHARED，默认不踢其他客户端连接
  *
  * @return 返回带有默认值的TcrSessionConfig结构体
  *
@@ -459,6 +471,9 @@ static inline TcrSessionConfig tcr_session_config_default(void) {
   // 探测相关配置默认值
   config.preferred_domain = NULL;
   config.enable_passive_probe = false;
+
+  // 会话模式默认为共享模式（不踢其他客户端）
+  config.session_mode = TCR_SESSION_MODE_SHARED;
 
   return config;
 }
@@ -821,18 +836,14 @@ typedef enum {
 
   /**
    * @brief 实例断开连接通知。
-   * 该事件在以下情况下触发：
-   * 1. 调用tcr_session_access_multi_stream连接多个实例时，服务端返回部分实例无法访问
-   * 2. 串流过程中某些实例断开了连接
    *
-   * 客户端可以自行选择是否提示用户有实例断开，或者重新调用tcr_session_access_multi_stream重新连接。
+   * 客户端可以自行选择是否提示用户有实例断开，或者重新连接。
    * 事件数据类型JSON格式字符串：
    * @code{.json}
    * {
    *     "instanceIds": [string]  // 断开连接或无法访问的实例ID列表
    * }
    * @endcode
-   * @note 该事件仅在多实例场景（tcr_session_access_multi_stream）下触发
    */
   TCR_SESSION_EVENT_STREAMING_DISCONNECT = 16,
 
@@ -887,6 +898,37 @@ typedef enum {
    * @note 该事件仅在多实例场景（tcr_session_access_multi_stream）下触发。
    */
   TCR_SESSION_EVENT_TRACK_STUCK = 19,
+
+  /**
+   * @brief 服务端下发的消息通知。
+   *
+   * 事件数据类型为 JSON 格式字符串，包含 "type" 和 "data" 两个字段，
+   * 客户端根据 "type" 字段区分具体消息类型。
+   *
+   * 已知消息类型：
+   *
+   * 1. streaming_disconnect - 实例断开连接通知
+   * @code{.json}
+   * {
+   *   "type": "streaming_disconnect",
+   *   "data": {
+   *     "user_list": ["ACN639808575045632"]  // 断开连接的实例ID列表
+   *   }
+   * }
+   * @endcode
+   *
+   * 2. kick_out - 被踢出通知
+   * @code{.json}
+   * {
+   *   "type": "kick_out",
+   *   "data": {
+   *     "instance_id": "ACN639808575045632",  // 被踢出的实例ID
+   *     "message": "be kicked out"
+   *   }
+   * }
+   * @endcode
+   */
+  TCR_SESSION_EVENT_SERVER_MESSAGE = 20,
 
 } TcrSessionEvent;
 

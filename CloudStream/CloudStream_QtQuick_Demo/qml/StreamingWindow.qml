@@ -68,6 +68,7 @@ ApplicationWindow {
     // 使用Loader动态加载不同的布局
     Loader {
         anchors.fill: parent
+        focus: true
         sourceComponent: isLandscape ? landscapeLayout : portraitLayout
     }
 
@@ -77,6 +78,18 @@ ApplicationWindow {
         
         Row {
             anchors.fill: parent
+            focus: true
+            activeFocusOnTab: true
+
+            // 键盘事件捕获，发送到云端
+            Keys.onPressed: (event) => {
+                streamingViewModel.onKeyEvent(event.key, true)
+                event.accepted = true
+            }
+            Keys.onReleased: (event) => {
+                streamingViewModel.onKeyEvent(event.key, false)
+                event.accepted = true
+            }
 
             // 视频渲染区 - 使用新的VideoRenderArea组件
             Components.VideoRenderArea {
@@ -114,6 +127,18 @@ ApplicationWindow {
         
         Column {
             anchors.fill: parent
+            focus: true
+            activeFocusOnTab: true
+
+            // 键盘事件捕获，发送到云端
+            Keys.onPressed: (event) => {
+                streamingViewModel.onKeyEvent(event.key, true)
+                event.accepted = true
+            }
+            Keys.onReleased: (event) => {
+                streamingViewModel.onKeyEvent(event.key, false)
+                event.accepted = true
+            }
 
             // 视频渲染区 - 使用新的VideoRenderArea组件
             Components.VideoRenderArea {

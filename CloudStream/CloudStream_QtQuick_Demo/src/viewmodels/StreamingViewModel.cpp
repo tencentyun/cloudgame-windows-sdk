@@ -3,6 +3,7 @@
 #include <cstring>
 #include <QDebug>
 #include <QGuiApplication>
+#include <QKeyEvent>
 #include <QMetaType>
 #include <QVariant>
 
@@ -276,6 +277,125 @@ void StreamingViewModel::sendMouseScrollEvent(float delta) {
     // delta 取值范围 -1.0~1.0，正值向上滚动，负值向下滚动
     tcr_session_send_mouse_scroll(m_session, delta);
   }
+}
+
+// ==================== 键盘输入 ====================
+
+void StreamingViewModel::onKeyEvent(int qtKey, bool pressed) {
+  if (!isSessionReady()) {
+    return;
+  }
+
+  // 将 Qt Key 枚举值映射为标准 keycode（与 keycode.info 一致）
+  int32_t keycode = qtKey;
+  switch (qtKey) {
+    case Qt::Key_Backspace:
+      keycode = 8;
+      break;
+    case Qt::Key_Tab:
+      keycode = 9;
+      break;
+    case Qt::Key_Return:
+    case Qt::Key_Enter:
+      keycode = 13;
+      break;
+    case Qt::Key_Shift:
+      keycode = 16;
+      break;
+    case Qt::Key_Control:
+      keycode = 17;
+      break;
+    case Qt::Key_Alt:
+      keycode = 18;
+      break;
+    case Qt::Key_Pause:
+      keycode = 19;
+      break;
+    case Qt::Key_CapsLock:
+      keycode = 20;
+      break;
+    case Qt::Key_Escape:
+      keycode = 27;
+      break;
+    case Qt::Key_Space:
+      keycode = 32;
+      break;
+    case Qt::Key_PageUp:
+      keycode = 33;
+      break;
+    case Qt::Key_PageDown:
+      keycode = 34;
+      break;
+    case Qt::Key_End:
+      keycode = 35;
+      break;
+    case Qt::Key_Home:
+      keycode = 36;
+      break;
+    case Qt::Key_Left:
+      keycode = 37;
+      break;
+    case Qt::Key_Up:
+      keycode = 38;
+      break;
+    case Qt::Key_Right:
+      keycode = 39;
+      break;
+    case Qt::Key_Down:
+      keycode = 40;
+      break;
+    case Qt::Key_Insert:
+      keycode = 45;
+      break;
+    case Qt::Key_Delete:
+      keycode = 46;
+      break;
+    case Qt::Key_Meta:
+      keycode = 91;
+      break;
+    case Qt::Key_F1:
+      keycode = 112;
+      break;
+    case Qt::Key_F2:
+      keycode = 113;
+      break;
+    case Qt::Key_F3:
+      keycode = 114;
+      break;
+    case Qt::Key_F4:
+      keycode = 115;
+      break;
+    case Qt::Key_F5:
+      keycode = 116;
+      break;
+    case Qt::Key_F6:
+      keycode = 117;
+      break;
+    case Qt::Key_F7:
+      keycode = 118;
+      break;
+    case Qt::Key_F8:
+      keycode = 119;
+      break;
+    case Qt::Key_F9:
+      keycode = 120;
+      break;
+    case Qt::Key_F10:
+      keycode = 121;
+      break;
+    case Qt::Key_F11:
+      keycode = 122;
+      break;
+    case Qt::Key_F12:
+      keycode = 123;
+      break;
+    default:
+      // 普通字符键的 Qt Key 值与标准 keycode 一致，直接使用
+      break;
+  }
+
+  // SDK API: tcr_session_send_keyboard_event(session, keycode, down)
+  tcr_session_send_keyboard_event(m_session, keycode, pressed);
 }
 
 // ==================== 系统按键 ====================
