@@ -122,6 +122,13 @@ elseif(APPLE)
     find_package(OpenGL REQUIRED)
     target_link_libraries(${PROJECT_NAME} PRIVATE OpenGL::GL)
     target_compile_definitions(${PROJECT_NAME} PRIVATE RENDERER_OPENGL)
+    # 硬件解码渲染路径需要：CVPixelBuffer(CoreVideo) 通过 IOSurface 零拷贝绑定为 GL 纹理
+    find_library(COREVIDEO_FRAMEWORK CoreVideo REQUIRED)
+    find_library(IOSURFACE_FRAMEWORK IOSurface REQUIRED)
+    target_link_libraries(${PROJECT_NAME} PRIVATE
+        ${COREVIDEO_FRAMEWORK}
+        ${IOSURFACE_FRAMEWORK}
+    )
 else()
     find_package(OpenGL REQUIRED)
     target_link_libraries(${PROJECT_NAME} PRIVATE OpenGL::GL)

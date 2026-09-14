@@ -145,7 +145,11 @@ int main(int argc, char* argv[]) {
     return 1;
   }
   SDL_GL_MakeCurrent(window, g_gl_context);
-  SDL_GL_SetSwapInterval(1);  // VSync
+  // VSync：默认开启。设置环境变量 IMGUI_DEMO_NO_VSYNC=1 可关闭。
+  // 无 GUI 会话（如从终端/CI 启动）时窗口可能永不可见，Cocoa_GL_SwapWindow 会
+  // 一直阻塞在 VSync 等待上导致主循环卡死，此时需要关闭 VSync。
+  const char* no_vsync = SDL_getenv("IMGUI_DEMO_NO_VSYNC");
+  SDL_GL_SetSwapInterval((no_vsync && no_vsync[0] == '1') ? 0 : 1);
 #endif
 
   // 初始化 ImGui

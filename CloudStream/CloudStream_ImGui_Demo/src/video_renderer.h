@@ -7,6 +7,8 @@
 
 #include <cstdint>
 
+#include "tcr_c_api.h"
+
 #if defined(RENDERER_D3D11)
 struct ID3D11Device;
 struct ID3D11DeviceContext;
@@ -29,6 +31,10 @@ class VideoRenderer {
   void upload_frame(const uint8_t* data_y, const uint8_t* data_u, const uint8_t* data_v, int stride_y, int stride_u,
                     int stride_v, int width, int height);
 
+  // 上传硬件解码产出的 GPU 纹理帧（零拷贝路径）。
+  // 返回 false 表示该平台/格式暂不支持，调用方可回退到 I420。
+  bool upload_gpu_frame(const TcrGpuBuffer& gpu);
+
   // 获取用于 ImGui::Image() 的纹理 ID
   void* get_texture_id() const;
 
@@ -38,6 +44,10 @@ class VideoRenderer {
 
   // 是否有有效帧
   bool has_frame() const { return m_has_frame; }
+
+  // 读回 RGBA 输出纹理的平均亮度（0~255），用于自动化验证"确实渲染出了画面"。
+  // 返回 -1 表示不可用。注意：会做一次 GPU->CPU 回读，仅用于调试/验证。
+  int sample_average_luma();
 
   // 释放渲染资源
   void destroy();
@@ -70,8 +80,17 @@ class VideoRenderer {
   unsigned int m_vao = 0;
   unsigned int m_vbo = 0;
 
+  // NV12（硬解 CVPixelBuffer）专用：Y 用 R8、UV 用 RG8，各一张纹理
+  unsigned int m_shader_nv12 = 0;
+  unsigned int m_tex_nv12_y = 0;
+  unsigned int m_tex_nv12_uv = 0;
+  int m_nv12_width = 0;
+  int m_nv12_height = 0;
+
   void create_or_resize_gl(int width, int height);
   void upload_yuv_gl(const uint8_t* y, const uint8_t* u, const uint8_t* v, int sy, int su, int sv, int w, int h);
   unsigned int compile_shader(const char* vert_src, const char* frag_src);
+  // 把 NV12 的两张纹理渲染进 m_rgba_tex
+  void draw_nv12_to_rgba(int w, int h);
 #endif
 };

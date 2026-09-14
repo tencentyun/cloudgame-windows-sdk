@@ -113,6 +113,14 @@ class App {
   bool m_scroll_dirty = false;
   int m_grid_columns = 5;
 
+  // --- 自动化验证辅助（autoStart / autoExitSeconds）---
+  float m_elapsed_seconds = 0;
+  bool m_auto_start_fired = false;
+  // 统计各类型帧的到达数量，用于确认硬解/软解是否真的生效
+  std::atomic<uint64_t> m_frames_i420{0};
+  std::atomic<uint64_t> m_frames_gpu{0};
+  float m_stats_log_timer = 0;
+
   // --- Popup windows (multiple, independent) ---
   std::vector<PopupWindow*> m_popups;
   std::map<Uint32, std::vector<SDL_Event>> m_popup_events_map;  // windowID -> events

@@ -1,6 +1,7 @@
 #include "video_renderer.h"
 
 #include <cstring>
+#include <vector>
 
 #include "logger.h"
 
@@ -299,6 +300,15 @@ void VideoRenderer::upload_frame(const uint8_t* data_y, const uint8_t* data_u, c
 
 void* VideoRenderer::get_texture_id() const { return (void*)m_srv; }
 
+// D3D11 暂未实现回读验证
+int VideoRenderer::sample_average_luma() { return -1; }
+
+// D3D11 硬解渲染路径待接入（当前 Windows demo 仍走 I420）
+bool VideoRenderer::upload_gpu_frame(const TcrGpuBuffer& gpu) {
+  (void)gpu;
+  return false;
+}
+
 void VideoRenderer::destroy() {
   if (m_d3d) {
     if (m_d3d->srv_y) m_d3d->srv_y->Release();
@@ -328,6 +338,10 @@ void VideoRenderer::destroy() {
 #else
 
 #  if defined(__APPLE__)
+#    include <CoreVideo/CoreVideo.h>
+#    include <IOSurface/IOSurface.h>
+#    include <OpenGL/CGLIOSurface.h>
+#    include <OpenGL/OpenGL.h>
 #    include <OpenGL/gl3.h>
 #  else
 #    include <GL/gl.h>
@@ -363,11 +377,43 @@ void main() {
 }
 )";
 
+// NV12 片元着色器：Y 来自 R8 纹理，UV 来自 RG8 纹理（双平面）。
+// 硬件解码（VideoToolbox）输出的 CVPixelBuffer 就是这个布局，
+// 直接在 shader 里做 YUV->RGB，避免额外一次 GPU 转换 pass。
+//
+// 注意：IOSurface 只能绑定到 GL_TEXTURE_RECTANGLE，对应 sampler2DRect，
+// 且纹理坐标是**非归一化**的（像素坐标），因此需要各自乘以平面尺寸。
+// 使用 BT.709 video-range 系数，与解码器输出的
+// kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange 对应。
+static const char* gl_frag_nv12_src = R"(
+#version 330 core
+in vec2 vTexCoord;
+out vec4 outColor;
+uniform sampler2DRect texY;
+uniform sampler2DRect texUV;
+uniform vec2 sizeY;
+uniform vec2 sizeUV;
+void main() {
+    // video range: Y 16-235, UV 16-240
+    float y = (texture(texY, vTexCoord * sizeY).r - 0.0625) * 1.164383;
+    vec2 uv = texture(texUV, vTexCoord * sizeUV).rg - vec2(0.5, 0.5);
+    float r = y + 1.792741 * uv.y;
+    float g = y - 0.213249 * uv.x - 0.532909 * uv.y;
+    float b = y + 2.112402 * uv.x;
+    outColor = vec4(r, g, b, 1.0);
+}
+)";
+
 bool VideoRenderer::init() {
   m_shader = compile_shader(gl_vert_src, gl_frag_src);
   if (!m_shader) {
     LOG_ERROR("VideoRenderer", "Failed to compile OpenGL shaders");
     return false;
+  }
+  // NV12 shader 仅硬解路径需要，编译失败不阻塞软解
+  m_shader_nv12 = compile_shader(gl_vert_src, gl_frag_nv12_src);
+  if (!m_shader_nv12) {
+    LOG_WARN("VideoRenderer", "Failed to compile NV12 shader, hardware decode rendering unavailable");
   }
 
   // 全屏四边形
@@ -558,6 +604,123 @@ void VideoRenderer::upload_frame(const uint8_t* data_y, const uint8_t* data_u, c
 
 void* VideoRenderer::get_texture_id() const { return (void*)(intptr_t)m_rgba_tex; }
 
+// 把已绑定好的 NV12 两张纹理，渲染进 m_rgba_tex，供 ImGui::Image 使用
+void VideoRenderer::draw_nv12_to_rgba(int w, int h) {
+  GLint prev_fbo, prev_viewport[4], prev_program;
+  glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prev_fbo);
+  glGetIntegerv(GL_VIEWPORT, prev_viewport);
+  glGetIntegerv(GL_CURRENT_PROGRAM, &prev_program);
+
+  glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
+  glViewport(0, 0, w, h);
+  glUseProgram(m_shader_nv12);
+
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_RECTANGLE, m_tex_nv12_y);
+  glUniform1i(glGetUniformLocation(m_shader_nv12, "texY"), 0);
+
+  glActiveTexture(GL_TEXTURE1);
+  glBindTexture(GL_TEXTURE_RECTANGLE, m_tex_nv12_uv);
+  glUniform1i(glGetUniformLocation(m_shader_nv12, "texUV"), 1);
+
+  // sampler2DRect 使用像素坐标，需把 [0,1] 的 uv 缩放到各平面实际尺寸
+  glUniform2f(glGetUniformLocation(m_shader_nv12, "sizeY"), (float)w, (float)h);
+  glUniform2f(glGetUniformLocation(m_shader_nv12, "sizeUV"), (float)((w + 1) / 2), (float)((h + 1) / 2));
+
+  glBindVertexArray(m_vao);
+  glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+  glBindVertexArray(0);
+
+  glBindFramebuffer(GL_FRAMEBUFFER, prev_fbo);
+  glViewport(prev_viewport[0], prev_viewport[1], prev_viewport[2], prev_viewport[3]);
+  glUseProgram(prev_program);
+}
+
+bool VideoRenderer::upload_gpu_frame(const TcrGpuBuffer& gpu) {
+#if defined(__APPLE__)
+  if (gpu.platform != TCR_GPU_PLATFORM_CVPIXELBUFFER || !gpu.handle) return false;
+  if (gpu.pixel_format != TCR_GPU_PIXEL_FORMAT_NV12) return false;
+  if (!m_shader_nv12) return false;
+
+  CVPixelBufferRef pb = (CVPixelBufferRef)gpu.handle;
+  IOSurfaceRef surface = CVPixelBufferGetIOSurface(pb);
+  if (!surface) return false;  // 非 IOSurface 支撑，无法零拷贝
+
+  CGLContextObj cgl = CGLGetCurrentContext();
+  if (!cgl) return false;
+
+  const int w = gpu.width;
+  const int h = gpu.height;
+
+  // 尺寸变化时重建 RGBA 输出纹理 + FBO（复用 I420 路径的逻辑）
+  create_or_resize_gl(w, h);
+
+  if (!m_tex_nv12_y) glGenTextures(1, &m_tex_nv12_y);
+  if (!m_tex_nv12_uv) glGenTextures(1, &m_tex_nv12_uv);
+
+  // IOSurface 只能绑定到 GL_TEXTURE_RECTANGLE
+  // plane 0: Y (R8)
+  glBindTexture(GL_TEXTURE_RECTANGLE, m_tex_nv12_y);
+  glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  CGLError err = CGLTexImageIOSurface2D(cgl, GL_TEXTURE_RECTANGLE, GL_R8, w, h, GL_RED, GL_UNSIGNED_BYTE, surface, 0);
+  if (err != kCGLNoError) {
+    LOG_ERROR("VideoRenderer", "CGLTexImageIOSurface2D(plane0) failed: %d", (int)err);
+    return false;
+  }
+
+  // plane 1: UV (RG8)，尺寸为一半
+  glBindTexture(GL_TEXTURE_RECTANGLE, m_tex_nv12_uv);
+  glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  err = CGLTexImageIOSurface2D(cgl, GL_TEXTURE_RECTANGLE, GL_RG8, (w + 1) / 2, (h + 1) / 2, GL_RG, GL_UNSIGNED_BYTE,
+                               surface, 1);
+  if (err != kCGLNoError) {
+    LOG_ERROR("VideoRenderer", "CGLTexImageIOSurface2D(plane1) failed: %d", (int)err);
+    return false;
+  }
+
+  m_nv12_width = w;
+  m_nv12_height = h;
+
+  draw_nv12_to_rgba(w, h);
+
+  m_width = w;
+  m_height = h;
+  m_has_frame = true;
+  return true;
+#else
+  (void)gpu;
+  return false;
+#endif
+}
+
+int VideoRenderer::sample_average_luma() {
+  if (!m_has_frame || !m_fbo || m_width <= 0 || m_height <= 0) return -1;
+
+  // 缩小采样区域，避免整帧回读带来的开销
+  const int sw = m_width < 64 ? m_width : 64;
+  const int sh = m_height < 64 ? m_height : 64;
+  std::vector<uint8_t> px((size_t)sw * sh * 4, 0);
+
+  GLint prev_fbo = 0;
+  glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prev_fbo);
+  glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
+  glPixelStorei(GL_PACK_ALIGNMENT, 1);
+  glReadPixels(0, 0, sw, sh, GL_RGBA, GL_UNSIGNED_BYTE, px.data());
+  glBindFramebuffer(GL_FRAMEBUFFER, prev_fbo);
+
+  uint64_t sum = 0;
+  for (size_t i = 0; i + 2 < px.size(); i += 4) {
+    sum += (uint64_t)((px[i] * 299 + px[i + 1] * 587 + px[i + 2] * 114) / 1000);
+  }
+  return (int)(sum / (uint64_t)(sw * sh));
+}
+
 void VideoRenderer::destroy() {
   if (m_tex_y) {
     glDeleteTextures(1, &m_tex_y);
@@ -582,6 +745,18 @@ void VideoRenderer::destroy() {
   if (m_shader) {
     glDeleteProgram(m_shader);
     m_shader = 0;
+  }
+  if (m_shader_nv12) {
+    glDeleteProgram(m_shader_nv12);
+    m_shader_nv12 = 0;
+  }
+  if (m_tex_nv12_y) {
+    glDeleteTextures(1, &m_tex_nv12_y);
+    m_tex_nv12_y = 0;
+  }
+  if (m_tex_nv12_uv) {
+    glDeleteTextures(1, &m_tex_nv12_uv);
+    m_tex_nv12_uv = 0;
   }
   if (m_vao) {
     glDeleteVertexArrays(1, &m_vao);

@@ -154,7 +154,12 @@ void App::update(float dt) {
     if (pw->renderer) {
       VideoFrame f;
       if (pw->frame_queue.pop(f)) {
-        pw->renderer->upload_frame(f.data_y, f.data_u, f.data_v, f.stride_y, f.stride_u, f.stride_v, f.width, f.height);
+        if (f.is_gpu) {
+          pw->renderer->upload_gpu_frame(f.gpu);
+        } else {
+          pw->renderer->upload_frame(f.data_y, f.data_u, f.data_v, f.stride_y, f.stride_u, f.stride_v, f.width,
+                                     f.height);
+        }
       }
     }
   }
@@ -168,6 +173,41 @@ void App::update(float dt) {
     case AppState::DISCONNECTED:
       render_multi_stream_page(dt);
       break;
+  }
+
+  // ---- 自动化验证辅助 ----
+  m_elapsed_seconds += dt;
+
+  // autoStart: 启动 1 秒后自动触发一次取 token + 串流
+  if (m_config.auto_start && !m_auto_start_fired && m_elapsed_seconds > 1.0f && m_state == AppState::TOKEN_PAGE) {
+    m_auto_start_fired = true;
+    LOG_INFO("App", "autoStart triggered");
+    request_token();
+  }
+
+  // 每 2 秒打印一次帧统计，便于确认硬解/软解是否真的产出帧
+  m_stats_log_timer += dt;
+  if (m_stats_log_timer >= 2.0f) {
+    m_stats_log_timer = 0;
+    // 采样任一 renderer 的输出亮度，非 -1 且非 0 说明确实渲染出了画面
+    int luma = -1;
+    int rendered = 0;
+    for (auto& kv : m_instance_renderers) {
+      int l = kv.second->sample_average_luma();
+      if (l >= 0) {
+        ++rendered;
+        if (l > luma) luma = l;
+      }
+    }
+    LOG_INFO("FrameStats", "elapsed=%.1fs i420_frames=%llu gpu_frames=%llu renderers_with_frame=%d max_luma=%d",
+             m_elapsed_seconds, (unsigned long long)m_frames_i420.load(), (unsigned long long)m_frames_gpu.load(),
+             rendered, luma);
+  }
+
+  if (m_config.auto_exit_seconds > 0 && m_elapsed_seconds >= (float)m_config.auto_exit_seconds) {
+    LOG_INFO("App", "autoExitSeconds reached, quitting. i420_frames=%llu gpu_frames=%llu",
+             (unsigned long long)m_frames_i420.load(), (unsigned long long)m_frames_gpu.load());
+    m_quit = true;
   }
 }
 
@@ -345,7 +385,13 @@ void App::on_popup_video_frame(void* ud, void* fh) {
   if (!pw || !fh) return;
   TcrVideoFrameHandle h = static_cast<TcrVideoFrameHandle>(fh);
   const TcrVideoFrameBuffer* b = tcr_video_frame_get_buffer(h);
-  if (!b || b->type != TCR_VIDEO_BUFFER_TYPE_I420) return;
+  if (!b) return;
+  if (b->type == TCR_VIDEO_BUFFER_TYPE_GPU) {
+    tcr_video_frame_add_ref(h);
+    pw->frame_queue.push(VideoFrame(h, b->buffer.gpu, b->timestamp_us));
+    return;
+  }
+  if (b->type != TCR_VIDEO_BUFFER_TYPE_I420) return;
   tcr_video_frame_add_ref(h);
   const TcrI420Buffer& i = b->buffer.i420;
   VideoFrame vf(h, i.data_y, i.data_u, i.data_v, i.stride_y, i.stride_u, i.stride_v, i.width, i.height,
@@ -551,6 +597,7 @@ void App::request_token() {
   nlohmann::json arr = nlohmann::json::array();
   for (const auto& id : ids) arr.push_back(id);
   req["AndroidInstanceIds"] = arr;
+  if (m_config.app_id != 0) req["AppId"] = m_config.app_id;
   std::string url = m_config.base_url + m_config.api_path;
   std::string body = req.dump();
   std::thread([this, url, body]() {
@@ -598,6 +645,8 @@ void App::start_multi_streaming() {
   TcrConfig cfg = tcr_config_default();
   cfg.token = m_token.c_str();
   cfg.accessInfo = m_access_info.c_str();
+  cfg.hardwareDecode = m_config.hardware_decode;
+  LOG_INFO("App", "tcr_client_init hardwareDecode=%d", cfg.hardwareDecode ? 1 : 0);
   if (tcr_client_init(static_cast<TcrClientHandle>(m_tcr_client), &cfg) != TCR_SUCCESS) {
     m_error_message = "tcr_client_init failed";
     m_state = AppState::TOKEN_PAGE;
@@ -689,10 +738,22 @@ void App::on_multi_video_frame(void* ud, void* fh) {
   if (!s || !fh || s->m_is_destroying.load(std::memory_order_acquire)) return;
   TcrVideoFrameHandle h = static_cast<TcrVideoFrameHandle>(fh);
   const TcrVideoFrameBuffer* b = tcr_video_frame_get_buffer(h);
-  if (!b || b->type != TCR_VIDEO_BUFFER_TYPE_I420) return;
+  if (!b) return;
+
   std::string id;
   if (b->instance_id) id = b->instance_id;
   if (id.empty()) return;
+
+  if (b->type == TCR_VIDEO_BUFFER_TYPE_GPU) {
+    // 硬件解码：GPU 纹理，零拷贝交给渲染线程
+    s->m_frames_gpu.fetch_add(1, std::memory_order_relaxed);
+    tcr_video_frame_add_ref(h);
+    s->m_multi_frame_cache.push(id, VideoFrame(h, b->buffer.gpu, b->timestamp_us));
+    return;
+  }
+
+  if (b->type != TCR_VIDEO_BUFFER_TYPE_I420) return;
+  s->m_frames_i420.fetch_add(1, std::memory_order_relaxed);
   tcr_video_frame_add_ref(h);
   const TcrI420Buffer& i = b->buffer.i420;
   s->m_multi_frame_cache.push(id, VideoFrame(h, i.data_y, i.data_u, i.data_v, i.stride_y, i.stride_u, i.stride_v,
@@ -708,9 +769,21 @@ void App::batch_render_frames() {
   for (auto& kv : frames) {
     if (!kv.second.valid()) continue;
     VideoRenderer* r = get_or_create_renderer(kv.first);
-    if (r)
+    if (!r) continue;
+    if (kv.second.is_gpu) {
+      // 硬解路径：失败时不回退（GPU 帧没有 I420 数据可用），仅告警一次
+      if (!r->upload_gpu_frame(kv.second.gpu)) {
+        static bool warned = false;
+        if (!warned) {
+          warned = true;
+          LOG_WARN("App", "upload_gpu_frame failed (platform=%d format=%d), frames will not render",
+                   (int)kv.second.gpu.platform, (int)kv.second.gpu.pixel_format);
+        }
+      }
+    } else {
       r->upload_frame(kv.second.data_y, kv.second.data_u, kv.second.data_v, kv.second.stride_y, kv.second.stride_u,
                       kv.second.stride_v, kv.second.width, kv.second.height);
+    }
   }
 }
 

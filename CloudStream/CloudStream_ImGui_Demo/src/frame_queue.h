@@ -26,6 +26,10 @@ struct VideoFrame {
   int height = 0;
   int64_t timestamp_us = 0;
 
+  // 硬件解码路径：GPU 纹理帧。is_gpu 为 true 时上面的 I420 指针无效。
+  bool is_gpu = false;
+  TcrGpuBuffer gpu = {};
+
   VideoFrame() = default;
 
   // 从 TcrSDK 帧数据构造（调用者需先 add_ref）
@@ -41,6 +45,10 @@ struct VideoFrame {
         width(w),
         height(h_val),
         timestamp_us(ts) {}
+
+  // GPU 帧构造（调用者需先 add_ref）
+  VideoFrame(TcrVideoFrameHandle h, const TcrGpuBuffer& g, int64_t ts)
+      : handle(h), width(g.width), height(g.height), timestamp_us(ts), is_gpu(true), gpu(g) {}
 
   ~VideoFrame() {
     if (handle) {
@@ -64,7 +72,9 @@ struct VideoFrame {
         stride_v(other.stride_v),
         width(other.width),
         height(other.height),
-        timestamp_us(other.timestamp_us) {
+        timestamp_us(other.timestamp_us),
+        is_gpu(other.is_gpu),
+        gpu(other.gpu) {
     other.handle = nullptr;
   }
 
@@ -81,6 +91,8 @@ struct VideoFrame {
       width = other.width;
       height = other.height;
       timestamp_us = other.timestamp_us;
+      is_gpu = other.is_gpu;
+      gpu = other.gpu;
       other.handle = nullptr;
     }
     return *this;
