@@ -78,18 +78,20 @@ bool App::init(SDL_Window* window, SDL_GLContext gl_context) {
 
   static TcrLogCallback lcb = {};
   lcb.on_log = [](void*, TcrLogLevel lv, const char* tag, const char* msg) {
+    // 给 TcrSdk 日志统一加 "TcrSdk/" 前缀，与 Demo 自身日志（App/Config/Main 等）区分开。
+    std::string sdk_tag = std::string("TcrSdk/") + (tag ? tag : "?");
     switch (lv) {
       case TCR_LOG_LEVEL_DEBUG:
-        LOG_DEBUG(tag, "%s", msg);
+        LOG_DEBUG(sdk_tag.c_str(), "%s", msg);
         break;
       case TCR_LOG_LEVEL_INFO:
-        LOG_INFO(tag, "%s", msg);
+        LOG_INFO(sdk_tag.c_str(), "%s", msg);
         break;
       case TCR_LOG_LEVEL_WARN:
-        LOG_WARN(tag, "%s", msg);
+        LOG_WARN(sdk_tag.c_str(), "%s", msg);
         break;
       case TCR_LOG_LEVEL_ERROR:
-        LOG_ERROR(tag, "%s", msg);
+        LOG_ERROR(sdk_tag.c_str(), "%s", msg);
         break;
       default:
         break;

@@ -93,7 +93,31 @@ int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
 
+  // 初始化日志：在可执行文件同目录下创建按日期时间命名的日志文件。
+  // TcrSdk 日志回调（App::init 中设置）与 Demo 自身日志都会写入该文件。
+  {
+    char* bp = SDL_GetBasePath();
+    std::string log_dir;
+    if (bp) {
+      log_dir = bp;
+      SDL_free(bp);
+    }
+    // macOS 上 SDL_GetBasePath() 返回 .app/Contents/Resources/，而可执行文件在
+    // 同级的 MacOS/ 目录；向上回溯一层让日志落在真正与可执行文件一起的位置。
+#if defined(__APPLE__)
+    {
+      size_t p = log_dir.rfind("Resources/");
+      if (p != std::string::npos) {
+        log_dir = log_dir.substr(0, p) + "MacOS/";
+      }
+    }
+#endif
+    if (!log_dir.empty()) Log::init(log_dir);
+  }
   LOG_INFO("Main", "CloudStream ImGui Demo starting...");
+  if (!Log::log_path().empty()) {
+    LOG_INFO("Main", "Log file: %s", Log::log_path().c_str());
+  }
 
   // 初始化 SDL2
   if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) {
@@ -262,5 +286,6 @@ int main(int argc, char* argv[]) {
   SDL_Quit();
 
   LOG_INFO("Main", "Goodbye!");
+  Log::shutdown();
   return 0;
 }
