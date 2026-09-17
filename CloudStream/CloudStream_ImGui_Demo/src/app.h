@@ -118,7 +118,7 @@ class App {
   float m_prev_scroll_y = 0;
   float m_debounce_timer = 0;
   bool m_scroll_dirty = false;
-  int m_grid_columns = 5;
+  int m_grid_columns = 10;  // 当前每行格子数（render 时按窗口宽度动态计算）
 
   // --- 自动化验证辅助（autoStart / autoExitSeconds）---
   float m_elapsed_seconds = 0;

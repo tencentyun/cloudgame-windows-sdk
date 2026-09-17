@@ -956,11 +956,18 @@ void App::render_multi_stream_page(float dt) {
   ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x, gh));
   ImGui::Begin("##grid", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
 
-  int cols = m_grid_columns;
-  float sp = 6;
+  // 固定格子尺寸（视频区 16:9），列数按窗口宽度自动计算
+  const float cell_vw = 170.0f;                  // 视频区固定宽度
+  const float cell_vh = cell_vw * 16.0f / 9.0f;  // 视频区固定高度
+  const float cw = cell_vw + 12.0f;              // 格子总宽（含左右内边距）
+  const float ch = cell_vh + 30.0f;              // 格子总高（含底部状态条）
+  const float sp = 6.0f;                         // 格子间距
+  const float vw = cell_vw;
+  const float vh = cell_vh;
+
   float aw = ImGui::GetContentRegionAvail().x;
-  float cw = (aw - sp * (cols - 1)) / cols;
-  float vw = cw - 12, vh = vw * 16.0f / 9.0f, ch = vh + 30;
+  int cols = std::max(1, (int)((aw + sp) / (cw + sp)));
+  m_grid_columns = cols;
 
   for (size_t i = 0; i < m_all_instance_ids.size(); ++i) {
     if (i > 0 && (i % cols) != 0) ImGui::SameLine(0, sp);

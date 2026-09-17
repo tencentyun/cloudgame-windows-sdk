@@ -129,7 +129,7 @@ int main(int argc, char* argv[]) {
   SDL_Window* window = nullptr;
 
 #if defined(RENDERER_D3D11)
-  window = SDL_CreateWindow("CloudStream ImGui Demo (D3D11)", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 800,
+  window = SDL_CreateWindow("CloudStream ImGui Demo (D3D11)", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1920, 1080,
                             SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
 
   if (!window) {
@@ -152,8 +152,8 @@ int main(int argc, char* argv[]) {
   SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
   SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 
-  window = SDL_CreateWindow("CloudStream ImGui Demo (OpenGL)", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280,
-                            800, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
+  window = SDL_CreateWindow("CloudStream ImGui Demo (OpenGL)", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1920,
+                            1080, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
 
   if (!window) {
     LOG_ERROR("Main", "SDL_CreateWindow failed: %s", SDL_GetError());
