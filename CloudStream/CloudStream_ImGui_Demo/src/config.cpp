@@ -1,9 +1,16 @@
 #include "config.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <fstream>
 #include <nlohmann/json.hpp>
 #include <sstream>
+
+#ifdef _WIN32
+#  include <windows.h>
+#else
+#  include <dirent.h>
+#endif
 
 #include "logger.h"
 
@@ -67,11 +74,17 @@ bool AppConfig::load(const std::string& config_path) {
 }
 
 std::vector<std::string> AppConfig::get_instance_id_list() const {
+  return split_comma_separated(instance_ids);
+}
+
+// ----------------------------------------------------------------------------
+// 将逗号分隔的字符串拆分为数组（去除每项前后空格）
+// ----------------------------------------------------------------------------
+std::vector<std::string> split_comma_separated(const std::string& s) {
   std::vector<std::string> result;
-  std::istringstream ss(instance_ids);
+  std::istringstream ss(s);
   std::string item;
   while (std::getline(ss, item, ',')) {
-    // 去除前后空格
     size_t start = item.find_first_not_of(' ');
     size_t end = item.find_last_not_of(' ');
     if (start != std::string::npos) {
@@ -79,4 +92,43 @@ std::vector<std::string> AppConfig::get_instance_id_list() const {
     }
   }
   return result;
+}
+
+// ----------------------------------------------------------------------------
+// 扫描 <dir> 目录下所有 .json 文件，返回文件名列表（不含 .json 后缀）
+// ----------------------------------------------------------------------------
+std::vector<std::string> scan_config_files(const std::string& dir) {
+  std::vector<std::string> names;
+
+#ifdef _WIN32
+  WIN32_FIND_DATAA find_data;
+  std::string search_path = dir + "\\*.json";
+  HANDLE handle = FindFirstFileA(search_path.c_str(), &find_data);
+  if (handle != INVALID_HANDLE_VALUE) {
+    do {
+      if (!(find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+        std::string name = find_data.cFileName;
+        if (name.size() > 5 && name.substr(name.size() - 5) == ".json") {
+          names.push_back(name.substr(0, name.size() - 5));
+        }
+      }
+    } while (FindNextFileA(handle, &find_data));
+    FindClose(handle);
+  }
+#else
+  DIR* d = opendir(dir.c_str());
+  if (d) {
+    struct dirent* entry;
+    while ((entry = readdir(d)) != nullptr) {
+      std::string name = entry->d_name;
+      if (name.size() > 5 && name.substr(name.size() - 5) == ".json") {
+        names.push_back(name.substr(0, name.size() - 5));
+      }
+    }
+    closedir(d);
+  }
+#endif
+
+  std::sort(names.begin(), names.end());
+  return names;
 }

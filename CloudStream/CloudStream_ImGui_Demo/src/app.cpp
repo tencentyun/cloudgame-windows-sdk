@@ -19,7 +19,6 @@
 
 #include <algorithm>
 #include <cstring>
-#include <fstream>
 #include <nlohmann/json.hpp>
 #include <sstream>
 #include <thread>
@@ -56,25 +55,39 @@ bool App::init(SDL_Window* window, SDL_GLContext gl_context) {
   m_window = window;
   m_gl_context = gl_context;
 #endif
-  std::string config_path;
+  // 定位 config/ 目录：优先 SDL_GetBasePath()（可执行文件同目录；macOS 上为 .app/Contents/Resources/）
+  // 下，其次回退到 macOS 的可执行文件所在目录（Contents/MacOS/）。
   {
     char* bp = SDL_GetBasePath();
-    std::string rp = bp ? std::string(bp) + "config.json" : "";
+    std::string base = bp ? std::string(bp) : "";
     SDL_free(bp);
-    std::string mp;
-    if (!rp.empty()) {
-      std::string d = rp.substr(0, rp.rfind("config.json"));
-      size_t p = d.rfind("Resources/");
-      if (p != std::string::npos) mp = d.substr(0, p) + "MacOS/config.json";
+
+    std::vector<std::string> candidates;
+    candidates.push_back(base + "config/");
+#if defined(__APPLE__)
+    // SDL_GetBasePath() 在 macOS 上返回 Contents/Resources/，而可执行文件在 Contents/MacOS/
+    size_t p = base.rfind("Resources/");
+    if (p != std::string::npos) {
+      candidates.push_back(base.substr(0, p) + "MacOS/config/");
     }
-    if (!mp.empty()) {
-      std::ifstream t(mp);
-      if (t.good()) config_path = mp;
+#endif
+
+    m_config_dir.clear();
+    for (const auto& dir : candidates) {
+      m_config_names = scan_config_files(dir);
+      if (!m_config_names.empty()) {
+        m_config_dir = dir;
+        break;
+      }
     }
-    if (config_path.empty() && !rp.empty()) config_path = rp;
-    if (config_path.empty()) config_path = "config.json";
+
+    // 默认加载第一个配置
+    if (!m_config_names.empty()) {
+      select_config(0);
+    } else {
+      LOG_WARN("App", "No json config found in config/ directory");
+    }
   }
-  m_config.load(config_path);
 
   static TcrLogCallback lcb = {};
   lcb.on_log = [](void*, TcrLogLevel lv, const char* tag, const char* msg) {
@@ -581,6 +594,25 @@ void App::render_single_popup(PopupWindow* pw) {
 }
 
 // =============================================================================
+// Config selection
+// =============================================================================
+
+void App::select_config(int index) {
+  if (index < 0 || index >= (int)m_config_names.size()) return;
+  std::string path = m_config_dir + m_config_names[index] + ".json";
+  if (m_config.load(path)) {
+    m_selected_config = index;
+    // 用配置中的 instanceIds 刷新可编辑输入框
+    std::memset(m_instance_ids_buf, 0, sizeof(m_instance_ids_buf));
+    std::strncpy(m_instance_ids_buf, m_config.instance_ids.c_str(), sizeof(m_instance_ids_buf) - 1);
+    LOG_INFO("App", "Selected config [%d] %s (instances=%zu)", index, m_config_names[index].c_str(),
+             m_config.get_instance_id_list().size());
+  } else {
+    LOG_WARN("App", "Failed to load config %s", path.c_str());
+  }
+}
+
+// =============================================================================
 // Token
 // =============================================================================
 
@@ -588,6 +620,8 @@ void App::request_token() {
   if (m_state == AppState::REQUESTING_TOKEN) return;
   m_state = AppState::REQUESTING_TOKEN;
   m_error_message.clear();
+  // 将输入框中的 instanceIds 同步回配置（用户可能已修改）
+  m_config.instance_ids = m_instance_ids_buf;
   auto ids = m_config.get_instance_id_list();
   if (ids.empty()) {
     m_error_message = "No instance IDs";
@@ -831,7 +865,7 @@ void App::switch_streaming_instances(const std::vector<std::string>& ids) {
 
 void App::render_token_page() {
   ImGuiIO& io = ImGui::GetIO();
-  ImVec2 ws(480, 320);
+  ImVec2 ws(640, 480);
   ImGui::SetNextWindowPos(ImVec2((io.DisplaySize.x - ws.x) * 0.5f, (io.DisplaySize.y - ws.y) * 0.5f), ImGuiCond_Always);
   ImGui::SetNextWindowSize(ws, ImGuiCond_Always);
   ImGui::Begin(
@@ -839,15 +873,36 @@ void App::render_token_page() {
       ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar);
   ImGui::TextColored(ImVec4(0.1f, 0.46f, 0.82f, 1), "TcrSDK ImGui Demo");
   ImGui::Separator();
-  auto ids = m_config.get_instance_id_list();
-  if (ids.empty()) {
-    ImGui::TextColored(ImVec4(1, 0.3f, 0.3f, 1), "No instance IDs!");
+
+  // 配置选择下拉框
+  if (m_config_names.empty()) {
+    ImGui::TextColored(ImVec4(1, 0.3f, 0.3f, 1), "No config found in config/ directory");
   } else {
-    ImGui::BeginChild("##ids", ImVec2(-1, 80), true);
-    for (size_t i = 0; i < ids.size(); ++i) ImGui::Text("%zu. %s", i + 1, ids[i].c_str());
-    ImGui::EndChild();
-    ImGui::Text("Total: %zu, concurrent: %d", ids.size(), m_config.concurrent_streaming);
+    ImGui::Text("Config:");
+    ImGui::SameLine();
+    if (ImGui::BeginCombo("##config_combo", m_selected_config >= 0 ? m_config_names[m_selected_config].c_str() : "Select")) {
+      for (int i = 0; i < (int)m_config_names.size(); ++i) {
+        bool selected = (i == m_selected_config);
+        if (ImGui::Selectable(m_config_names[i].c_str(), selected)) {
+          select_config(i);
+        }
+        if (selected) ImGui::SetItemDefaultFocus();
+      }
+      ImGui::EndCombo();
+    }
+
+    // instanceIds 可编辑输入框（默认值来自选中配置，用户可修改）
+    ImGui::Text("Instance IDs (comma-separated):");
+    ImGui::InputTextMultiline("##instance_ids", m_instance_ids_buf, sizeof(m_instance_ids_buf),
+                              ImVec2(-1, 160), ImGuiInputTextFlags_AllowTabInput);
+    ImGui::Text("BaseUrl: %s", m_config.base_url.c_str());
+    ImGui::Text("ApiPath: %s", m_config.api_path.c_str());
+
+    // 实时统计当前输入框中的实例数量
+    size_t count = split_comma_separated(m_instance_ids_buf).size();
+    ImGui::Text("Total instances: %zu | concurrent: %d", count, m_config.concurrent_streaming);
   }
+
   if (!m_error_message.empty()) ImGui::TextColored(ImVec4(1, 0.3f, 0.3f, 1), "%s", m_error_message.c_str());
   bool busy = (m_state == AppState::REQUESTING_TOKEN);
   if (busy) ImGui::BeginDisabled();

@@ -1,6 +1,6 @@
 #pragma once
 
-// config.h - 应用配置管理（从 config.json 加载）
+// config.h - 应用配置管理（从 config/ 目录下的 json 加载）
 
 #include <string>
 #include <vector>
@@ -30,9 +30,16 @@ struct AppConfig {
   // 运行指定秒数后自动退出，0 表示不自动退出（便于自动化验证）
   int auto_exit_seconds = 0;
 
-  // 从 config.json 加载（在可执行文件同目录下查找）
+  // 从指定 json 文件加载配置
   bool load(const std::string& config_path);
 
   // 将 instance_ids 按逗号分割为数组
   std::vector<std::string> get_instance_id_list() const;
 };
+
+// 扫描 <dir> 目录下所有 .json 文件，返回文件名列表（不含 .json 后缀）。
+// 返回值为空表示目录不存在或无 json 文件。
+std::vector<std::string> scan_config_files(const std::string& dir);
+
+// 将逗号分隔的字符串按逗号拆分为数组（去除每项前后空格）。
+std::vector<std::string> split_comma_separated(const std::string& s);

@@ -78,6 +78,13 @@ class App {
   AppConfig m_config;
   ImGuiContext* m_main_imgui_ctx = nullptr;
 
+  // --- 配置选择 ---
+  std::string m_config_dir;                 // config 目录路径（含结尾分隔符）
+  std::vector<std::string> m_config_names;  // 目录下所有 json 文件名（不含后缀）
+  int m_selected_config = -1;               // 当前选中配置索引，-1 表示未加载
+  // instanceIds 可编辑输入框 buffer（select_config 时用配置值刷新，用户可改）
+  char m_instance_ids_buf[65536] = {};
+
 #if !defined(RENDERER_D3D11)
   SDL_GLContext m_gl_context = nullptr;
 #endif
@@ -137,6 +144,10 @@ class App {
 
   // === Token ===
   void request_token();
+
+  // === 配置 ===
+  // 加载指定索引的配置文件（m_config_names[index]）
+  void select_config(int index);
 
   // === Multi-Stream ===
   void start_multi_streaming();
