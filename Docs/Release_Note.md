@@ -3,6 +3,22 @@
 <!-- FORMAT_VERSION: 1.0 -->
 
 ---
+## [1.29.3] - 2026-09-19
+
+### Bugfix
+- fix: 移除鼠标滚轮 delta 的 ±1 钳制
+
+
+### Download
+
+| Platform | Arch | Package |
+|----------|------|---------|
+| Windows | x86 & x64 | [TcrSdk-Windows-Debug-1.29.3-20260919-d788b549.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Windows-Debug-1.29.3-20260919-d788b549.zip) |
+| Windows | x86 & x64 | [TcrSdk-Windows-Release-1.29.3-20260919-d788b549.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Windows-Release-1.29.3-20260919-d788b549.zip) |
+| Macos | universal | [TcrSdk-Macos-universal-1.29.3-20260919-d788b549.zip](https://cg-sdk-1258344699.cos.ap-nanjing.myqcloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Macos-universal-1.29.3-20260919-d788b549.zip) |
+| Linux | x86_64 | [TcrSdk-Linux-x86_64-1.29.3-20260919-d788b549.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Linux-x86_64-1.29.3-20260919-d788b549.zip) |
+
+---
 ## [1.29.2] - 2026-09-16
 
 ### Bugfix
