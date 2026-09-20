@@ -3,6 +3,22 @@
 <!-- FORMAT_VERSION: 1.0 -->
 
 ---
+## [1.30.0] - 2026-09-20
+
+### Bugfix
+- feat: 滚轮事件新增带云端坐标和分辨率的 _ex 接口
+
+
+### Download
+
+| Platform | Arch | Package |
+|----------|------|---------|
+| Windows | x86 & x64 | [TcrSdk-Windows-Debug-1.30.0-20260920-e5a5d95e.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Windows-Debug-1.30.0-20260920-e5a5d95e.zip) |
+| Windows | x86 & x64 | [TcrSdk-Windows-Release-1.30.0-20260920-e5a5d95e.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Windows-Release-1.30.0-20260920-e5a5d95e.zip) |
+| Macos | universal | [TcrSdk-Macos-universal-1.30.0-20260920-e5a5d95e.zip](https://cg-sdk-1258344699.cos.ap-nanjing.myqcloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Macos-universal-1.30.0-20260920-e5a5d95e.zip) |
+| Linux | x86_64 | [TcrSdk-Linux-x86_64-1.30.0-20260920-e5a5d95e.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Linux-x86_64-1.30.0-20260920-e5a5d95e.zip) |
+
+---
 ## [1.29.3] - 2026-09-19
 
 ### Bugfix
