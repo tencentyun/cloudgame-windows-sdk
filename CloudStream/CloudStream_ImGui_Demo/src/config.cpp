@@ -51,8 +51,10 @@ bool AppConfig::load(const std::string& config_path) {
       if (vp.contains("maxBitrate")) video_max_bitrate = vp["maxBitrate"].get<int>();
     }
 
-    if (j.contains("concurrentStreaming") && j["concurrentStreaming"].is_number_integer()) {
-      concurrent_streaming = j["concurrentStreaming"].get<int>();
+    // concurrentStreaming 不再从 json 读取，改为运行时按窗口尺寸动态计算。
+    // 保留 gridCellWidth 用于控制单个子流画面的格子尺寸。
+    if (j.contains("gridCellWidth") && j["gridCellWidth"].is_number_integer()) {
+      grid_cell_width = j["gridCellWidth"].get<int>();
     }
     if (j.contains("hardwareDecode") && j["hardwareDecode"].is_boolean()) {
       hardware_decode = j["hardwareDecode"].get<bool>();

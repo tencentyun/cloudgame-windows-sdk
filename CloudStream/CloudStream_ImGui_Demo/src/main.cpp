@@ -7,6 +7,9 @@
 #include <imgui_impl_sdl2.h>
 #include <SDL.h>
 
+#include <cstdlib>
+#include <string>
+
 #include "app.h"
 #include "logger.h"
 
@@ -89,9 +92,27 @@ static SDL_GLContext g_gl_context = nullptr;
 // 主函数
 // =============================================================================
 
+// 解析命令行窗口尺寸：--width <px> --height <px>，默认 1920x1080。
+// 用于性能测试时通过「启动时指定不同窗口大小」来调整窗口可渲染的子流数量。
+static void parse_window_size(int argc, char* argv[], int* out_width, int* out_height) {
+  *out_width = 1920;
+  *out_height = 1080;
+  for (int i = 1; i + 1 < argc; ++i) {
+    if (std::string(argv[i]) == "--width") {
+      *out_width = std::atoi(argv[i + 1]);
+      ++i;
+    } else if (std::string(argv[i]) == "--height") {
+      *out_height = std::atoi(argv[i + 1]);
+      ++i;
+    }
+  }
+  if (*out_width <= 0) *out_width = 1920;
+  if (*out_height <= 0) *out_height = 1080;
+}
+
 int main(int argc, char* argv[]) {
-  (void)argc;
-  (void)argv;
+  int win_w = 1920, win_h = 1080;
+  parse_window_size(argc, argv, &win_w, &win_h);
 
   // 初始化日志：在可执行文件同目录下创建按日期时间命名的日志文件。
   // TcrSdk 日志回调（App::init 中设置）与 Demo 自身日志都会写入该文件。
@@ -129,8 +150,8 @@ int main(int argc, char* argv[]) {
   SDL_Window* window = nullptr;
 
 #if defined(RENDERER_D3D11)
-  window = SDL_CreateWindow("CloudStream ImGui Demo (D3D11)", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1920, 1080,
-                            SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
+  window = SDL_CreateWindow("CloudStream ImGui Demo (D3D11)", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, win_w,
+                            win_h, SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
 
   if (!window) {
     LOG_ERROR("Main", "SDL_CreateWindow failed: %s", SDL_GetError());
@@ -152,8 +173,8 @@ int main(int argc, char* argv[]) {
   SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
   SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 
-  window = SDL_CreateWindow("CloudStream ImGui Demo (OpenGL)", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1920,
-                            1080, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
+  window = SDL_CreateWindow("CloudStream ImGui Demo (OpenGL)", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, win_w,
+                            win_h, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
 
   if (!window) {
     LOG_ERROR("Main", "SDL_CreateWindow failed: %s", SDL_GetError());

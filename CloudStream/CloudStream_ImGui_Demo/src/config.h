@@ -18,8 +18,14 @@ struct AppConfig {
   int video_min_bitrate = 300;
   int video_max_bitrate = 600;
 
-  // 多实例并发流数
+  // 多实例并发流数。注意：此字段不再从 json 读取，运行时由「窗口尺寸 ÷ 固定格子尺寸」
+  // 动态计算（见 App::recompute_concurrent_streaming），保证 concurrentStreaming 始终等于
+  // 当前窗口可平铺渲染的子流画面数量。此处仅作为默认/兜底值保留。
   int concurrent_streaming = 4;
+
+  // 单个子流画面的格子宽度（像素）。格子尺寸固定，同一分辨率下能展示的子流画面数量
+  // 由「窗口可用宽高 ÷ 格子尺寸」决定，调整此值即可改变每行/每列能容纳的画面数。
+  int grid_cell_width = 170;
 
   // 启用硬件解码（GPU 解码），失败时 SDK 自动回退软解
   bool hardware_decode = false;

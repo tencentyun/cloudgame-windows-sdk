@@ -237,9 +237,9 @@ void App::update(float dt) {
       m_auto_switch_timer += dt;
       if (m_auto_switch_timer >= (float)m_config.auto_switch_interval_seconds) {
         m_auto_switch_timer = 0;
-        // 滑动窗口：每次起点 +1（模拟滚动一行），取 concurrent_streaming 个实例
+        // 滑动窗口：每次起点 +1（模拟滚动一行），取当前动态并发数个实例
         size_t n = m_all_instance_ids.size();
-        size_t lim = (size_t)m_config.concurrent_streaming;
+        size_t lim = (size_t)(m_computed_concurrent > 0 ? m_computed_concurrent : m_config.concurrent_streaming);
         std::vector<std::string> ids;
         ids.reserve(lim);
         for (size_t i = 0; i < lim && i < n; ++i) {
@@ -632,6 +632,9 @@ void App::select_config(int index) {
     // 用配置中的 instanceIds 刷新可编辑输入框
     std::memset(m_instance_ids_buf, 0, sizeof(m_instance_ids_buf));
     std::strncpy(m_instance_ids_buf, m_config.instance_ids.c_str(), sizeof(m_instance_ids_buf) - 1);
+    // 用配置中的 gridCellWidth 刷新可编辑输入框
+    std::memset(m_grid_cell_width_buf, 0, sizeof(m_grid_cell_width_buf));
+    snprintf(m_grid_cell_width_buf, sizeof(m_grid_cell_width_buf), "%d", m_config.grid_cell_width);
     LOG_INFO("App", "Selected config [%d] %s (instances=%zu)", index, m_config_names[index].c_str(),
              m_config.get_instance_id_list().size());
   } else {
@@ -649,6 +652,9 @@ void App::request_token() {
   m_error_message.clear();
   // 将输入框中的 instanceIds 同步回配置（用户可能已修改）
   m_config.instance_ids = m_instance_ids_buf;
+  // 将输入框中的 gridCellWidth 同步回配置（用户可能已覆盖 json 默认值）
+  int cell_width = std::atoi(m_grid_cell_width_buf);
+  if (cell_width > 0) m_config.grid_cell_width = cell_width;
   auto ids = m_config.get_instance_id_list();
   if (ids.empty()) {
     m_error_message = "No instance IDs";
@@ -723,6 +729,16 @@ void App::start_multi_streaming() {
   m_checked_instances.clear();
   for (const auto& id : m_all_instance_ids) m_instance_states[id] = InstanceState::Connecting;
 
+  // 在创建 session 前，先按当前窗口尺寸算好动态并发上限（= 窗口可平铺的子流画面数量）。
+  // grid 可用区域与 render_multi_stream_page 保持一致：顶栏 44，底栏 28。
+  {
+    int win_w = 0, win_h = 0;
+    SDL_GetWindowSize(m_window, &win_w, &win_h);
+    float aw = (float)win_w;
+    float ah = (float)win_h - 44.0f - 28.0f;
+    recompute_concurrent_streaming(aw, ah);
+  }
+
   create_multi_session();
   access_all_instances();
   m_state = AppState::MULTI_STREAM;
@@ -736,7 +752,10 @@ void App::create_multi_session() {
   c.stream_profile.fps = m_config.video_fps;
   c.stream_profile.min_bitrate = m_config.video_min_bitrate;
   c.stream_profile.max_bitrate = m_config.video_max_bitrate;
-  c.concurrentStreamingInstances = m_config.concurrent_streaming;
+  // 并发数由窗口尺寸动态计算（recompute_concurrent_streaming 已在上游调用时算出）。
+  // 保证 concurrentStreamingInstances 始终等于当前窗口可渲染的子流画面数量。
+  c.concurrentStreamingInstances = m_computed_concurrent > 0 ? m_computed_concurrent : m_config.concurrent_streaming;
+  m_session_concurrent_limit = c.concurrentStreamingInstances;
 
   m_tcr_session = tcr_client_create_session(static_cast<TcrClientHandle>(m_tcr_client), &c);
   if (!m_tcr_session) {
@@ -878,12 +897,44 @@ std::vector<std::string> App::calculate_visible_instances(float sy, float vh, fl
 
 void App::switch_streaming_instances(const std::vector<std::string>& ids) {
   if (!m_tcr_session || ids.empty()) return;
-  int lim = m_config.concurrent_streaming;
+  // 并发上限由窗口尺寸动态计算得到；若尚未计算（理论上不会），回退到 config 默认值。
+  int lim = m_computed_concurrent > 0 ? m_computed_concurrent : m_config.concurrent_streaming;
   std::vector<const char*> p;
   for (size_t i = 0; i < ids.size() && (int)i < lim; ++i) p.push_back(ids[i].c_str());
   tcr_session_switch_streaming_instances(static_cast<TcrSessionHandle>(m_tcr_session), p.data(), (int32_t)p.size());
   m_current_streaming_ids.clear();
   for (const auto& id : p) m_current_streaming_ids.insert(id);
+}
+
+void App::recompute_concurrent_streaming(float avail_w, float avail_h) {
+  // 格子尺寸固定：单个子流画面的宽度由 config.grid_cell_width 决定，
+  // 视频区 16:9，含左右内边距 12、底部状态条 30、格子间距 6（沿用 render_multi_stream_page 常量）。
+  const float cell_vw = (float)m_config.grid_cell_width;
+  const float cell_vh = cell_vw * 16.0f / 9.0f;
+  const float cw = cell_vw + 12.0f;
+  const float ch = cell_vh + 30.0f;
+  const float sp = 6.0f;
+
+  int cols = std::max(1, (int)((avail_w + sp) / (cw + sp)));
+  int rows = std::max(1, (int)((avail_h + sp) / (ch + sp)));
+  int n = cols * rows;
+
+  m_grid_columns = cols;
+  m_computed_concurrent = n;
+  m_last_grid_display_w = avail_w;
+  m_last_grid_display_h = avail_h;
+
+  LOG_INFO("App", "recompute_concurrent_streaming: avail=%.0fx%.0f cell=%.0f cols=%d rows=%d concurrent=%d",
+           avail_w, avail_h, cell_vw, cols, rows, n);
+}
+
+void App::rebuild_session_with_new_limit() {
+  if (!m_tcr_client || m_all_instance_ids.empty()) return;
+  LOG_INFO("App", "rebuild_session_with_new_limit: concurrent %d -> %d", m_session_concurrent_limit,
+           m_computed_concurrent);
+  create_multi_session();  // 内部会 close_session 并用新的 m_computed_concurrent 重建
+  access_all_instances();
+  // 重建后切流交给 render_multi_stream_page 的滚动可见区逻辑重新触发（m_current_streaming_ids 已被清空）。
 }
 
 // =============================================================================
@@ -918,16 +969,21 @@ void App::render_token_page() {
       ImGui::EndCombo();
     }
 
-    // instanceIds 可编辑输入框（默认值来自选中配置，用户可修改）
+    // instanceIds 可编辑输入框（默认值来自选中配置，用户可修改，支持多行）
     ImGui::Text("Instance IDs (comma-separated):");
     ImGui::InputTextMultiline("##instance_ids", m_instance_ids_buf, sizeof(m_instance_ids_buf),
-                              ImVec2(-1, 160), ImGuiInputTextFlags_AllowTabInput);
+                              ImVec2(-1, 140), ImGuiInputTextFlags_AllowTabInput);
+
+    // gridCellWidth 可编辑输入框（默认值来自选中配置，用户可覆盖）
+    ImGui::Text("Grid Cell Width (px):");
+    ImGui::InputText("##grid_cell_width", m_grid_cell_width_buf, sizeof(m_grid_cell_width_buf));
+
     ImGui::Text("BaseUrl: %s", m_config.base_url.c_str());
     ImGui::Text("ApiPath: %s", m_config.api_path.c_str());
 
     // 实时统计当前输入框中的实例数量
     size_t count = split_comma_separated(m_instance_ids_buf).size();
-    ImGui::Text("Total instances: %zu | concurrent: %d", count, m_config.concurrent_streaming);
+    ImGui::Text("Total instances: %zu", count);
   }
 
   if (!m_error_message.empty()) ImGui::TextColored(ImVec4(1, 0.3f, 0.3f, 1), "%s", m_error_message.c_str());
@@ -983,19 +1039,29 @@ void App::render_multi_stream_page(float dt) {
   ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x, gh));
   ImGui::Begin("##grid", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
 
-  // 固定格子尺寸（视频区 16:9），列数按窗口宽度自动计算
-  const float cell_vw = 170.0f;                  // 视频区固定宽度
-  const float cell_vh = cell_vw * 16.0f / 9.0f;  // 视频区固定高度
-  const float cw = cell_vw + 12.0f;              // 格子总宽（含左右内边距）
-  const float ch = cell_vh + 30.0f;              // 格子总高（含底部状态条）
-  const float sp = 6.0f;                         // 格子间距
+  // 固定格子尺寸（视频区 16:9），格子尺寸由 config.grid_cell_width 决定，
+  // 列数/行数按窗口可用宽高动态计算，concurrentStreaming = cols * rows。
+  const float cell_vw = (float)m_config.grid_cell_width;  // 视频区固定宽度
+  const float cell_vh = cell_vw * 16.0f / 9.0f;          // 视频区固定高度
+  const float cw = cell_vw + 12.0f;                      // 格子总宽（含左右内边距）
+  const float ch = cell_vh + 30.0f;                      // 格子总高（含底部状态条）
+  const float sp = 6.0f;                                 // 格子间距
   const float vw = cell_vw;
   const float vh = cell_vh;
 
   float aw = ImGui::GetContentRegionAvail().x;
-  int cols = std::max(1, (int)((aw + sp) / (cw + sp)));
-  m_grid_columns = cols;
+  // 检测窗口尺寸变化（resize）：若可用宽高变化，则重算并发上限。
+  // 若新上限超过当前 session 的 SSRC 池，需要重建 session（更大的 concurrentStreamingInstances）。
+  float grid_gh = gh;
+  if (aw != m_last_grid_display_w || grid_gh != m_last_grid_display_h) {
+    recompute_concurrent_streaming(aw, grid_gh);
+    if (m_computed_concurrent > m_session_concurrent_limit) {
+      rebuild_session_with_new_limit();
+    }
+  }
+  int cols = m_grid_columns;
 
+  // 渲染全部实例（带滚动），滚动时切流到可见区。concurrentStreaming 作为同时出流上限。
   for (size_t i = 0; i < m_all_instance_ids.size(); ++i) {
     if (i > 0 && (i % cols) != 0) ImGui::SameLine(0, sp);
 
@@ -1051,7 +1117,7 @@ void App::render_multi_stream_page(float dt) {
     ImGui::PopID();
   }
 
-  // Scroll debounce
+  // Scroll debounce：滚动时切流到当前可见区（受 concurrentStreaming 上限截断）。
   float cs = ImGui::GetScrollY();
   if (cs != m_prev_scroll_y) {
     m_scroll_dirty = true;

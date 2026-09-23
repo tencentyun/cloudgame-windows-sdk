@@ -84,6 +84,8 @@ class App {
   int m_selected_config = -1;               // 当前选中配置索引，-1 表示未加载
   // instanceIds 可编辑输入框 buffer（select_config 时用配置值刷新，用户可改）
   char m_instance_ids_buf[65536] = {};
+  // gridCellWidth 可编辑输入框 buffer（select_config 时用配置值刷新，用户可改）
+  char m_grid_cell_width_buf[32] = {};
 
 #if !defined(RENDERER_D3D11)
   SDL_GLContext m_gl_context = nullptr;
@@ -119,6 +121,12 @@ class App {
   float m_debounce_timer = 0;
   bool m_scroll_dirty = false;
   int m_grid_columns = 10;  // 当前每行格子数（render 时按窗口宽度动态计算）
+
+  // --- 动态并发数（concurrentStreaming = 窗口可渲染的子流画面数量，作为同时出流上限）---
+  int m_computed_concurrent = 0;          // 按窗口尺寸算出的并发数（= cols * rows）
+  int m_session_concurrent_limit = 0;     // 当前 session 创建时的 concurrentStreamingInstances（SSRC 池上限）
+  float m_last_grid_display_w = 0;        // 上次计算时的窗口可用宽度，用于检测 resize
+  float m_last_grid_display_h = 0;        // 上次计算时的窗口可用高度，用于检测 resize
 
   // --- 自动化验证辅助（autoStart / autoExitSeconds）---
   float m_elapsed_seconds = 0;
@@ -164,6 +172,13 @@ class App {
   std::vector<std::string> calculate_visible_instances(float scroll_y, float view_height, float cell_height);
   void switch_streaming_instances(const std::vector<std::string>& ids);
   VideoRenderer* get_or_create_renderer(const std::string& instance_id);
+
+  // 根据当前窗口可用尺寸，重新计算并发数（= cols * rows，作为同时出流上限）。
+  void recompute_concurrent_streaming(float avail_w, float avail_h);
+
+  // 重建 session：当窗口 resize 后并发上限超过当前 session 的 SSRC 池时，
+  // 需要以更大的 concurrentStreamingInstances 重建 session 并重新 access。
+  void rebuild_session_with_new_limit();
 
   // === UI ===
   void render_token_page();
