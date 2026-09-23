@@ -63,6 +63,12 @@ bool AppConfig::load(const std::string& config_path) {
     if (j.contains("autoExitSeconds") && j["autoExitSeconds"].is_number_integer()) {
       auto_exit_seconds = j["autoExitSeconds"].get<int>();
     }
+    if (j.contains("autoSwitch") && j["autoSwitch"].is_boolean()) {
+      auto_switch = j["autoSwitch"].get<bool>();
+    }
+    if (j.contains("autoSwitchIntervalSeconds") && j["autoSwitchIntervalSeconds"].is_number_integer()) {
+      auto_switch_interval_seconds = j["autoSwitchIntervalSeconds"].get<int>();
+    }
 
     LOG_INFO("Config", "Loaded config: baseUrl=%s, instanceIds=%s, concurrent=%d, hardwareDecode=%d", base_url.c_str(),
              instance_ids.c_str(), concurrent_streaming, hardware_decode ? 1 : 0);

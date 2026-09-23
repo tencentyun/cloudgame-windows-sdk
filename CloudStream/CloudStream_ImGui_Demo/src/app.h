@@ -128,6 +128,11 @@ class App {
   std::atomic<uint64_t> m_frames_gpu{0};
   float m_stats_log_timer = 0;
 
+  // --- 模拟滚动窗口列表（autoSwitch）---
+  float m_auto_switch_timer = 0;      // 距离上次切换的累计秒数
+  size_t m_auto_switch_offset = 0;    // 当前滑动窗口的起始索引（在 m_all_instance_ids 里）
+  bool m_auto_switch_started = false; // 是否已开始模拟滚动
+
   // --- Popup windows (multiple, independent) ---
   std::vector<PopupWindow*> m_popups;
   std::map<Uint32, std::vector<SDL_Event>> m_popup_events_map;  // windowID -> events

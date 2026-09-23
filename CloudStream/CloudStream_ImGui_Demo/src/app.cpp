@@ -224,6 +224,33 @@ void App::update(float dt) {
              (unsigned long long)m_frames_i420.load(), (unsigned long long)m_frames_gpu.load());
     m_quit = true;
   }
+
+  // autoSwitch: 模拟滚动窗口列表，周期性切换实例子集（触发 tcr_session_switch_streaming_instances）
+  if (m_config.auto_switch && m_state == AppState::MULTI_STREAM && !m_all_instance_ids.empty() &&
+      m_tcr_session) {
+    if (!m_auto_switch_started) {
+      // 首次：从 instance_ids 头部取一个窗口，记录起点
+      m_auto_switch_started = true;
+      m_auto_switch_timer = 0;
+      m_auto_switch_offset = 0;
+    } else {
+      m_auto_switch_timer += dt;
+      if (m_auto_switch_timer >= (float)m_config.auto_switch_interval_seconds) {
+        m_auto_switch_timer = 0;
+        // 滑动窗口：每次起点 +1（模拟滚动一行），取 concurrent_streaming 个实例
+        size_t n = m_all_instance_ids.size();
+        size_t lim = (size_t)m_config.concurrent_streaming;
+        std::vector<std::string> ids;
+        ids.reserve(lim);
+        for (size_t i = 0; i < lim && i < n; ++i) {
+          ids.push_back(m_all_instance_ids[(m_auto_switch_offset + i) % n]);
+        }
+        m_auto_switch_offset = (m_auto_switch_offset + 1) % n;
+        LOG_INFO("App", "autoSwitch: switching to window offset=%zu, count=%zu", m_auto_switch_offset, ids.size());
+        switch_streaming_instances(ids);
+      }
+    }
+  }
 }
 
 // =============================================================================

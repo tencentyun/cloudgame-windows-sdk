@@ -30,6 +30,13 @@ struct AppConfig {
   // 运行指定秒数后自动退出，0 表示不自动退出（便于自动化验证）
   int auto_exit_seconds = 0;
 
+  // 模拟滚动窗口列表：为 true 时，串流稳定后周期性调用 tcr_session_switch_streaming_instances
+  // 切换实例子集（模拟用户上下滚动列表），用于验证多流切换逻辑（便于自动化验证）
+  bool auto_switch = false;
+
+  // 每次模拟滚动切换的间隔秒数（仅在 auto_switch=true 时生效）
+  int auto_switch_interval_seconds = 5;
+
   // 从指定 json 文件加载配置
   bool load(const std::string& config_path);
 
