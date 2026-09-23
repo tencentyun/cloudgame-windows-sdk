@@ -27,6 +27,10 @@ struct AppConfig {
   // 由「窗口可用宽高 ÷ 格子尺寸」决定，调整此值即可改变每行/每列能容纳的画面数。
   int grid_cell_width = 170;
 
+  // 是否在每个子流画面底部显示实例 ID。默认隐藏（false），因为 ID 文本会撑高格子，
+  // 影响窗口内能平铺渲染的画面数量。
+  bool show_instance_id = false;
+
   // 启用硬件解码（GPU 解码），失败时 SDK 自动回退软解
   bool hardware_decode = false;
 

@@ -56,6 +56,9 @@ bool AppConfig::load(const std::string& config_path) {
     if (j.contains("gridCellWidth") && j["gridCellWidth"].is_number_integer()) {
       grid_cell_width = j["gridCellWidth"].get<int>();
     }
+    if (j.contains("showInstanceId") && j["showInstanceId"].is_boolean()) {
+      show_instance_id = j["showInstanceId"].get<bool>();
+    }
     if (j.contains("hardwareDecode") && j["hardwareDecode"].is_boolean()) {
       hardware_decode = j["hardwareDecode"].get<bool>();
     }

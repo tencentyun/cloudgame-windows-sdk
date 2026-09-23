@@ -924,11 +924,12 @@ void App::switch_streaming_instances(const std::vector<std::string>& ids) {
 
 void App::recompute_concurrent_streaming(float avail_w, float avail_h) {
   // 格子尺寸固定：单个子流画面的宽度由 config.grid_cell_width 决定，
-  // 视频区 16:9，含左右内边距 12、底部状态条 30、格子间距 6（沿用 render_multi_stream_page 常量）。
+  // 视频区 16:9，含左右内边距 12、底部状态条（显示实例 ID 时 30，否则 18）、格子间距 6
+  // （常量与 render_multi_stream_page 保持一致）。
   const float cell_vw = (float)m_config.grid_cell_width;
   const float cell_vh = cell_vw * 16.0f / 9.0f;
   const float cw = cell_vw + 12.0f;
-  const float ch = cell_vh + 30.0f;
+  const float ch = cell_vh + (m_config.show_instance_id ? 30.0f : 18.0f);
   const float sp = 6.0f;
 
   int cols = std::max(1, (int)((avail_w + sp) / (cw + sp)));
@@ -1060,7 +1061,9 @@ void App::render_multi_stream_page(float dt) {
   const float cell_vw = (float)m_config.grid_cell_width;  // 视频区固定宽度
   const float cell_vh = cell_vw * 16.0f / 9.0f;          // 视频区固定高度
   const float cw = cell_vw + 12.0f;                      // 格子总宽（含左右内边距）
-  const float ch = cell_vh + 30.0f;                      // 格子总高（含底部状态条）
+  // 底部状态条高度：显示实例 ID 时需要更高以容纳文本，否则只保留复选框/状态标签。
+  const float bar_h = m_config.show_instance_id ? 30.0f : 18.0f;
+  const float ch = cell_vh + bar_h;                      // 格子总高（含底部状态条）
   const float sp = 6.0f;                                 // 格子间距
   const float vw = cell_vw;
   const float vh = cell_vh;
@@ -1123,9 +1126,11 @@ void App::render_multi_stream_page(float dt) {
     ImGui::PopStyleVar();
     ImGui::SameLine();
     ImGui::TextColored(cl[(int)st], "%s", lb[(int)st]);
-    ImGui::SameLine();
-    std::string sid = id.size() > 16 ? "..." + id.substr(id.size() - 13) : id;
-    ImGui::TextColored(ImVec4(.5f, .5f, .5f, 1), "%s", sid.c_str());
+    if (m_config.show_instance_id) {
+      ImGui::SameLine();
+      std::string sid = id.size() > 16 ? "..." + id.substr(id.size() - 13) : id;
+      ImGui::TextColored(ImVec4(.5f, .5f, .5f, 1), "%s", sid.c_str());
+    }
 
     ImGui::SetCursorScreenPos(ImVec2(c0.x, c0.y + ch));
     ImGui::Dummy(ImVec2(cw, 0));
