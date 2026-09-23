@@ -136,6 +136,12 @@ class App {
   std::atomic<uint64_t> m_frames_gpu{0};
   float m_stats_log_timer = 0;
 
+  // --- per-instance 帧统计（性能测试主指标）---
+  // 每个 2s 统计段内，按 instance_id 累加收到的帧数。on_multi_video_frame 在 SDK
+  // 解码线程执行，统计在主线程（update）读取并清零，跨线程读写必须加锁保护。
+  std::map<std::string, uint64_t> m_frame_count_window;
+  std::mutex m_frame_stat_mutex;
+
   // --- 模拟滚动窗口列表（autoSwitch）---
   float m_auto_switch_timer = 0;      // 距离上次切换的累计秒数
   size_t m_auto_switch_offset = 0;    // 当前滑动窗口的起始索引（在 m_all_instance_ids 里）

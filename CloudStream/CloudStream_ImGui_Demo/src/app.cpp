@@ -200,23 +200,32 @@ void App::update(float dt) {
     request_token();
   }
 
-  // 每 2 秒打印一次帧统计，便于确认硬解/软解是否真的产出帧
+  // 每 2 秒打印一次帧统计，便于确认硬解/软解是否真的产出帧。
+  // 注意：不再调用 sample_average_luma()——那是 GPU→CPU 回读，在多路（300 路）下
+  // 是明显的观测开销污染源。per-instance 帧计数（PerInstanceFrames）作为主指标。
   m_stats_log_timer += dt;
   if (m_stats_log_timer >= 2.0f) {
     m_stats_log_timer = 0;
-    // 采样任一 renderer 的输出亮度，非 -1 且非 0 说明确实渲染出了画面
-    int luma = -1;
-    int rendered = 0;
-    for (auto& kv : m_instance_renderers) {
-      int l = kv.second->sample_average_luma();
-      if (l >= 0) {
-        ++rendered;
-        if (l > luma) luma = l;
+    LOG_INFO("FrameStats", "elapsed=%.1fs i420_frames=%llu gpu_frames=%llu", m_elapsed_seconds,
+             (unsigned long long)m_frames_i420.load(), (unsigned long long)m_frames_gpu.load());
+
+    // 汇总本 2s 段每路收到的帧数，分类统计 active/low_fps/stalled 后清零。
+    int active = 0, low_fps = 0, stalled = 0;
+    size_t total = 0;
+    {
+      std::lock_guard<std::mutex> lock(m_frame_stat_mutex);
+      total = m_frame_count_window.size();
+      for (auto& kv : m_frame_count_window) {
+        if (kv.second >= 2)
+          active++;
+        else if (kv.second == 1)
+          low_fps++;
+        else
+          stalled++;
       }
+      m_frame_count_window.clear();
     }
-    LOG_INFO("FrameStats", "elapsed=%.1fs i420_frames=%llu gpu_frames=%llu renderers_with_frame=%d max_luma=%d",
-             m_elapsed_seconds, (unsigned long long)m_frames_i420.load(), (unsigned long long)m_frames_gpu.load(),
-             rendered, luma);
+    LOG_INFO("PerInstanceFrames", "active=%d low_fps=%d stalled=%d total=%zu", active, low_fps, stalled, total);
   }
 
   if (m_config.auto_exit_seconds > 0 && m_elapsed_seconds >= (float)m_config.auto_exit_seconds) {
@@ -825,6 +834,13 @@ void App::on_multi_video_frame(void* ud, void* fh) {
   std::string id;
   if (b->instance_id) id = b->instance_id;
   if (id.empty()) return;
+
+  // per-instance 帧统计：记录本 2s 统计段内每路收到的帧数（性能测试主指标）。
+  // 此回调在 SDK 解码线程执行，须加锁保护跨线程读写。
+  {
+    std::lock_guard<std::mutex> lock(s->m_frame_stat_mutex);
+    s->m_frame_count_window[id]++;
+  }
 
   if (b->type == TCR_VIDEO_BUFFER_TYPE_GPU) {
     // 硬件解码：GPU 纹理，零拷贝交给渲染线程
