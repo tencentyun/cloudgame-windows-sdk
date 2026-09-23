@@ -875,31 +875,6 @@ typedef enum {
   TCR_SESSION_EVENT_SERVER_STREAMING_STARTED = 18,
 
   /**
-   * @brief 视频轨道卡顿事件（批量）。
-   * 当一个或多个视频轨道超时仍未渲染首帧时触发，所有卡顿轨道在单个事件中一次性报告。
-   *
-   * 事件数据类型JSON格式字符串：
-   * @code{.json}
-   * {
-   *     "total_stuck": number,       // 卡顿的轨道总数
-   *     "stuck_tracks": [
-   *         {
-   *             "instance_id": string,  // 实例ID
-   *             "has_packet": boolean,   // 是否收到过RTP包
-   *             "has_frame": boolean,    // 是否渲染过首帧
-   *             "is_active": boolean,    // 最近是否有帧
-   *             "elapsed_ms": number     // 经过的时间（毫秒）
-   *         },
-   *         ...
-   *     ]
-   * }
-   * @endcode
-   *
-   * @note 该事件仅在多实例场景（tcr_session_access_multi_stream）下触发。
-   */
-  TCR_SESSION_EVENT_TRACK_STUCK = 19,
-
-  /**
    * @brief 服务端下发的消息通知。
    *
    * 事件数据类型为 JSON 格式字符串，包含 "type" 和 "data" 两个字段，
