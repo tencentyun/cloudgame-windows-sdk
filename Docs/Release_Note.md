@@ -3,6 +3,22 @@
 <!-- FORMAT_VERSION: 1.0 -->
 
 ---
+## [1.31.0] - 2026-10-12
+
+### Bugfix
+- 修复退出会话阶段可能出现的崩溃
+
+
+### Download
+
+| Platform | Arch | Package |
+|----------|------|---------|
+| Windows | x86 & x64 | [TcrSdk-Windows-Debug-1.31.0-20261012-afd912c9.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Windows-Debug-1.31.0-20261012-afd912c9.zip) |
+| Windows | x86 & x64 | [TcrSdk-Windows-Release-1.31.0-20261012-afd912c9.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Windows-Release-1.31.0-20261012-afd912c9.zip) |
+| Macos | universal | [TcrSdk-Macos-universal-1.31.0-20261012-afd912c9.zip](https://cg-sdk-1258344699.cos.ap-nanjing.myqcloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Macos-universal-1.31.0-20261012-afd912c9.zip) |
+| Linux | x86_64 | [TcrSdk-Linux-x86_64-1.31.0-20261012-afd912c9.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Linux-x86_64-1.31.0-20261012-afd912c9.zip) |
+
+---
 ## [1.30.2] - 2026-09-28
 
 ### Bugfix
