@@ -3,6 +3,22 @@
 <!-- FORMAT_VERSION: 1.0 -->
 
 ---
+## [1.32.0] - 2026-10-16
+
+### Features
+- CLIENT_STATS 事件补充接入节点与推流节点信息，完善性能统计字段说明
+
+
+### Download
+
+| Platform | Arch | Package |
+|----------|------|---------|
+| Windows | x86 & x64 | [TcrSdk-Windows-Debug-1.32.0-20261016-a9fd68f0.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Windows-Debug-1.32.0-20261016-a9fd68f0.zip) |
+| Windows | x86 & x64 | [TcrSdk-Windows-Release-1.32.0-20261016-a9fd68f0.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Windows-Release-1.32.0-20261016-a9fd68f0.zip) |
+| Macos | universal | [TcrSdk-Macos-universal-1.32.0-20261016-a9fd68f0.zip](https://cg-sdk-1258344699.cos.ap-nanjing.myqcloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Macos-universal-1.32.0-20261016-a9fd68f0.zip) |
+| Linux | x86_64 | [TcrSdk-Linux-x86_64-1.32.0-20261016-a9fd68f0.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Linux-x86_64-1.32.0-20261016-a9fd68f0.zip) |
+
+---
 ## [1.31.1] - 2026-10-15
 
 ### Bugfix
