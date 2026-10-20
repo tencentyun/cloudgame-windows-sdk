@@ -47,6 +47,8 @@ struct PopupWindow {
   VideoRenderer* renderer = nullptr;
   bool connected = false;
   bool close_requested = false;
+  // 会话状态文案：连接中 / 已关闭。close_reason 为 STATE_CLOSED 带回的关闭原因，用于 UI 显示。
+  std::string close_reason;
 
   // Screen rotation (from TCR_SESSION_EVENT_SCREEN_CONFIG_CHANGE)
   float rotation_angle = 0;  // 0, 90, 180, 270

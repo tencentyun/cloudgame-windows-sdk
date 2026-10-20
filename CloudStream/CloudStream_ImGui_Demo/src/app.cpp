@@ -407,7 +407,8 @@ void App::on_popup_session_event(void* ud, int event, const char* data) {
     LOG_INFO("App", "Popup #%d connected", pw->id);
   } else if (ev == TCR_SESSION_EVENT_STATE_CLOSED) {
     pw->connected = false;
-    LOG_WARN("App", "Popup #%d closed: %s", pw->id, data ? data : "");
+    pw->close_reason = data ? data : "";
+    LOG_WARN("App", "Popup #%d closed: %s", pw->id, pw->close_reason.c_str());
   } else if (ev == TCR_SESSION_EVENT_SCREEN_CONFIG_CHANGE && data) {
     // Parse rotation and screen size from event data
     try {
@@ -513,8 +514,9 @@ void App::render_single_popup(PopupWindow* pw) {
     ImGui::Text("Instance: %s", sid.c_str());
   }
   ImGui::SameLine();
-  ImGui::TextColored(pw->connected ? ImVec4(0.3f, 1, 0.3f, 1) : ImVec4(1, 1, 0.3f, 1),
-                     pw->connected ? "Connected" : "Connecting...");
+  const bool closed = !pw->close_reason.empty();
+  ImGui::TextColored(pw->connected ? ImVec4(0.3f, 1, 0.3f, 1) : (closed ? ImVec4(1, 0.3f, 0.3f, 1) : ImVec4(1, 1, 0.3f, 1)),
+                     pw->connected ? "Connected" : (closed ? "Closed" : "Connecting..."));
 
   ImGui::SameLine(0, 20);
   auto sendKey = [&](const char* label, int code) {
@@ -611,6 +613,13 @@ void App::render_single_popup(PopupWindow* pw) {
       float wheel = ImGui::GetIO().MouseWheel;
       if (wheel != 0.0f) tcr_session_send_mouse_scroll(popup_session, wheel > 0 ? 1.0f : -1.0f);
     }
+  } else if (!pw->close_reason.empty()) {
+    // 会话已被关闭（拉流/连接失败等）：显式展示 SDK 带回的关闭原因，避免只显示 "Waiting for video"
+    ImGui::SetCursorPos(ImVec2(avail.x * 0.1f, bar_h + avail.y * 0.4f));
+    ImGui::PushTextWrapPos(avail.x * 0.9f);
+    ImGui::TextColored(ImVec4(1, 0.3f, 0.3f, 1), "Session closed: %s", pw->close_reason.c_str());
+    ImGui::TextWrapped("Instance: %s", pw->instance_id.c_str());
+    ImGui::PopTextWrapPos();
   } else {
     ImGui::SetCursorPos(ImVec2(avail.x * 0.3f, bar_h + avail.y * 0.45f));
     ImGui::Text("Waiting for video...");
@@ -1105,6 +1114,10 @@ void App::render_multi_stream_page(float dt) {
     } else {
       ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(c0.x + 1, c0.y + 1), ImVec2(c0.x + vw, c0.y + vh),
                                                 IM_COL32(30, 30, 30, 255));
+      // 小流没画面不代表大流拉不到：占位区也要可点击，用于验证单实例大流是否正常
+      ImGui::SetCursorScreenPos(ImVec2(c0.x + 1, c0.y + 1));
+      ImGui::InvisibleButton("##cell_click", ImVec2(vw, vh));
+      if (ImGui::IsItemClicked(0)) open_instance_popup(id);
     }
 
     ImGui::SetCursorScreenPos(ImVec2(c0.x + 4, c0.y + vh + 2));
