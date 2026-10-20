@@ -15,6 +15,7 @@
 #include "logger.h"
 
 bool AppConfig::load(const std::string& config_path) {
+  LOG_INFO("Config", "Loading config file: %s", config_path.c_str());
   std::ifstream file(config_path);
   if (!file.is_open()) {
     LOG_WARN("Config", "Cannot open config file: %s, using defaults", config_path.c_str());
@@ -84,9 +85,7 @@ bool AppConfig::load(const std::string& config_path) {
   }
 }
 
-std::vector<std::string> AppConfig::get_instance_id_list() const {
-  return split_comma_separated(instance_ids);
-}
+std::vector<std::string> AppConfig::get_instance_id_list() const { return split_comma_separated(instance_ids); }
 
 // ----------------------------------------------------------------------------
 // 将逗号分隔的字符串拆分为数组（去除每项前后空格）

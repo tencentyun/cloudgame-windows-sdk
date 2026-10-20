@@ -83,7 +83,7 @@ class App {
   std::vector<std::string> m_config_names;  // 目录下所有 json 文件名（不含后缀）
   int m_selected_config = -1;               // 当前选中配置索引，-1 表示未加载
   // instanceIds 可编辑输入框 buffer（select_config 时用配置值刷新，用户可改）
-  char m_instance_ids_buf[65536] = {};
+  char m_instance_ids_buf[1 << 20] = {};  // 1MB：字符串形式存实例列表，500 路约 7KB，这里留足量避免截断
   // gridCellWidth 可编辑输入框 buffer（select_config 时用配置值刷新，用户可改）
   char m_grid_cell_width_buf[32] = {};
 
@@ -123,10 +123,10 @@ class App {
   int m_grid_columns = 10;  // 当前每行格子数（render 时按窗口宽度动态计算）
 
   // --- 动态并发数（concurrentStreaming = 窗口可渲染的子流画面数量，作为同时出流上限）---
-  int m_computed_concurrent = 0;          // 按窗口尺寸算出的并发数（= cols * rows）
-  int m_session_concurrent_limit = 0;     // 当前 session 创建时的 concurrentStreamingInstances（SSRC 池上限）
-  float m_last_grid_display_w = 0;        // 上次计算时的窗口可用宽度，用于检测 resize
-  float m_last_grid_display_h = 0;        // 上次计算时的窗口可用高度，用于检测 resize
+  int m_computed_concurrent = 0;       // 按窗口尺寸算出的并发数（= cols * rows）
+  int m_session_concurrent_limit = 0;  // 当前 session 创建时的 concurrentStreamingInstances（SSRC 池上限）
+  float m_last_grid_display_w = 0;     // 上次计算时的窗口可用宽度，用于检测 resize
+  float m_last_grid_display_h = 0;     // 上次计算时的窗口可用高度，用于检测 resize
 
   // --- 自动化验证辅助（autoStart / autoExitSeconds）---
   float m_elapsed_seconds = 0;
@@ -135,17 +135,22 @@ class App {
   std::atomic<uint64_t> m_frames_i420{0};
   std::atomic<uint64_t> m_frames_gpu{0};
   float m_stats_log_timer = 0;
+  float m_stream_start_elapsed = -1;  // 首次进入多流页面时的 m_elapsed_seconds
+  bool m_coverage_10s_logged = false;
+  std::atomic<bool> m_resend_switch_after_connect{false};
+  void log_streaming_render_coverage(bool list_all_missing);
 
   // --- per-instance 帧统计（性能测试主指标）---
   // 每个 2s 统计段内，按 instance_id 累加收到的帧数。on_multi_video_frame 在 SDK
   // 解码线程执行，统计在主线程（update）读取并清零，跨线程读写必须加锁保护。
   std::map<std::string, uint64_t> m_frame_count_window;
+  std::map<std::string, uint64_t> m_frame_count_total;  // 诊断用：每路累计收到的解码帧回调次数
   std::mutex m_frame_stat_mutex;
 
   // --- 模拟滚动窗口列表（autoSwitch）---
-  float m_auto_switch_timer = 0;      // 距离上次切换的累计秒数
-  size_t m_auto_switch_offset = 0;    // 当前滑动窗口的起始索引（在 m_all_instance_ids 里）
-  bool m_auto_switch_started = false; // 是否已开始模拟滚动
+  float m_auto_switch_timer = 0;       // 距离上次切换的累计秒数
+  size_t m_auto_switch_offset = 0;     // 当前滑动窗口的起始索引（在 m_all_instance_ids 里）
+  bool m_auto_switch_started = false;  // 是否已开始模拟滚动
 
   // --- Popup windows (multiple, independent) ---
   std::vector<PopupWindow*> m_popups;
