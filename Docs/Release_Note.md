@@ -3,6 +3,22 @@
 <!-- FORMAT_VERSION: 1.0 -->
 
 ---
+## [1.33.0] - 2026-10-22
+
+### Features
+- SERVER_STREAMING_STARTED 事件新增关联数据
+
+
+### Download
+
+| Platform | Arch | Package |
+|----------|------|---------|
+| Windows | x86 & x64 | [TcrSdk-Windows-Debug-1.33.0-20261022-a3a22f6a.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Windows-Debug-1.33.0-20261022-a3a22f6a.zip) |
+| Windows | x86 & x64 | [TcrSdk-Windows-Release-1.33.0-20261022-a3a22f6a.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Windows-Release-1.33.0-20261022-a3a22f6a.zip) |
+| Macos | universal | [TcrSdk-Macos-universal-1.33.0-20261022-a3a22f6a.zip](https://cg-sdk-1258344699.cos.ap-nanjing.myqcloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Macos-universal-1.33.0-20261022-a3a22f6a.zip) |
+| Linux | x86_64 | [TcrSdk-Linux-x86_64-1.33.0-20261022-a3a22f6a.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Linux-x86_64-1.33.0-20261022-a3a22f6a.zip) |
+
+---
 ## [1.32.2] - 2026-10-20
 
 ### Bugfix
