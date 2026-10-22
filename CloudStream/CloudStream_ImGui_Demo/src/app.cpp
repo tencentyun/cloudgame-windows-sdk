@@ -192,6 +192,11 @@ void App::update(float dt) {
 
   // ---- 自动化验证辅助 ----
   m_elapsed_seconds += dt;
+  if (m_state == AppState::MULTI_STREAM && m_stream_start_elapsed < 0) m_stream_start_elapsed = m_elapsed_seconds;
+  if (m_stream_start_elapsed >= 0 && !m_coverage_10s_logged && m_elapsed_seconds - m_stream_start_elapsed >= 10.0f) {
+    m_coverage_10s_logged = true;
+    log_streaming_render_coverage(true);
+  }
 
   // autoStart: 启动 1 秒后自动触发一次取 token + 串流
   if (m_config.auto_start && !m_auto_start_fired && m_elapsed_seconds > 1.0f && m_state == AppState::TOKEN_PAGE) {
@@ -226,17 +231,18 @@ void App::update(float dt) {
       m_frame_count_window.clear();
     }
     LOG_INFO("PerInstanceFrames", "active=%d low_fps=%d stalled=%d total=%zu", active, low_fps, stalled, total);
+    log_streaming_render_coverage(false);
   }
 
   if (m_config.auto_exit_seconds > 0 && m_elapsed_seconds >= (float)m_config.auto_exit_seconds) {
+    log_streaming_render_coverage(true);
     LOG_INFO("App", "autoExitSeconds reached, quitting. i420_frames=%llu gpu_frames=%llu",
              (unsigned long long)m_frames_i420.load(), (unsigned long long)m_frames_gpu.load());
     m_quit = true;
   }
 
   // autoSwitch: 模拟滚动窗口列表，周期性切换实例子集（触发 tcr_session_switch_streaming_instances）
-  if (m_config.auto_switch && m_state == AppState::MULTI_STREAM && !m_all_instance_ids.empty() &&
-      m_tcr_session) {
+  if (m_config.auto_switch && m_state == AppState::MULTI_STREAM && !m_all_instance_ids.empty() && m_tcr_session) {
     if (!m_auto_switch_started) {
       // 首次：从 instance_ids 头部取一个窗口，记录起点
       m_auto_switch_started = true;
@@ -260,6 +266,58 @@ void App::update(float dt) {
       }
     }
   }
+}
+
+// 统计当前出流（switch_streaming_instances 选中）的实例里，有多少格子已经渲染出过画面。
+// PerInstanceFrames 只能看到收到帧的实例，看不到"从未出帧"的格子，所以单独统计。
+void App::log_streaming_render_coverage(bool list_all_missing) {
+  if (m_state != AppState::MULTI_STREAM && m_state != AppState::DISCONNECTED) return;
+  if (m_stream_start_elapsed < 0) return;
+  size_t rendered = 0;
+  std::vector<std::string> missing;
+  for (const auto& id : m_current_streaming_ids) {
+    auto it = m_instance_renderers.find(id);
+    if (it != m_instance_renderers.end() && it->second->has_frame())
+      rendered++;
+    else
+      missing.push_back(id);
+  }
+  std::string ms;
+  size_t n = list_all_missing ? missing.size() : std::min<size_t>(missing.size(), 5);
+  // 区分：SDK 已回调过解码帧但格子没画面（本地渲染链路问题） vs SDK 从未回调（解码前/服务端）
+  size_t cb_but_no_render = 0;
+  std::string cb_ids;
+  {
+    std::lock_guard<std::mutex> lock(m_frame_stat_mutex);
+    for (const auto& id : missing) {
+      auto it = m_frame_count_total.find(id);
+      if (it != m_frame_count_total.end() && it->second > 0) {
+        cb_but_no_render++;
+        cb_ids += id + "(" + std::to_string(it->second) + ") ";
+      }
+    }
+  }
+  if (list_all_missing || cb_but_no_render)
+    LOG_INFO("RenderCoverage", "missing_with_sdk_callback=%zu %s", cb_but_no_render, cb_ids.c_str());
+  if (list_all_missing) {
+    // 收到了帧回调、但不在 Demo 期望出流集合里的实例（说明服务端推的集合 ≠ Demo 期望的集合）
+    std::set<std::string> want(m_current_streaming_ids.begin(), m_current_streaming_ids.end());
+    std::string extra;
+    size_t n_extra = 0;
+    std::lock_guard<std::mutex> lock(m_frame_stat_mutex);
+    for (const auto& kv : m_frame_count_total) {
+      if (!want.count(kv.first)) {
+        n_extra++;
+        extra += kv.first + "(" + std::to_string(kv.second) + ") ";
+      }
+    }
+    LOG_INFO("RenderCoverage", "callback_instances=%zu not_in_streaming_set=%zu %s", m_frame_count_total.size(),
+             n_extra, extra.c_str());
+  }
+  for (size_t i = 0; i < n; ++i) ms += (i ? "," : "") + missing[i];
+  LOG_INFO("RenderCoverage", "since_stream=%.1fs streaming=%zu rendered=%zu missing=%zu [%s]%s",
+           m_elapsed_seconds - m_stream_start_elapsed, m_current_streaming_ids.size(), rendered, missing.size(),
+           ms.c_str(), n < missing.size() ? "..." : "");
 }
 
 // =============================================================================
@@ -515,8 +573,9 @@ void App::render_single_popup(PopupWindow* pw) {
   }
   ImGui::SameLine();
   const bool closed = !pw->close_reason.empty();
-  ImGui::TextColored(pw->connected ? ImVec4(0.3f, 1, 0.3f, 1) : (closed ? ImVec4(1, 0.3f, 0.3f, 1) : ImVec4(1, 1, 0.3f, 1)),
-                     pw->connected ? "Connected" : (closed ? "Closed" : "Connecting..."));
+  ImGui::TextColored(
+      pw->connected ? ImVec4(0.3f, 1, 0.3f, 1) : (closed ? ImVec4(1, 0.3f, 0.3f, 1) : ImVec4(1, 1, 0.3f, 1)),
+      pw->connected ? "Connected" : (closed ? "Closed" : "Connecting..."));
 
   ImGui::SameLine(0, 20);
   auto sendKey = [&](const char* label, int code) {
@@ -822,14 +881,55 @@ void App::close_session() {
 void App::on_multi_session_event(void* ud, int ev, const char* d) {
   App* s = static_cast<App*>(ud);
   if (!s || s->m_is_destroying.load(std::memory_order_acquire)) return;
-  if ((TcrSessionEvent)ev == TCR_SESSION_EVENT_STATE_CONNECTED)
-    for (auto& kv : s->m_instance_states) kv.second = InstanceState::Connected;
-  else if ((TcrSessionEvent)ev == TCR_SESSION_EVENT_STATE_CLOSED) {
+  if ((TcrSessionEvent)ev == TCR_SESSION_EVENT_STATE_CONNECTED) {
+    // 会话连上不代表所有实例都出流。这里只把「还未出流」的实例置为 Connecting，
+    // 真正的 On 由视频帧回调和切换完成事件里的 actual 驱动。
+    for (auto& kv : s->m_instance_states) {
+      if (kv.second != InstanceState::Connected) kv.second = InstanceState::Connecting;
+    }
+    // 连接前发出的 switch 会被 SDK 按 fail 回执（state_=INIT），连上后需在主线程重发一次
+    s->m_resend_switch_after_connect.store(true, std::memory_order_release);
+  } else if ((TcrSessionEvent)ev == TCR_SESSION_EVENT_STATE_CLOSED) {
     for (auto& kv : s->m_instance_states) kv.second = InstanceState::Offline;
+    {
+      std::lock_guard<std::mutex> lock(s->m_instance_offline_mutex);
+      s->m_instance_fail_reason.clear();
+    }
     s->m_state = AppState::DISCONNECTED;
     s->m_error_message = d ? d : "closed";
   } else if ((TcrSessionEvent)ev == TCR_SESSION_EVENT_CLIENT_STATS && d) {
     s->m_client_stats = d;
+  } else if ((TcrSessionEvent)ev == TCR_SESSION_EVENT_STREAMING_SWITCH_COMPLETED && d) {
+    // 每次 switch 恰好一次回执。status 只描述「云端往返是否完成」：
+    //   success = 已答复，failed 里是服务端给出的实例级结果
+    //   timeout / fail = 没完成往返，其余字段为空，状态保持原样（原因看日志）
+    try {
+      auto j = nlohmann::json::parse(d);
+      const std::string status = j.value("status", "");
+      LOG_INFO("App", "switch completed: %s", d);
+      if (status != "success") {
+        return;
+      }
+
+      std::lock_guard<std::mutex> lock(s->m_instance_offline_mutex);
+      // 记录服务端给出的失败原因原文，渲染时直接展示，不做映射。
+      if (j.contains("failed") && j["failed"].is_array()) {
+        for (const auto& item : j["failed"]) {
+          if (!item.contains("instance_id")) continue;
+          s->m_instance_fail_reason[item["instance_id"].get<std::string>()] = item.value("reason", "");
+        }
+      }
+      // 本次切换成功的实例说明已正常，清掉失败原因（切回来就恢复显示）
+      if (j.contains("succeeded") && j["succeeded"].is_array()) {
+        for (const auto& item : j["succeeded"]) {
+          s->m_instance_fail_reason.erase(item.get<std::string>());
+        }
+      }
+      // 2. actual 是 SDK 认为在出流的实例集合。不在其中的说明当前没有出流意图，
+      //    清掉其 offline 标记即可（offline 标记只描述服务端答复，不代表出流意图）。
+      //    文本状态的 On/Off 由渲染时依据是否有帧推导，这里不改。
+    } catch (...) {
+    }
   }
 }
 
@@ -849,6 +949,15 @@ void App::on_multi_video_frame(void* ud, void* fh) {
   {
     std::lock_guard<std::mutex> lock(s->m_frame_stat_mutex);
     s->m_frame_count_window[id]++;
+    s->m_frame_count_total[id]++;
+  }
+
+  // 该实例已有帧到达，说明它当前是在出流的，清掉 offline 标记。
+  // 注意：帧回调只负责「清标记」，文本状态由渲染时依据 m_frame_count_total 推导，
+  // 避免在解码线程频繁改写状态导致 UI 抖动。画面渲染不依赖这里。
+  {
+    std::lock_guard<std::mutex> lock(s->m_instance_offline_mutex);
+    s->m_instance_fail_reason.erase(id);
   }
 
   if (b->type == TCR_VIDEO_BUFFER_TYPE_GPU) {
@@ -950,8 +1059,8 @@ void App::recompute_concurrent_streaming(float avail_w, float avail_h) {
   m_last_grid_display_w = avail_w;
   m_last_grid_display_h = avail_h;
 
-  LOG_INFO("App", "recompute_concurrent_streaming: avail=%.0fx%.0f cell=%.0f cols=%d rows=%d concurrent=%d",
-           avail_w, avail_h, cell_vw, cols, rows, n);
+  LOG_INFO("App", "recompute_concurrent_streaming: avail=%.0fx%.0f cell=%.0f cols=%d rows=%d concurrent=%d", avail_w,
+           avail_h, cell_vw, cols, rows, n);
 }
 
 void App::rebuild_session_with_new_limit() {
@@ -984,7 +1093,8 @@ void App::render_token_page() {
   } else {
     ImGui::Text("Config:");
     ImGui::SameLine();
-    if (ImGui::BeginCombo("##config_combo", m_selected_config >= 0 ? m_config_names[m_selected_config].c_str() : "Select")) {
+    if (ImGui::BeginCombo("##config_combo",
+                          m_selected_config >= 0 ? m_config_names[m_selected_config].c_str() : "Select")) {
       for (int i = 0; i < (int)m_config_names.size(); ++i) {
         bool selected = (i == m_selected_config);
         if (ImGui::Selectable(m_config_names[i].c_str(), selected)) {
@@ -997,8 +1107,8 @@ void App::render_token_page() {
 
     // instanceIds 可编辑输入框（默认值来自选中配置，用户可修改，支持多行）
     ImGui::Text("Instance IDs (comma-separated):");
-    ImGui::InputTextMultiline("##instance_ids", m_instance_ids_buf, sizeof(m_instance_ids_buf),
-                              ImVec2(-1, 140), ImGuiInputTextFlags_AllowTabInput);
+    ImGui::InputTextMultiline("##instance_ids", m_instance_ids_buf, sizeof(m_instance_ids_buf), ImVec2(-1, 140),
+                              ImGuiInputTextFlags_AllowTabInput);
 
     // gridCellWidth 可编辑输入框（默认值来自选中配置，用户可覆盖）
     ImGui::Text("Grid Cell Width (px):");
@@ -1041,8 +1151,12 @@ void App::render_multi_stream_page(float dt) {
   }
   ImGui::SameLine();
   int conn = 0;
-  for (const auto& kv : m_instance_states)
-    if (kv.second == InstanceState::Connected) conn++;
+  {
+    std::lock_guard<std::mutex> lock(m_instance_offline_mutex);
+    for (const auto& kv : m_instance_states)
+      if (kv.second == InstanceState::Connected) conn++;
+  }
+  // InstanceOffline 不算 connected，保持计数语义为"会话已连接"
   ImGui::Text("Connected: %d/%zu | Streaming: %zu", conn, m_all_instance_ids.size(), m_current_streaming_ids.size());
   ImGui::SameLine(0, 20);
   if (ImGui::Button(m_checked_instances.size() == m_all_instance_ids.size() ? "Deselect All" : "Select All")) {
@@ -1068,12 +1182,12 @@ void App::render_multi_stream_page(float dt) {
   // 固定格子尺寸（视频区 16:9），格子尺寸由 config.grid_cell_width 决定，
   // 列数/行数按窗口可用宽高动态计算，concurrentStreaming = cols * rows。
   const float cell_vw = (float)m_config.grid_cell_width;  // 视频区固定宽度
-  const float cell_vh = cell_vw * 16.0f / 9.0f;          // 视频区固定高度
-  const float cw = cell_vw + 12.0f;                      // 格子总宽（含左右内边距）
+  const float cell_vh = cell_vw * 16.0f / 9.0f;           // 视频区固定高度
+  const float cw = cell_vw + 12.0f;                       // 格子总宽（含左右内边距）
   // 底部状态条高度：显示实例 ID 时需要更高以容纳文本，否则只保留复选框/状态标签。
   const float bar_h = m_config.show_instance_id ? 30.0f : 18.0f;
-  const float ch = cell_vh + bar_h;                      // 格子总高（含底部状态条）
-  const float sp = 6.0f;                                 // 格子间距
+  const float ch = cell_vh + bar_h;  // 格子总高（含底部状态条）
+  const float sp = 6.0f;             // 格子间距
   const float vw = cell_vw;
   const float vh = cell_vh;
 
@@ -1122,11 +1236,50 @@ void App::render_multi_stream_page(float dt) {
 
     ImGui::SetCursorScreenPos(ImVec2(c0.x + 4, c0.y + vh + 2));
 
+    // 文本只用于展示，与画面渲染完全解耦：
+    // 画面显示只看 VideoRenderer::has_frame()，不看这里推导出的任何状态。
+    // 优先级：有帧 > 服务端给的失败原因 > 会话/出流状态。
     InstanceState st = InstanceState::Offline;
-    auto sit = m_instance_states.find(id);
-    if (sit != m_instance_states.end()) st = sit->second;
-    const char* lb[] = {"Off", "...", "On"};
-    ImVec4 cl[] = {ImVec4(1, .3f, .3f, 1), ImVec4(1, 1, .3f, 1), ImVec4(.3f, 1, .3f, 1)};
+    std::string label;
+    ImVec4 label_color(1, .3f, .3f, 1);
+    {
+      std::lock_guard<std::mutex> lock(m_instance_offline_mutex);
+      bool timeline_has_frame = false;
+      {
+        std::lock_guard<std::mutex> fl(m_frame_stat_mutex);
+        auto it = m_frame_count_total.find(id);
+        timeline_has_frame = (it != m_frame_count_total.end() && it->second > 0);
+      }
+      auto reason_it = m_instance_fail_reason.find(id);
+      if (timeline_has_frame) {
+        // 有帧说明实际在出流，不管服务端之前回过什么，都显示 On
+        st = InstanceState::Connected;
+        label = "On";
+        label_color = ImVec4(.3f, 1, .3f, 1);
+      } else if (reason_it != m_instance_fail_reason.end() && !reason_it->second.empty()) {
+        // 直接展示服务端返回的原因原文（如 "instance offline"），不在此做映射改写
+        st = InstanceState::InstanceOffline;
+        label = reason_it->second;
+        label_color = ImVec4(.55f, .55f, .55f, 1);
+      } else {
+        auto sit = m_instance_states.find(id);
+        if (sit != m_instance_states.end()) st = sit->second;
+        switch (st) {
+          case InstanceState::Connected:
+            label = "On";
+            label_color = ImVec4(.3f, 1, .3f, 1);
+            break;
+          case InstanceState::Connecting:
+            label = "未出流";
+            label_color = ImVec4(1, 1, .3f, 1);
+            break;
+          default:
+            label = "Off";
+            label_color = ImVec4(1, .3f, .3f, 1);
+            break;
+        }
+      }
+    }
 
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(1, 1));
     bool c = ck;
@@ -1138,7 +1291,7 @@ void App::render_multi_stream_page(float dt) {
     }
     ImGui::PopStyleVar();
     ImGui::SameLine();
-    ImGui::TextColored(cl[(int)st], "%s", lb[(int)st]);
+    ImGui::TextColored(label_color, "%s", label.c_str());
     if (m_config.show_instance_id) {
       ImGui::SameLine();
       std::string sid = id.size() > 16 ? "..." + id.substr(id.size() - 13) : id;
@@ -1166,6 +1319,10 @@ void App::render_multi_stream_page(float dt) {
       if (vs != m_current_streaming_ids && !vis.empty()) switch_streaming_instances(vis);
       m_scroll_dirty = false;
     }
+  }
+  if (m_resend_switch_after_connect.exchange(false, std::memory_order_acq_rel)) {
+    LOG_INFO("App", "session connected, re-sending switch_streaming_instances");
+    m_current_streaming_ids.clear();  // 触发下面的逻辑按可见区重新切流
   }
   if (m_current_streaming_ids.empty() && !m_all_instance_ids.empty()) {
     auto vis = calculate_visible_instances(0, gh, ch);

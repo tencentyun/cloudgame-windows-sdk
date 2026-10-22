@@ -19,7 +19,12 @@ struct SDL_Window;
 union SDL_Event;
 typedef void* SDL_GLContext;
 
-enum class InstanceState { Offline = 0, Connecting = 1, Connected = 2 };
+// 实例级状态。全部由「实际出流情况」驱动，而不是会话级状态。
+//   Offline        会话未连接，或该实例当前没有出流
+//   Connecting     已请求出流，但还没收到帧
+//   Connected      正在出帧（On）
+//   InstanceOffline 服务端明确回复该实例 offline，此时不会有流
+enum class InstanceState { Offline = 0, Connecting = 1, Connected = 2, InstanceOffline = 3 };
 
 enum class AppState {
   TOKEN_PAGE,
@@ -108,6 +113,12 @@ class App {
   // --- Multi-instance ---
   std::vector<std::string> m_all_instance_ids;
   std::map<std::string, InstanceState> m_instance_states;
+  // 服务端在 switch 回执里给出的实例级失败原因：instance_id -> reason 原文。
+  // 直接展示服务端返回的文本（如 "instance offline"），不在这里做映射或改写。
+  // 事件回调在 SDK 线程写入，主线程渲染时读取，统一由下面的 mutex 保护。
+  std::map<std::string, std::string> m_instance_fail_reason;
+  // 保护 m_instance_states 与 m_instance_fail_reason：SDK 事件线程写，主线程渲染读。
+  std::mutex m_instance_offline_mutex;
   std::set<std::string> m_current_streaming_ids;
   std::string m_client_stats;
 
