@@ -150,7 +150,6 @@ class App {
   float m_stats_log_timer = 0;
   float m_stream_start_elapsed = -1;  // 首次进入多流页面时的 m_elapsed_seconds
   bool m_coverage_10s_logged = false;
-  std::atomic<bool> m_resend_switch_after_connect{false};
   void log_streaming_render_coverage(bool list_all_missing);
 
   // --- per-instance 帧统计（性能测试主指标）---

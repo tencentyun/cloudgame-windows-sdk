@@ -41,6 +41,8 @@ App::~App() {
     delete kv.second;
   }
   m_instance_renderers.clear();
+  // 所有 renderer 都销毁后才能释放共享资源
+  VideoRenderer::shutdown_graphics();
 }
 
 // =============================================================================
@@ -50,10 +52,14 @@ App::~App() {
 #if defined(RENDERER_D3D11)
 bool App::init(SDL_Window* window, void* d3d_device, void* d3d_context) {
   m_window = window;
+  // 建立渲染后端与共享 GPU 资源。此后所有 VideoRenderer 都复用它们。
+  if (!VideoRenderer::init_graphics(d3d_device, d3d_context)) return false;
 #else
 bool App::init(SDL_Window* window, SDL_GLContext gl_context) {
   m_window = window;
   m_gl_context = gl_context;
+  // OpenGL 后端不需要 device/context，共享资源建在当前 GL context 上
+  if (!VideoRenderer::init_graphics(nullptr, nullptr)) return false;
 #endif
   // 定位 config/ 目录：优先 SDL_GetBasePath()（可执行文件同目录；macOS 上为 .app/Contents/Resources/）
   // 下，其次回退到 macOS 的可执行文件所在目录（Contents/MacOS/）。
@@ -231,6 +237,7 @@ void App::update(float dt) {
       m_frame_count_window.clear();
     }
     LOG_INFO("PerInstanceFrames", "active=%d low_fps=%d stalled=%d total=%zu", active, low_fps, stalled, total);
+
     log_streaming_render_coverage(false);
   }
 
@@ -354,9 +361,7 @@ PopupWindow* App::create_popup(const std::string& title, bool is_sync, const std
 
   // Renderer
   pw->renderer = new VideoRenderer();
-#if !defined(RENDERER_D3D11)
   pw->renderer->init();
-#endif
 
   // Session
   TcrSessionConfig cfg = tcr_session_config_default();
@@ -595,8 +600,8 @@ void App::render_single_popup(PopupWindow* pw) {
   ImVec2 avail((float)w, (float)h - bar_h);
 
   if (pw->renderer && pw->renderer->has_frame()) {
-    float tex_w = (float)pw->renderer->texture_width();
-    float tex_h = (float)pw->renderer->texture_height();
+    float tex_w = (float)pw->renderer->frame_width();
+    float tex_h = (float)pw->renderer->frame_height();
     float rot = pw->rotation_angle;
     int vid_w = pw->video_width;
     int vid_h = pw->video_height;
@@ -858,7 +863,21 @@ void App::access_all_instances() {
   if (!m_tcr_session || m_all_instance_ids.empty()) return;
   std::vector<const char*> p;
   for (const auto& id : m_all_instance_ids) p.push_back(id.c_str());
-  tcr_session_access_multi_stream(static_cast<TcrSessionHandle>(m_tcr_session), p.data(), (int32_t)p.size());
+
+  // 首屏要出流的实例随接入请求一起下发，不再等连上后补一次 switch：
+  // 刚 connected 时 uploader 未必已连上 edge，那一跳的 switch 可能被 edge 丢掉。
+  // 滚动位置为 0 时的可见区就是列表前 concurrentStreamingInstances 个，无需再算几何。
+  const int lim = m_computed_concurrent > 0 ? m_computed_concurrent : m_config.concurrent_streaming;
+  std::vector<const char*> dp;
+  m_current_streaming_ids.clear();
+  for (size_t i = 0; i < m_all_instance_ids.size() && (int)i < lim; ++i) {
+    dp.push_back(m_all_instance_ids[i].c_str());
+    m_current_streaming_ids.insert(m_all_instance_ids[i]);
+  }
+
+  LOG_INFO("App", "access_multi_stream_ex: instances=%zu, default_streaming=%zu", p.size(), dp.size());
+  tcr_session_access_multi_stream_ex(static_cast<TcrSessionHandle>(m_tcr_session), p.data(), (int32_t)p.size(),
+                                     dp.data(), (int32_t)dp.size());
 }
 
 void App::close_session() {
@@ -887,8 +906,6 @@ void App::on_multi_session_event(void* ud, int ev, const char* d) {
     for (auto& kv : s->m_instance_states) {
       if (kv.second != InstanceState::Connected) kv.second = InstanceState::Connecting;
     }
-    // 连接前发出的 switch 会被 SDK 按 fail 回执（state_=INIT），连上后需在主线程重发一次
-    s->m_resend_switch_after_connect.store(true, std::memory_order_release);
   } else if ((TcrSessionEvent)ev == TCR_SESSION_EVENT_STATE_CLOSED) {
     for (auto& kv : s->m_instance_states) kv.second = InstanceState::Offline;
     {
@@ -1007,12 +1024,10 @@ VideoRenderer* App::get_or_create_renderer(const std::string& id) {
   auto it = m_instance_renderers.find(id);
   if (it != m_instance_renderers.end()) return it->second;
   VideoRenderer* r = new VideoRenderer();
-#if !defined(RENDERER_D3D11)
   if (!r->init()) {
     delete r;
     return nullptr;
   }
-#endif
   m_instance_renderers[id] = r;
   return r;
 }
@@ -1054,6 +1069,11 @@ void App::recompute_concurrent_streaming(float avail_w, float avail_h) {
   int rows = std::max(1, (int)((avail_h + sp) / (ch + sp)));
   int n = cols * rows;
 
+  // 每格在屏幕上的实际像素就是画质上限：按 2x（给 Retina / 放大留余量）限制每路
+  // RGBA 纹理尺寸。数百路平铺时这是显存占用的决定性因素——不限制的话每路都会按
+  // 解码分辨率留一张全尺寸 RGBA，500 路就是几百 MB 的纯浪费。
+  VideoRenderer::set_max_output_size((int)(cell_vw * 2), (int)(cell_vh * 2));
+
   m_grid_columns = cols;
   m_computed_concurrent = n;
   m_last_grid_display_w = avail_w;
@@ -1068,8 +1088,7 @@ void App::rebuild_session_with_new_limit() {
   LOG_INFO("App", "rebuild_session_with_new_limit: concurrent %d -> %d", m_session_concurrent_limit,
            m_computed_concurrent);
   create_multi_session();  // 内部会 close_session 并用新的 m_computed_concurrent 重建
-  access_all_instances();
-  // 重建后切流交给 render_multi_stream_page 的滚动可见区逻辑重新触发（m_current_streaming_ids 已被清空）。
+  access_all_instances();  // 新并发上限下的首屏出流实例随接入请求下发
 }
 
 // =============================================================================
@@ -1203,9 +1222,27 @@ void App::render_multi_stream_page(float dt) {
   }
   int cols = m_grid_columns;
 
-  // 渲染全部实例（带滚动），滚动时切流到可见区。concurrentStreaming 作为同时出流上限。
-  for (size_t i = 0; i < m_all_instance_ids.size(); ++i) {
-    if (i > 0 && (i % cols) != 0) ImGui::SameLine(0, sp);
+  // 可见行裁剪：实例列表可达数千条，而窗口一次只放得下十几行。
+  // 不裁剪的话每帧都要为列表里每个实例做 5~6 次 map 查找 + 控件构建，
+  // UI 耗时随列表长度线性增长（实测 620 条 0.68ms / 2831 条 1.39ms），
+  // 和「同时出流多少路」无关，纯属浪费。这里只遍历滚动可见区内的行。
+  const size_t total_cells = m_all_instance_ids.size();
+  const int total_rows = cols > 0 ? (int)((total_cells + cols - 1) / cols) : 0;
+  const float row_h = ch + sp;
+  const float scroll_y = ImGui::GetScrollY();
+  // 上下各多画一行，避免滚动时边缘闪烁
+  int first_row = std::max(0, (int)(scroll_y / row_h) - 1);
+  int last_row = std::min(total_rows, (int)((scroll_y + gh) / row_h) + 2);
+
+  // 用一个占位 Dummy 把被跳过的前置行高度补回来，保证滚动条范围和滚动位置不变
+  if (first_row > 0) ImGui::Dummy(ImVec2(1, first_row * row_h));
+
+  const size_t begin_idx = (size_t)first_row * cols;
+  const size_t end_idx = std::min(total_cells, (size_t)last_row * cols);
+
+  // 渲染可见区实例（带滚动），滚动时切流到可见区。concurrentStreaming 作为同时出流上限。
+  for (size_t i = begin_idx; i < end_idx; ++i) {
+    if (i > begin_idx && (i % cols) != 0) ImGui::SameLine(0, sp);
 
     const std::string& id = m_all_instance_ids[i];
     bool ck = m_checked_instances.count(id) > 0;
@@ -1218,7 +1255,7 @@ void App::render_multi_stream_page(float dt) {
 
     VideoRenderer* r = m_instance_renderers.count(id) ? m_instance_renderers[id] : nullptr;
     if (r && r->has_frame()) {
-      float tw = (float)r->texture_width(), th = (float)r->texture_height();
+      float tw = (float)r->frame_width(), th = (float)r->frame_height();
       float sc = std::min(vw / tw, vh / th);
       ImVec2 isz(tw * sc, th * sc);
       float px = (vw - isz.x) * 0.5f, py = (vh - isz.y) * 0.5f;
@@ -1304,6 +1341,9 @@ void App::render_multi_stream_page(float dt) {
     ImGui::PopID();
   }
 
+  // 补回被跳过的后置行高度，否则滚动条会认为内容只到可见区底部
+  if (last_row < total_rows) ImGui::Dummy(ImVec2(1, (total_rows - last_row) * row_h));
+
   // Scroll debounce：滚动时切流到当前可见区（受 concurrentStreaming 上限截断）。
   float cs = ImGui::GetScrollY();
   if (cs != m_prev_scroll_y) {
@@ -1320,10 +1360,8 @@ void App::render_multi_stream_page(float dt) {
       m_scroll_dirty = false;
     }
   }
-  if (m_resend_switch_after_connect.exchange(false, std::memory_order_acq_rel)) {
-    LOG_INFO("App", "session connected, re-sending switch_streaming_instances");
-    m_current_streaming_ids.clear();  // 触发下面的逻辑按可见区重新切流
-  }
+  // 兜底：首屏出流实例已随 access_multi_stream_ex 下发并预置到 m_current_streaming_ids，
+  // 正常路径不会进这里；只在出流集合被意外清空时按可见区补一次。
   if (m_current_streaming_ids.empty() && !m_all_instance_ids.empty()) {
     auto vis = calculate_visible_instances(0, gh, ch);
     if (!vis.empty()) switch_streaming_instances(vis);
