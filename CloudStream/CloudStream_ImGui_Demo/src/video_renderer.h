@@ -1,96 +1,68 @@
 #pragma once
 
-// video_renderer.h - 视频渲染器抽象接口 + 平台实现
-// Windows: D3D11 纹理渲染
-// macOS/Linux: OpenGL 纹理渲染
-// 渲染结果通过 get_texture_id() 提供给 ImGui::Image() 使用
+// video_renderer.h - 单路视频画面的渲染器（平台无关）
+//
+// 一个 VideoRenderer 对应一路流，持有该路独占的输出纹理，
+// 通过 get_texture_id() 把它交给 ImGui::Image() 显示。
+// 所有 GPU 调用都委托给 RendererBackend，本类不含任何平台代码。
 
 #include <cstdint>
 
-#include "tcr_c_api.h"
-
-#if defined(RENDERER_D3D11)
-struct ID3D11Device;
-struct ID3D11DeviceContext;
-struct ID3D11ShaderResourceView;
-#endif
+#include "renderer_backend.h"
 
 class VideoRenderer {
  public:
+  // === 进程级图形初始化（调用一次）===
+
+  // 创建平台后端并建立共享 GPU 资源。
+  // Windows 传 (ID3D11Device*, ID3D11DeviceContext*)；OpenGL 平台两个参数都忽略，传 nullptr。
+  static bool init_graphics(void* device, void* context);
+  static void shutdown_graphics();
+
+  // 限制每路输出纹理的尺寸上限，超出则等比缩小。0 表示不限制。
+  //
+  // 这是多路小流能把显存压下来的关键：平铺时每个格子在屏幕上只有几十像素，
+  // 按解码分辨率（如 288x512）给每路留一张全尺寸纹理，数百路下就是数百 MB 的浪费。
+  static void set_max_output_size(int max_w, int max_h);
+
   VideoRenderer();
   ~VideoRenderer();
 
-  // 初始化渲染资源（在图形上下文创建后调用）
-#if defined(RENDERER_D3D11)
-  bool init(ID3D11Device* device, ID3D11DeviceContext* context);
-#else
-  bool init();
-#endif
+  VideoRenderer(const VideoRenderer&) = delete;
+  VideoRenderer& operator=(const VideoRenderer&) = delete;
 
-  // 上传 I420 帧数据到 GPU 纹理
+  // 必须在 init_graphics() 成功之后调用。
+  bool init();
+
+  // 上传 I420 帧（软解路径）
   void upload_frame(const uint8_t* data_y, const uint8_t* data_u, const uint8_t* data_v, int stride_y, int stride_u,
                     int stride_v, int width, int height);
 
   // 上传硬件解码产出的 GPU 纹理帧（零拷贝路径）。
-  // 返回 false 表示该平台/格式暂不支持，调用方可回退到 I420。
+  // 返回 false 表示该平台/格式暂不支持，GPU 帧无 I420 可回退，调用方只能放弃该帧。
   bool upload_gpu_frame(const TcrGpuBuffer& gpu);
 
-  // 获取用于 ImGui::Image() 的纹理 ID
-  void* get_texture_id() const;
+  // 用于 ImGui::Image() 的纹理句柄
+  void* get_texture_id() const { return m_out.ui_handle; }
 
-  // 获取当前纹理尺寸
-  int texture_width() const { return m_width; }
-  int texture_height() const { return m_height; }
+  // **源帧**尺寸，用于按原始宽高比摆放画面。
+  // 注意这不是 GPU 上纹理的实际尺寸 —— 后者受 set_max_output_size 裁剪，通常更小。
+  int frame_width() const { return m_frame_w; }
+  int frame_height() const { return m_frame_h; }
 
-  // 是否有有效帧
   bool has_frame() const { return m_has_frame; }
 
-  // 读回 RGBA 输出纹理的平均亮度（0~255），用于自动化验证"确实渲染出了画面"。
-  // 返回 -1 表示不可用。注意：会做一次 GPU->CPU 回读，仅用于调试/验证。
+  // 回读平均亮度（0~255），用于验证确实渲染出了画面。-1 表示不可用。
   int sample_average_luma();
 
-  // 释放渲染资源
   void destroy();
 
  private:
-  int m_width = 0;
-  int m_height = 0;
+  // 确保输出纹理存在且尺寸匹配（按上限裁剪后的目标尺寸）
+  bool ensure_output(int src_w, int src_h);
+
+  OutputTexture m_out;
+  int m_frame_w = 0;
+  int m_frame_h = 0;
   bool m_has_frame = false;
-
-#if defined(RENDERER_D3D11)
-  // --- D3D11 实现 ---
-  ID3D11Device* m_device = nullptr;
-  ID3D11DeviceContext* m_context = nullptr;
-  ID3D11ShaderResourceView* m_srv = nullptr;
-
-  // D3D11 纹理和着色器资源
-  struct D3D11Resources;
-  D3D11Resources* m_d3d = nullptr;
-
-  void create_or_resize_d3d11(int width, int height);
-  void upload_yuv_d3d11(const uint8_t* y, const uint8_t* u, const uint8_t* v, int sy, int su, int sv, int w, int h);
-#else
-  // --- OpenGL 实现 ---
-  unsigned int m_tex_y = 0;
-  unsigned int m_tex_u = 0;
-  unsigned int m_tex_v = 0;
-  unsigned int m_fbo = 0;
-  unsigned int m_rgba_tex = 0;
-  unsigned int m_shader = 0;
-  unsigned int m_vao = 0;
-  unsigned int m_vbo = 0;
-
-  // NV12（硬解 CVPixelBuffer）专用：Y 用 R8、UV 用 RG8，各一张纹理
-  unsigned int m_shader_nv12 = 0;
-  unsigned int m_tex_nv12_y = 0;
-  unsigned int m_tex_nv12_uv = 0;
-  int m_nv12_width = 0;
-  int m_nv12_height = 0;
-
-  void create_or_resize_gl(int width, int height);
-  void upload_yuv_gl(const uint8_t* y, const uint8_t* u, const uint8_t* v, int sy, int su, int sv, int w, int h);
-  unsigned int compile_shader(const char* vert_src, const char* frag_src);
-  // 把 NV12 的两张纹理渲染进 m_rgba_tex
-  void draw_nv12_to_rgba(int w, int h);
-#endif
 };
