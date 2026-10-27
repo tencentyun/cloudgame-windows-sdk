@@ -75,6 +75,12 @@ bool AppConfig::load(const std::string& config_path) {
     if (j.contains("autoSwitchIntervalSeconds") && j["autoSwitchIntervalSeconds"].is_number_integer()) {
       auto_switch_interval_seconds = j["autoSwitchIntervalSeconds"].get<int>();
     }
+    if (j.contains("verifyLuma") && j["verifyLuma"].is_boolean()) {
+      verify_luma = j["verifyLuma"].get<bool>();
+    }
+    if (j.contains("verifyLumaAll") && j["verifyLumaAll"].is_boolean()) {
+      verify_luma_all = j["verifyLumaAll"].get<bool>();
+    }
 
     LOG_INFO("Config", "Loaded config: baseUrl=%s, instanceIds=%s, concurrent=%d, hardwareDecode=%d", base_url.c_str(),
              instance_ids.c_str(), concurrent_streaming, hardware_decode ? 1 : 0);

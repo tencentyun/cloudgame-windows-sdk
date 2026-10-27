@@ -26,6 +26,38 @@
 #include "tcr_c_api.h"
 #include "tcr_types.h"
 
+// 当前进程常驻内存（MB）。只用于在 LoopStats 里给个量级参考；
+// 精确的 GPU 显存归因要看 DXGI QueryVideoMemoryInfo / PIX，不能拿 RSS 代替。
+#if defined(_WIN32)
+#  include <psapi.h>
+#  include <windows.h>
+#  pragma comment(lib, "psapi.lib")
+#endif
+#if defined(__APPLE__)
+#  include <mach/mach.h>
+#endif
+
+namespace {
+int current_rss_mb() {
+#if defined(_WIN32)
+  PROCESS_MEMORY_COUNTERS pmc = {};
+  if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
+    return (int)(pmc.WorkingSetSize / (1024 * 1024));
+  }
+  return 0;
+#elif defined(__APPLE__)
+  mach_task_basic_info info = {};
+  mach_msg_type_number_t count = MACH_TASK_BASIC_INFO_COUNT;
+  if (task_info(mach_task_self(), MACH_TASK_BASIC_INFO, (task_info_t)&info, &count) == KERN_SUCCESS) {
+    return (int)(info.resident_size / (1024 * 1024));
+  }
+  return 0;
+#else
+  return 0;
+#endif
+}
+}  // namespace
+
 // =============================================================================
 // Lifecycle
 // =============================================================================
@@ -239,6 +271,12 @@ void App::update(float dt) {
     LOG_INFO("PerInstanceFrames", "active=%d low_fps=%d stalled=%d total=%zu", active, low_fps, stalled, total);
 
     log_streaming_render_coverage(false);
+
+    // 画面正确性：帧计数正常但画面黑屏/错位时只能靠回读发现。
+    // 默认关闭（GPU→CPU 同步回读是观测开销），只在取证轮打开。
+    if ((m_config.verify_luma || m_config.verify_luma_all) && m_state == AppState::MULTI_STREAM) {
+      verify_luma_pass(m_config.verify_luma_all);
+    }
   }
 
   if (m_config.auto_exit_seconds > 0 && m_elapsed_seconds >= (float)m_config.auto_exit_seconds) {
@@ -273,6 +311,155 @@ void App::update(float dt) {
       }
     }
   }
+}
+
+// =============================================================================
+// 主循环分阶段计时
+// =============================================================================
+//
+// 五段：evt（SDL 事件）/ ui（ImGui 控件构建）/ upload（帧上传 GPU）/ gpu（Render+Present）/ tail。
+// upload 发生在 update() 内部，从 ui 段里扣掉，否则会全部算到 ui 头上，归因直接错。
+// 分位数按 2s 窗口统计后打印，只看平均值会被偶发卡顿稀释。
+
+namespace {
+double now_ms() { return (double)SDL_GetPerformanceCounter() * 1000.0 / (double)SDL_GetPerformanceFrequency(); }
+const int kStageCount = 5;
+enum { kStageEvt = 0, kStageUpload, kStageUi, kStageGpu, kStageTail };
+}  // namespace
+
+void App::begin_stage_frame() {
+  m_stage_ms.assign(kStageCount, 0.0);
+  m_upload_ms_frame = 0.0;
+  m_prev_stage_ms = now_ms();
+}
+
+void App::mark_evt_begin() { m_prev_stage_ms = now_ms(); }
+
+void App::mark_evt_end() {
+  const double t = now_ms();
+  add_stage_ms(kStageEvt, t - m_prev_stage_ms);
+  m_prev_stage_ms = t;
+}
+
+// 取走本帧上传耗时，避免重复累加
+float App::take_upload_ms() { return (float)m_upload_ms_frame; }
+
+void App::mark_gpu_begin() {
+  const double t = now_ms();
+  double ui = t - m_prev_stage_ms - m_upload_ms_frame;
+  add_stage_ms(kStageUi, ui > 0 ? ui : 0.0);
+  m_stage_ms[kStageUpload] += m_upload_ms_frame;
+  m_prev_stage_ms = t;
+}
+
+void App::mark_gpu_end() {
+  const double t = now_ms();
+  add_stage_ms(kStageGpu, t - m_prev_stage_ms);
+  m_prev_stage_ms = t;
+}
+
+void App::end_stage_frame() {
+  const double t = now_ms();
+  add_stage_ms(kStageTail, t - m_prev_stage_ms);
+
+  double total = 0;
+  for (double v : m_stage_ms) total += v;
+  m_loop_ms.push_back(total);
+  for (int i = 0; i < kStageCount; ++i) m_stage_hist[i].push_back(m_stage_ms[i]);
+
+  // 与 PerInstanceFrames 同为 2s 周期，便于对照
+  if (m_loop_ms.size() >= 2 && m_elapsed_seconds - m_last_loop_log >= 2.0f) {
+    m_last_loop_log = m_elapsed_seconds;
+    log_loop_stats();
+  }
+}
+
+void App::add_stage_ms(int stage, double ms) {
+  if (stage >= 0 && stage < kStageCount) m_stage_ms[stage] += ms;
+}
+
+void App::log_loop_stats() {
+  if (m_loop_ms.empty()) return;
+
+  auto pct = [](std::vector<double> v, double p) -> double {
+    if (v.empty()) return 0.0;
+    std::sort(v.begin(), v.end());
+    size_t i = (size_t)(p * (double)(v.size() - 1) + 0.5);
+    return v[i];
+  };
+  auto mean = [](const std::vector<double>& v) -> double {
+    if (v.empty()) return 0.0;
+    double s = 0;
+    for (double x : v) s += x;
+    return s / (double)v.size();
+  };
+
+  std::vector<double> loop = m_loop_ms;
+  std::sort(loop.begin(), loop.end());
+  const double secs = m_elapsed_seconds - m_last_loop_log_start;
+  const double p50 = pct(loop, 0.50), p95 = pct(loop, 0.95), p99 = pct(loop, 0.99);
+  const double maxv = loop.empty() ? 0.0 : loop.back();
+
+  LOG_INFO("LoopStats",
+           "fps=%.1f frame_ms avg=%.2f p50=%.2f p95=%.2f p99=%.2f max=%.2f | "
+           "evt=%.2f upload=%.2f ui=%.2f gpu=%.2f tail=%.2f | "
+           "upload_p95=%.2f gpu_p95=%.2f | uploads=%llu cells=%d draw_cmds=%d verts=%d rss_mb=%zu renderers=%d",
+           secs > 0.01 ? (double)m_loop_ms.size() / secs : 0.0, mean(loop), p50, p95, p99, maxv,
+           mean(m_stage_hist[kStageEvt]), mean(m_stage_hist[kStageUpload]), mean(m_stage_hist[kStageUi]),
+           mean(m_stage_hist[kStageGpu]), mean(m_stage_hist[kStageTail]), pct(m_stage_hist[kStageUpload], 0.95),
+           pct(m_stage_hist[kStageGpu], 0.95), (unsigned long long)m_window_uploads, m_window_cells,
+           ImGui::GetDrawData() ? ImGui::GetDrawData()->CmdListsCount : 0, ImGui::GetIO().MetricsRenderVertices,
+           (size_t)current_rss_mb(), (int)m_instance_renderers.size());
+
+  m_loop_ms.clear();
+  for (int i = 0; i < kStageCount; ++i) m_stage_hist[i].clear();
+  m_window_uploads = 0;
+  m_window_cells = 0;
+  m_last_loop_log_start = m_elapsed_seconds;
+}
+
+// 回读每路输出纹理的平均亮度。
+//
+// 这条统计和 PerInstanceFrames 互补：共享 scratch + uvScale 如果算错，或者上传完
+// 没解绑 RTV/SRV，帧计数一切正常但画面是黑屏或错位。判据有两条 ——
+//   1. nonzero 路数 == 有帧的路数（否则就是黑屏）
+//   2. 亮度值不是全同一个数（全相同说明采样位置算错，所有格子采到了同一块像素）
+void App::verify_luma_pass(bool all) {
+  std::vector<VideoRenderer*> targets;
+  std::vector<std::string> ids;
+  for (auto& kv : m_instance_renderers) {
+    if (!kv.second->has_frame()) continue;
+    targets.push_back(kv.second);
+    ids.push_back(kv.first);
+    if (!all && targets.size() >= 8) break;
+  }
+  if (targets.empty()) return;
+
+  int nonzero = 0;
+  int unavailable = 0;
+  int min_l = 255, max_l = 0;
+  uint64_t sum = 0;
+  std::string sample;
+  for (size_t i = 0; i < targets.size(); ++i) {
+    int l = targets[i]->sample_average_luma();
+    if (l < 0) {
+      unavailable++;
+      continue;
+    }
+    if (l > 0) nonzero++;
+    min_l = std::min(min_l, l);
+    max_l = std::max(max_l, l);
+    sum += (uint64_t)l;
+    if (sample.size() < 400) {
+      sample += ids[i].substr(ids[i].size() > 6 ? ids[i].size() - 6 : 0) + "=" + std::to_string(l) + " ";
+    }
+  }
+  if (min_l > max_l) {
+    min_l = max_l = 0;
+  }
+  const int checked = (int)targets.size() - unavailable;
+  LOG_INFO("LumaVerify", "checked=%d nonzero=%d unavailable=%d min=%d max=%d avg=%d spread=%d | %s", checked, nonzero,
+           unavailable, min_l, max_l, checked > 0 ? (int)(sum / (uint64_t)checked) : 0, max_l - min_l, sample.c_str());
 }
 
 // 统计当前出流（switch_streaming_instances 选中）的实例里，有多少格子已经渲染出过画面。
@@ -999,6 +1186,8 @@ void App::on_multi_video_frame(void* ud, void* fh) {
 
 void App::batch_render_frames() {
   auto frames = m_multi_frame_cache.swap_all();
+  // 上传耗时单独计时：它发生在 update() 内部，不扣掉会被算进 ui 段
+  const Uint64 up_start = SDL_GetPerformanceCounter();
   for (auto& kv : frames) {
     if (!kv.second.valid()) continue;
     VideoRenderer* r = get_or_create_renderer(kv.first);
@@ -1017,6 +1206,11 @@ void App::batch_render_frames() {
       r->upload_frame(kv.second.data_y, kv.second.data_u, kv.second.data_v, kv.second.stride_y, kv.second.stride_u,
                       kv.second.stride_v, kv.second.width, kv.second.height);
     }
+  }
+  if (!frames.empty()) {
+    m_upload_ms_frame +=
+        (double)(SDL_GetPerformanceCounter() - up_start) * 1000.0 / (double)SDL_GetPerformanceFrequency();
+    m_window_uploads += frames.size();
   }
 }
 
@@ -1239,6 +1433,7 @@ void App::render_multi_stream_page(float dt) {
 
   const size_t begin_idx = (size_t)first_row * cols;
   const size_t end_idx = std::min(total_cells, (size_t)last_row * cols);
+  m_window_cells = (int)(end_idx - begin_idx);
 
   // 渲染可见区实例（带滚动），滚动时切流到可见区。concurrentStreaming 作为同时出流上限。
   for (size_t i = begin_idx; i < end_idx; ++i) {

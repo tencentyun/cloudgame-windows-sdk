@@ -81,13 +81,11 @@ endif()
 # =============================================================
 # 源文件
 # =============================================================
-set(SOURCES
-    src/main.cpp
-    src/app.cpp
-    src/config.cpp
-    src/video_renderer.cpp
-    src/http_client.cpp
-)
+# 源文件用 GLOB 收集：renderer_backend_<平台>.cpp 靠自身平台宏守卫，
+# 各平台都会编进去，非本平台的展开为空。新增 .cpp 后必须重跑 cmake configure，
+# 否则新文件不进构建列表，链接报 create_renderer_backend undefined。
+file(GLOB DEMO_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
+set(SOURCES ${DEMO_SOURCES})
 
 # =============================================================
 # 可执行目标
