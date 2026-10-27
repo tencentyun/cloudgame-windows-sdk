@@ -47,6 +47,11 @@ struct AppConfig {
   // 每次模拟滚动切换的间隔秒数（仅在 auto_switch=true 时生效）
   int auto_switch_interval_seconds = 5;
 
+  // 画面正确性回读（自动化验证用）。回读是 GPU→CPU 同步操作，会拖慢主循环，
+  // 只在取证轮打开。verify_luma_all 扫描全部路数，否则只抽检若干路。
+  bool verify_luma = false;
+  bool verify_luma_all = false;
+
   // 从指定 json 文件加载配置
   bool load(const std::string& config_path);
 

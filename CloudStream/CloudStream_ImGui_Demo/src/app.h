@@ -77,6 +77,17 @@ class App {
   bool should_quit() const { return m_quit; }
   void render_popup_windows();
 
+  // === 主循环分阶段计时（性能测试口径）===
+  // upload 发生在 update() 内部，必须从 ui 段里扣掉，否则会全部算到 ui 头上，归因直接错。
+  // 文件头注释：本类不管 GPU 细节，只负责把每段的墙钟时间采集下来。
+  void begin_stage_frame();  // main 每轮循环开头调用
+  void end_stage_frame();    // main 每轮 Present 之后调用
+  void mark_evt_begin();     // main 开始 PollEvent 之前
+  void mark_evt_end();       // PollEvent 结束、ImGui NewFrame 之前
+  void mark_gpu_begin();     // ImGui::Render() 之前（UI 构建结束、GPU 提交开始）
+  void mark_gpu_end();       // Present 之后
+  float take_upload_ms();    // 取走本帧上传耗时
+
  private:
   AppState m_state = AppState::TOKEN_PAGE;
   bool m_quit = false;
@@ -158,6 +169,20 @@ class App {
   std::map<std::string, uint64_t> m_frame_count_window;
   std::map<std::string, uint64_t> m_frame_count_total;  // 诊断用：每路累计收到的解码帧回调次数
   std::mutex m_frame_stat_mutex;
+
+  // --- 主循环分阶段计时 ---
+  std::vector<double> m_stage_ms;           // 本帧各阶段耗时（毫秒）
+  std::vector<double> m_loop_ms;            // 2s 窗口内每帧总耗时
+  std::vector<double> m_stage_hist[5];      // 2s 窗口内各阶段耗时
+  double m_upload_ms_frame = 0;             // 本帧帧上传累计（update 内 + popup 上传）
+  double m_prev_stage_ms = 0;               // 上一段时间戳
+  float m_last_loop_log = 0;                // 上次打印 LoopStats 的时刻（elapsed 秒）
+  float m_last_loop_log_start = 0;          // 上次打印时的区间起点
+  unsigned long long m_window_uploads = 0;  // 2s 窗口内上传的帧数
+  int m_window_cells = 0;                   // 上一帧实际绘制的格子数
+  void log_loop_stats();                    // 每 2s 输出一次 LoopStats
+  void add_stage_ms(int stage, double ms);
+  void verify_luma_pass(bool all);
 
   // --- 模拟滚动窗口列表（autoSwitch）---
   float m_auto_switch_timer = 0;       // 距离上次切换的累计秒数

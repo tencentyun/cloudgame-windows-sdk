@@ -233,6 +233,8 @@ int main(int argc, char* argv[]) {
   Uint64 freq = SDL_GetPerformanceFrequency();
   bool running = true;
   while (running && !app.should_quit()) {
+    app.begin_stage_frame();
+    app.mark_evt_begin();
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
       ImGui_ImplSDL2_ProcessEvent(&event);
@@ -245,6 +247,9 @@ int main(int argc, char* argv[]) {
         running = false;
       }
     }
+
+    // 事件段结束：后续 ImGui NewFrame + app.update 里除上传外的部分都算 ui
+    app.mark_evt_end();
 
     // ImGui 新帧
 #if defined(RENDERER_D3D11)
@@ -262,6 +267,9 @@ int main(int argc, char* argv[]) {
 
     // 应用更新（处理帧 + 渲染 UI）
     app.update(delta_time);
+
+    // 阶段分界：UI 构建结束（当帧上传耗时在此被扣出），GPU 提交开始
+    app.mark_gpu_begin();
 
     // 渲染
     ImGui::Render();
@@ -281,6 +289,9 @@ int main(int argc, char* argv[]) {
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     SDL_GL_SwapWindow(window);
 #endif
+
+    app.mark_gpu_end();
+    app.end_stage_frame();
 
     // 渲染弹出窗口（在主窗口渲染完成后）
     app.render_popup_windows();
