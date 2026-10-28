@@ -29,6 +29,12 @@
 // 当前进程常驻内存（MB）。只用于在 LoopStats 里给个量级参考；
 // 精确的 GPU 显存归因要看 DXGI QueryVideoMemoryInfo / PIX，不能拿 RSS 代替。
 #if defined(_WIN32)
+// NOMINMAX 必须在任何 windows.h 之前：windows.h 会把 min/max 定义成宏，
+// 之后所有 std::min/std::max 都会解析失败（报 illegal token on right side of '::'）。
+// TcrSdkProject 顶层 CMakeLists 里加的 NOMINMAX 不会传到 Demo，这里自己兜住。
+#  ifndef NOMINMAX
+#    define NOMINMAX
+#  endif
 // windows.h 必须在 psapi.h 之前：psapi.h 用到 WINAPI/DWORD 等但没有自己包含 windows.h，
 // 先包含 psapi.h 会报"missing ';' before identifier 'WINAPI'"。
 // clang-format off：否则按字母序会把 psapi.h 排到 windows.h 前面，抵消这里的顺序要求。
