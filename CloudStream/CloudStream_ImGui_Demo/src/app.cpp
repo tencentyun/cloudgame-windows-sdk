@@ -29,9 +29,13 @@
 // 当前进程常驻内存（MB）。只用于在 LoopStats 里给个量级参考；
 // 精确的 GPU 显存归因要看 DXGI QueryVideoMemoryInfo / PIX，不能拿 RSS 代替。
 #if defined(_WIN32)
-// windows.h 必须在 psapi.h 之前：psapi.h 用到 WINAPI/DWORD 等但没有自己包含 windows.h。
-#  include <psapi.h>
+// windows.h 必须在 psapi.h 之前：psapi.h 用到 WINAPI/DWORD 等但没有自己包含 windows.h，
+// 先包含 psapi.h 会报"missing ';' before identifier 'WINAPI'"。
+// clang-format off：否则按字母序会把 psapi.h 排到 windows.h 前面，抵消这里的顺序要求。
+// clang-format off
 #  include <windows.h>
+#  include <psapi.h>
+// clang-format on
 #  pragma comment(lib, "psapi.lib")
 #endif
 #if defined(__APPLE__)
