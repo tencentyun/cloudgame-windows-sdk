@@ -29,6 +29,7 @@
 // 当前进程常驻内存（MB）。只用于在 LoopStats 里给个量级参考；
 // 精确的 GPU 显存归因要看 DXGI QueryVideoMemoryInfo / PIX，不能拿 RSS 代替。
 #if defined(_WIN32)
+// windows.h 必须在 psapi.h 之前：psapi.h 用到 WINAPI/DWORD 等但没有自己包含 windows.h。
 #  include <psapi.h>
 #  include <windows.h>
 #  pragma comment(lib, "psapi.lib")
