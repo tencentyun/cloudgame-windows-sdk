@@ -3,6 +3,22 @@
 <!-- FORMAT_VERSION: 1.0 -->
 
 ---
+## [1.34.1] - 2026-10-29
+
+### Bugfix
+- 修复连接初期切流请求可能被忽略的问题
+
+
+### Download
+
+| Platform | Arch | Package |
+|----------|------|---------|
+| Windows | x86 & x64 | [TcrSdk-Windows-Debug-1.34.1-20261029-5c8bc412.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Windows-Debug-1.34.1-20261029-5c8bc412.zip) |
+| Windows | x86 & x64 | [TcrSdk-Windows-Release-1.34.1-20261029-5c8bc412.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Windows-Release-1.34.1-20261029-5c8bc412.zip) |
+| Macos | universal | [TcrSdk-Macos-universal-1.34.1-20261029-5c8bc412.zip](https://cg-sdk-1258344699.cos.ap-nanjing.myqcloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Macos-universal-1.34.1-20261029-5c8bc412.zip) |
+| Linux | x86_64 | [TcrSdk-Linux-x86_64-1.34.1-20261029-5c8bc412.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Linux-x86_64-1.34.1-20261029-5c8bc412.zip) |
+
+---
 ## [1.34.0] - 2026-10-28
 
 ### Features
