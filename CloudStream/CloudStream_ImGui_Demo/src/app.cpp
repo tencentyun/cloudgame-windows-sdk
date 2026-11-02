@@ -26,6 +26,15 @@
 #include "tcr_c_api.h"
 #include "tcr_types.h"
 
+#if defined(_MSC_VER)
+LocalBuildHooks* get_local_build_hooks_default() { return nullptr; }
+#  pragma comment( \
+      linker,      \
+      "/alternatename:?get_local_build_hooks@@YAPAVLocalBuildHooks@@XZ=?get_local_build_hooks_default@@YAPAVLocalBuildHooks@@XZ")
+#else
+__attribute__((weak)) LocalBuildHooks* get_local_build_hooks() { return nullptr; }
+#endif
+
 // 当前进程常驻内存（MB）。只用于在 LoopStats 里给个量级参考；
 // 精确的 GPU 显存归因要看 DXGI QueryVideoMemoryInfo / PIX，不能拿 RSS 代替。
 #if defined(_WIN32)
@@ -1002,6 +1011,10 @@ void App::start_multi_streaming() {
     return;
   }
 
+  if (LocalBuildHooks* hooks = get_local_build_hooks()) {
+    hooks->before_access(m_tcr_client);
+  }
+
   m_tcr_instance = tcr_client_get_android_instance(static_cast<TcrClientHandle>(m_tcr_client));
   m_all_instance_ids = m_config.get_instance_id_list();
   m_instance_states.clear();
@@ -1344,6 +1357,10 @@ void App::render_token_page() {
     // 实时统计当前输入框中的实例数量
     size_t count = split_comma_separated(m_instance_ids_buf).size();
     ImGui::Text("Total instances: %zu", count);
+
+    if (LocalBuildHooks* hooks = get_local_build_hooks()) {
+      hooks->on_token_page_ui(this);
+    }
   }
 
   if (!m_error_message.empty()) ImGui::TextColored(ImVec4(1, 0.3f, 0.3f, 1), "%s", m_error_message.c_str());

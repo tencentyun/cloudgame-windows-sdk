@@ -61,6 +61,21 @@ struct PopupWindow {
   int video_height = 0;      // cloud phone physical screen height
 };
 
+class App;
+
+// === 本地构建的扩展点（内部调试需要）===
+class LocalBuildHooks {
+ public:
+  virtual ~LocalBuildHooks() {}
+  // 在 token 页渲染额外控件，返回 true 表示请求连接
+  virtual bool on_token_page_ui(App* app) { return false; }
+  // 在 tcr_client_init 成功后、access 之前调用
+  virtual void before_access(void* tcr_client) {}
+};
+
+// 返回本地构建提供的 hook，外部构建返回 nullptr
+LocalBuildHooks* get_local_build_hooks();
+
 class App {
  public:
   App();

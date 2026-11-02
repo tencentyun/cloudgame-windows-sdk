@@ -9,6 +9,7 @@
 #include <QMetaType>
 #include <QVariant>
 
+#include "LocalBuildHooks.h"
 #include "tcr_c_api.h"
 #include "tcr_types.h"
 #include "utils/Logger.h"
@@ -95,6 +96,11 @@ void MultiStreamViewModel::initialize(const QStringList& instanceIds, const QStr
   }
 
   Logger::info("[initialize] TcrSdk 初始化成功");
+
+  // 本地构建可在此追加初始化逻辑
+  if (LocalBuildHooks* hooks = get_local_build_hooks()) {
+    hooks->onClientInitialized();
+  }
 }
 
 // ==================== 状态查询 ====================
