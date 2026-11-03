@@ -1417,6 +1417,15 @@ void App::render_multi_stream_page(float dt) {
   ImGui::SameLine(0, 20);
   if (m_checked_instances.empty()) ImGui::BeginDisabled();
   if (ImGui::Button("Sync Ops")) open_sync_popup(m_checked_instances);
+  ImGui::SameLine();
+  if (ImGui::Button("Copy instanceId")) {
+    std::string ids;
+    for (const auto& id : m_checked_instances) {
+      if (!ids.empty()) ids += ",";
+      ids += id;
+    }
+    ImGui::SetClipboardText(ids.c_str());
+  }
   if (m_checked_instances.empty()) ImGui::EndDisabled();
   ImGui::End();
 
