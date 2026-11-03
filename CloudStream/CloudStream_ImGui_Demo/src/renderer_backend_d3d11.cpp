@@ -319,7 +319,7 @@ class D3D11Backend : public RendererBackend {
     if (!set_uv_scale((float)src.width / (float)m_scratch_w, (float)src.height / (float)m_scratch_h)) return false;
 
     ID3D11ShaderResourceView* srvs[2] = {m_srv_y, m_srv_uv};
-    draw_to(o, m_ps_i420, srvs, 2, true);
+    draw_to(*dst, m_ps_i420, srvs, 2, true);
     return true;
   }
 
@@ -366,7 +366,7 @@ class D3D11Backend : public RendererBackend {
     }
 
     ID3D11ShaderResourceView* srvs[2] = {srv, nullptr};
-    draw_to(o, ps, srvs, nv12 ? 2 : 1, false);
+    draw_to(*dst, ps, srvs, nv12 ? 2 : 1, false);
     srv->Release();
     return true;
   }
@@ -475,13 +475,18 @@ class D3D11Backend : public RendererBackend {
     m_context->OMSetRenderTargets(1, &null_rtv, nullptr);
   }
 
-  void draw_to(OutputD3D* dst, ID3D11PixelShader* ps, ID3D11ShaderResourceView** srvs, int n, bool use_cb) {
+  // 视口尺寸取自 OutputTexture，RTV 取自后端私有对象，两者的权威来源不同，
+  // 所以这里接收 OutputTexture 再解出 OutputD3D。
+  void draw_to(const OutputTexture& dst, ID3D11PixelShader* ps, ID3D11ShaderResourceView** srvs, int n, bool use_cb) {
+    OutputD3D* o = (OutputD3D*)dst.opaque;
+    if (!o) return;
+
     D3D11_VIEWPORT vp = {};
-    vp.Width = (float)(dst->width > 0 ? dst->width : 1);
-    vp.Height = (float)(dst->height > 0 ? dst->height : 1);
+    vp.Width = (float)(dst.width > 0 ? dst.width : 1);
+    vp.Height = (float)(dst.height > 0 ? dst.height : 1);
     vp.MaxDepth = 1.0f;
 
-    m_context->OMSetRenderTargets(1, &dst->rtv, nullptr);
+    m_context->OMSetRenderTargets(1, &o->rtv, nullptr);
     m_context->RSSetViewports(1, &vp);
     bind_pipeline();
     m_context->PSSetShader(ps, nullptr, 0);

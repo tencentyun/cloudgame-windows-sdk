@@ -8,6 +8,7 @@
 #include <SDL.h>
 
 #include <cstdlib>
+#include <memory>
 #include <string>
 
 #include "app.h"
@@ -17,6 +18,7 @@
 // ======= Windows: D3D11 =======
 #  include <d3d11.h>
 #  include <imgui_impl_dx11.h>
+#  include <SDL_syswm.h>
 
 static ID3D11Device* g_d3d_device = nullptr;
 static ID3D11DeviceContext* g_d3d_context = nullptr;
@@ -215,7 +217,10 @@ int main(int argc, char* argv[]) {
 #endif
 
   // 初始化应用
-  App app;
+  // App 内含 1MB 的实例列表输入缓冲，作为栈变量会顶破 Windows 默认 1MB 栈
+  // （进入 main 时 __chkstk 直接 0xC00000FD），必须放堆上。
+  std::unique_ptr<App> app_holder(new App());
+  App& app = *app_holder;
 #if defined(RENDERER_D3D11)
   if (!app.init(window, g_d3d_device, g_d3d_context)) {
     LOG_ERROR("Main", "App init failed");

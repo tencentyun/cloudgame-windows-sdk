@@ -29,9 +29,25 @@ HttpResponse http_post(const std::string& url, const std::string& json_body) {
       "curl -s -w \"\\n%{http_code}\" "
       "--connect-timeout 10 --max-time 30 "
       "-H \"Content-Type: application/json\" "
-      "-d '";
+      "-d ";
 
+#if defined(_WIN32)
+  // _popen 走 cmd.exe，不认单引号：整段要用双引号，内部的 " 再按 cmd 规则转义成 \"。
+  // 反斜杠只在引号前需要转义，JSON 里的 \ 原样保留即可。
+  cmd += '"';
+  for (char c : json_body) {
+    if (c == '"') {
+      cmd += "\\\"";
+    } else {
+      cmd += c;
+    }
+  }
+  cmd += "\" \"";
+  cmd += url;
+  cmd += "\" 2>&1";
+#else
   // 转义单引号（将 ' 替换为 '\''）
+  cmd += "'";
   for (char c : json_body) {
     if (c == '\'') {
       cmd += "'\\''";
@@ -42,6 +58,7 @@ HttpResponse http_post(const std::string& url, const std::string& json_body) {
   cmd += "' '";
   cmd += url;
   cmd += "' 2>&1";
+#endif
 
   LOG_INFO("HttpClient", "POST %s", url.c_str());
   LOG_DEBUG("HttpClient", "Body: %s", json_body.c_str());

@@ -562,8 +562,12 @@ PopupWindow* App::create_popup(const std::string& title, bool is_sync, const std
   pw->imgui_ctx = ImGui::CreateContext();
   ImGui::SetCurrentContext(pw->imgui_ctx);
   ImGui::StyleColorsDark();
+#if defined(RENDERER_D3D11)
+  ImGui_ImplSDL2_InitForD3D(pw->sdl_window);
+#else
   ImGui_ImplSDL2_InitForOpenGL(pw->sdl_window, m_gl_context);
   ImGui_ImplOpenGL3_Init("#version 330");
+#endif
   ImGui::SetCurrentContext(m_main_imgui_ctx);
 
   // Renderer
@@ -619,7 +623,9 @@ void App::destroy_popup(PopupWindow* pw) {
 
   if (pw->imgui_ctx) {
     ImGui::SetCurrentContext(pw->imgui_ctx);
+#if !defined(RENDERER_D3D11)
     ImGui_ImplOpenGL3_Shutdown();
+#endif
     ImGui_ImplSDL2_Shutdown();
     ImGui::DestroyContext(pw->imgui_ctx);
     pw->imgui_ctx = nullptr;
