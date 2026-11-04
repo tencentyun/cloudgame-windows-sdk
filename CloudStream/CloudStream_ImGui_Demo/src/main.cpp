@@ -233,13 +233,14 @@ int main(int argc, char* argv[]) {
   }
 #endif
 
-  // 主循环
+  // 主循环（diag 采集分阶段耗时，见 diagnostics.h）
+  Diagnostics& diag = app.diagnostics();
   Uint64 last_ticks = SDL_GetPerformanceCounter();
   Uint64 freq = SDL_GetPerformanceFrequency();
   bool running = true;
   while (running && !app.should_quit()) {
-    app.begin_stage_frame();
-    app.mark_evt_begin();
+    diag.begin_frame();
+    diag.mark_evt_begin();
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
       ImGui_ImplSDL2_ProcessEvent(&event);
@@ -254,7 +255,7 @@ int main(int argc, char* argv[]) {
     }
 
     // 事件段结束：后续 ImGui NewFrame + app.update 里除上传外的部分都算 ui
-    app.mark_evt_end();
+    diag.mark_evt_end();
 
     // ImGui 新帧
 #if defined(RENDERER_D3D11)
@@ -274,7 +275,7 @@ int main(int argc, char* argv[]) {
     app.update(delta_time);
 
     // 阶段分界：UI 构建结束（当帧上传耗时在此被扣出），GPU 提交开始
-    app.mark_gpu_begin();
+    diag.mark_gpu_begin();
 
     // 渲染
     ImGui::Render();
@@ -295,8 +296,8 @@ int main(int argc, char* argv[]) {
     SDL_GL_SwapWindow(window);
 #endif
 
-    app.mark_gpu_end();
-    app.end_stage_frame();
+    diag.mark_gpu_end();
+    diag.end_frame();
 
     // 渲染弹出窗口（在主窗口渲染完成后）
     app.render_popup_windows();

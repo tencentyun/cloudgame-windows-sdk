@@ -11,7 +11,9 @@
 #include <string>
 #include <vector>
 
+#include "automation.h"
 #include "config.h"
+#include "diagnostics.h"
 #include "frame_queue.h"
 #include "video_renderer.h"
 
@@ -52,6 +54,7 @@ struct PopupWindow {
   VideoRenderer* renderer = nullptr;
   bool connected = false;
   bool close_requested = false;
+  std::atomic<uint64_t> frame_count{0};  // 收到的解码帧数（SDK 解码线程写）
   // 会话状态文案：连接中 / 已关闭。close_reason 为 STATE_CLOSED 带回的关闭原因，用于 UI 显示。
   std::string close_reason;
 
@@ -59,6 +62,14 @@ struct PopupWindow {
   float rotation_angle = 0;  // 0, 90, 180, 270
   int video_width = 0;       // cloud phone physical screen width
   int video_height = 0;      // cloud phone physical screen height
+};
+
+// 多流网格的当前布局，每帧由 render_multi_stream_page 刷新
+struct GridLayout {
+  int cols = 10;       // 每行格子数（按窗口宽度动态计算）
+  float row_h = 0;     // 行高（含间距）
+  float view_h = 0;    // 可视区高度
+  float scroll_y = 0;  // 当前滚动位置
 };
 
 class App;
@@ -92,16 +103,33 @@ class App {
   bool should_quit() const { return m_quit; }
   void render_popup_windows();
 
-  // === 主循环分阶段计时（性能测试口径）===
-  // upload 发生在 update() 内部，必须从 ui 段里扣掉，否则会全部算到 ui 头上，归因直接错。
-  // 文件头注释：本类不管 GPU 细节，只负责把每段的墙钟时间采集下来。
-  void begin_stage_frame();  // main 每轮循环开头调用
-  void end_stage_frame();    // main 每轮 Present 之后调用
-  void mark_evt_begin();     // main 开始 PollEvent 之前
-  void mark_evt_end();       // PollEvent 结束、ImGui NewFrame 之前
-  void mark_gpu_begin();     // ImGui::Render() 之前（UI 构建结束、GPU 提交开始）
-  void mark_gpu_end();       // Present 之后
-  float take_upload_ms();    // 取走本帧上传耗时
+  Diagnostics& diagnostics() { return m_diag; }
+
+  // === 查询与操作接口 ===
+  // 界面上的交互最终都落到这些方法；Automation / Diagnostics 也只通过它们访问 App，不碰内部状态。
+  AppState state() const { return m_state; }
+  float elapsed_seconds() const { return m_elapsed_seconds; }
+  AppConfig& config() { return m_config; }
+  const std::vector<std::string>& instance_ids() const { return m_all_instance_ids; }
+  const std::set<std::string>& streaming_ids() const { return m_current_streaming_ids; }
+  const std::map<std::string, VideoRenderer*>& renderers() const { return m_instance_renderers; }
+  const std::vector<PopupWindow*>& popups() const { return m_popups; }
+  const GridLayout& grid_layout() const { return m_grid; }
+  bool has_session() const { return m_tcr_session != nullptr; }
+  int concurrent_limit() const;
+  bool is_rendered(const std::string& instance_id) const;  // 该格子已有画面
+  std::string fail_reason(const std::string& instance_id);
+  std::map<std::string, uint64_t> frame_totals();              // 每路累计帧数
+  std::map<std::string, uint64_t> take_window_frame_counts();  // 取走自上次调用以来每路的帧数
+
+  // 覆盖 token 页输入框；ids 为 nullptr / grid_cell_width<=0 表示不改
+  void set_token_page_inputs(const char* ids, int grid_cell_width);
+  void request_token();
+  void scroll_grid_to(float y) { m_pending_scroll_y = y; }  // 下一帧生效
+  void switch_streaming_instances(const std::vector<std::string>& ids);
+  PopupWindow* open_instance_popup(const std::string& instance_id);
+  void request_close_popups();
+  void quit() { m_quit = true; }
 
  private:
   AppState m_state = AppState::TOKEN_PAGE;
@@ -159,7 +187,8 @@ class App {
   float m_prev_scroll_y = 0;
   float m_debounce_timer = 0;
   bool m_scroll_dirty = false;
-  int m_grid_columns = 10;  // 当前每行格子数（render 时按窗口宽度动态计算）
+  float m_pending_scroll_y = -1;  // >=0 时下一帧把 grid 滚动到该位置
+  GridLayout m_grid;
 
   // --- 动态并发数（concurrentStreaming = 窗口可渲染的子流画面数量，作为同时出流上限）---
   int m_computed_concurrent = 0;       // 按窗口尺寸算出的并发数（= cols * rows）
@@ -167,42 +196,17 @@ class App {
   float m_last_grid_display_w = 0;     // 上次计算时的窗口可用宽度，用于检测 resize
   float m_last_grid_display_h = 0;     // 上次计算时的窗口可用高度，用于检测 resize
 
-  // --- 自动化验证辅助（autoStart / autoExitSeconds）---
   float m_elapsed_seconds = 0;
-  bool m_auto_start_fired = false;
-  // 统计各类型帧的到达数量，用于确认硬解/软解是否真的生效
-  std::atomic<uint64_t> m_frames_i420{0};
-  std::atomic<uint64_t> m_frames_gpu{0};
-  float m_stats_log_timer = 0;
-  float m_stream_start_elapsed = -1;  // 首次进入多流页面时的 m_elapsed_seconds
-  bool m_coverage_10s_logged = false;
-  void log_streaming_render_coverage(bool list_all_missing);
 
-  // --- per-instance 帧统计（性能测试主指标）---
-  // 每个 2s 统计段内，按 instance_id 累加收到的帧数。on_multi_video_frame 在 SDK
-  // 解码线程执行，统计在主线程（update）读取并清零，跨线程读写必须加锁保护。
+  // --- per-instance 帧计数 ---
+  // on_multi_video_frame 在 SDK 解码线程累加，主线程读取，跨线程读写必须加锁。
+  // total 决定格子的 On 标签；window 供 Diagnostics 按 2s 统计段取走。
   std::map<std::string, uint64_t> m_frame_count_window;
-  std::map<std::string, uint64_t> m_frame_count_total;  // 诊断用：每路累计收到的解码帧回调次数
+  std::map<std::string, uint64_t> m_frame_count_total;
   std::mutex m_frame_stat_mutex;
 
-  // --- 主循环分阶段计时 ---
-  std::vector<double> m_stage_ms;           // 本帧各阶段耗时（毫秒）
-  std::vector<double> m_loop_ms;            // 2s 窗口内每帧总耗时
-  std::vector<double> m_stage_hist[5];      // 2s 窗口内各阶段耗时
-  double m_upload_ms_frame = 0;             // 本帧帧上传累计（update 内 + popup 上传）
-  double m_prev_stage_ms = 0;               // 上一段时间戳
-  float m_last_loop_log = 0;                // 上次打印 LoopStats 的时刻（elapsed 秒）
-  float m_last_loop_log_start = 0;          // 上次打印时的区间起点
-  unsigned long long m_window_uploads = 0;  // 2s 窗口内上传的帧数
-  int m_window_cells = 0;                   // 上一帧实际绘制的格子数
-  void log_loop_stats();                    // 每 2s 输出一次 LoopStats
-  void add_stage_ms(int stage, double ms);
-  void verify_luma_pass(bool all);
-
-  // --- 模拟滚动窗口列表（autoSwitch）---
-  float m_auto_switch_timer = 0;       // 距离上次切换的累计秒数
-  size_t m_auto_switch_offset = 0;     // 当前滑动窗口的起始索引（在 m_all_instance_ids 里）
-  bool m_auto_switch_started = false;  // 是否已开始模拟滚动
+  Diagnostics m_diag{*this};
+  Automation m_automation{*this};
 
   // --- Popup windows (multiple, independent) ---
   std::vector<PopupWindow*> m_popups;
@@ -214,12 +218,8 @@ class App {
   void destroy_popup(PopupWindow* pw);
   void render_single_popup(PopupWindow* pw);
 
-  void open_instance_popup(const std::string& instance_id);
   void open_sync_popup(const std::set<std::string>& instance_ids);
   void close_all_popups();
-
-  // === Token ===
-  void request_token();
 
   // === 配置 ===
   // 加载指定索引的配置文件（m_config_names[index]）
@@ -233,7 +233,6 @@ class App {
 
   void batch_render_frames();
   std::vector<std::string> calculate_visible_instances(float scroll_y, float view_height, float cell_height);
-  void switch_streaming_instances(const std::vector<std::string>& ids);
   VideoRenderer* get_or_create_renderer(const std::string& instance_id);
 
   // 根据当前窗口可用尺寸，重新计算并发数（= cols * rows，作为同时出流上限）。
