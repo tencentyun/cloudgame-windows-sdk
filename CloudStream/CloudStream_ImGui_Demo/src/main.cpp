@@ -305,6 +305,7 @@ int main(int argc, char* argv[]) {
 
   // 清理
   LOG_INFO("Main", "Shutting down...");
+  app_holder.reset();
 
 #if defined(RENDERER_D3D11)
   ImGui_ImplDX11_Shutdown();

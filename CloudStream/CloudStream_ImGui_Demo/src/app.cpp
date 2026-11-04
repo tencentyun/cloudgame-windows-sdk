@@ -57,27 +57,6 @@ __attribute__((weak)) LocalBuildHooks* get_local_build_hooks() { return nullptr;
 #  include <mach/mach.h>
 #endif
 
-namespace {
-int current_rss_mb() {
-#if defined(_WIN32)
-  PROCESS_MEMORY_COUNTERS pmc = {};
-  if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
-    return (int)(pmc.WorkingSetSize / (1024 * 1024));
-  }
-  return 0;
-#elif defined(__APPLE__)
-  mach_task_basic_info info = {};
-  mach_msg_type_number_t count = MACH_TASK_BASIC_INFO_COUNT;
-  if (task_info(mach_task_self(), MACH_TASK_BASIC_INFO, (task_info_t)&info, &count) == KERN_SUCCESS) {
-    return (int)(info.resident_size / (1024 * 1024));
-  }
-  return 0;
-#else
-  return 0;
-#endif
-}
-}  // namespace
-
 // =============================================================================
 // Lifecycle
 // =============================================================================
@@ -88,6 +67,10 @@ App::~App() {
   m_is_destroying.store(true, std::memory_order_release);
   close_all_popups();
   close_session();
+  if (m_tcr_client) {
+    tcr_client_release(static_cast<TcrClientHandle>(m_tcr_client));
+    m_tcr_client = nullptr;
+  }
   for (auto& kv : m_instance_renderers) {
     kv.second->destroy();
     delete kv.second;
@@ -139,13 +122,21 @@ bool App::init(SDL_Window* window, SDL_GLContext gl_context) {
       }
     }
 
-    // 默认加载第一个配置
+    // 默认加载第一个配置；IMGUI_DEMO_CONFIG 可指定初始配置
     if (!m_config_names.empty()) {
-      select_config(0);
+      int initial = 0;
+      const std::string wanted = Automation::initial_config_name();
+      for (int i = 0; !wanted.empty() && i < (int)m_config_names.size(); ++i) {
+        if (m_config_names[i] == wanted) initial = i;
+      }
+      select_config(initial);
     } else {
       LOG_WARN("App", "No json config found in config/ directory");
     }
   }
+
+  // 选完配置后再套用环境变量覆盖（实例列表 / 格子宽度 / autoStart / 命令文件）
+  m_automation.apply_env_overrides();
 
   static TcrLogCallback lcb = {};
   lcb.on_log = [](void*, TcrLogLevel lv, const char* tag, const char* msg) {
@@ -237,6 +228,8 @@ void App::update(float dt) {
     }
   }
 
+  m_automation.before_ui();
+
   switch (m_state) {
     case AppState::TOKEN_PAGE:
     case AppState::REQUESTING_TOKEN:
@@ -248,290 +241,9 @@ void App::update(float dt) {
       break;
   }
 
-  // ---- 自动化验证辅助 ----
   m_elapsed_seconds += dt;
-  if (m_state == AppState::MULTI_STREAM && m_stream_start_elapsed < 0) m_stream_start_elapsed = m_elapsed_seconds;
-  if (m_stream_start_elapsed >= 0 && !m_coverage_10s_logged && m_elapsed_seconds - m_stream_start_elapsed >= 10.0f) {
-    m_coverage_10s_logged = true;
-    log_streaming_render_coverage(true);
-  }
-
-  // autoStart: 启动 1 秒后自动触发一次取 token + 串流
-  if (m_config.auto_start && !m_auto_start_fired && m_elapsed_seconds > 1.0f && m_state == AppState::TOKEN_PAGE) {
-    m_auto_start_fired = true;
-    LOG_INFO("App", "autoStart triggered");
-    request_token();
-  }
-
-  // 每 2 秒打印一次帧统计，便于确认硬解/软解是否真的产出帧。
-  // 注意：不再调用 sample_average_luma()——那是 GPU→CPU 回读，在多路（300 路）下
-  // 是明显的观测开销污染源。per-instance 帧计数（PerInstanceFrames）作为主指标。
-  m_stats_log_timer += dt;
-  if (m_stats_log_timer >= 2.0f) {
-    m_stats_log_timer = 0;
-    LOG_INFO("FrameStats", "elapsed=%.1fs i420_frames=%llu gpu_frames=%llu", m_elapsed_seconds,
-             (unsigned long long)m_frames_i420.load(), (unsigned long long)m_frames_gpu.load());
-
-    // 汇总本 2s 段每路收到的帧数，分类统计 active/low_fps/stalled 后清零。
-    int active = 0, low_fps = 0, stalled = 0;
-    size_t total = 0;
-    {
-      std::lock_guard<std::mutex> lock(m_frame_stat_mutex);
-      total = m_frame_count_window.size();
-      for (auto& kv : m_frame_count_window) {
-        if (kv.second >= 2)
-          active++;
-        else if (kv.second == 1)
-          low_fps++;
-        else
-          stalled++;
-      }
-      m_frame_count_window.clear();
-    }
-    LOG_INFO("PerInstanceFrames", "active=%d low_fps=%d stalled=%d total=%zu", active, low_fps, stalled, total);
-
-    log_streaming_render_coverage(false);
-
-    // 画面正确性：帧计数正常但画面黑屏/错位时只能靠回读发现。
-    // 默认关闭（GPU→CPU 同步回读是观测开销），只在取证轮打开。
-    if ((m_config.verify_luma || m_config.verify_luma_all) && m_state == AppState::MULTI_STREAM) {
-      verify_luma_pass(m_config.verify_luma_all);
-    }
-  }
-
-  if (m_config.auto_exit_seconds > 0 && m_elapsed_seconds >= (float)m_config.auto_exit_seconds) {
-    log_streaming_render_coverage(true);
-    LOG_INFO("App", "autoExitSeconds reached, quitting. i420_frames=%llu gpu_frames=%llu",
-             (unsigned long long)m_frames_i420.load(), (unsigned long long)m_frames_gpu.load());
-    m_quit = true;
-  }
-
-  // autoSwitch: 模拟滚动窗口列表，周期性切换实例子集（触发 tcr_session_switch_streaming_instances）
-  if (m_config.auto_switch && m_state == AppState::MULTI_STREAM && !m_all_instance_ids.empty() && m_tcr_session) {
-    if (!m_auto_switch_started) {
-      // 首次：从 instance_ids 头部取一个窗口，记录起点
-      m_auto_switch_started = true;
-      m_auto_switch_timer = 0;
-      m_auto_switch_offset = 0;
-    } else {
-      m_auto_switch_timer += dt;
-      if (m_auto_switch_timer >= (float)m_config.auto_switch_interval_seconds) {
-        m_auto_switch_timer = 0;
-        // 滑动窗口：每次起点 +1（模拟滚动一行），取当前动态并发数个实例
-        size_t n = m_all_instance_ids.size();
-        size_t lim = (size_t)(m_computed_concurrent > 0 ? m_computed_concurrent : m_config.concurrent_streaming);
-        std::vector<std::string> ids;
-        ids.reserve(lim);
-        for (size_t i = 0; i < lim && i < n; ++i) {
-          ids.push_back(m_all_instance_ids[(m_auto_switch_offset + i) % n]);
-        }
-        m_auto_switch_offset = (m_auto_switch_offset + 1) % n;
-        LOG_INFO("App", "autoSwitch: switching to window offset=%zu, count=%zu", m_auto_switch_offset, ids.size());
-        switch_streaming_instances(ids);
-      }
-    }
-  }
-}
-
-// =============================================================================
-// 主循环分阶段计时
-// =============================================================================
-//
-// 五段：evt（SDL 事件）/ ui（ImGui 控件构建）/ upload（帧上传 GPU）/ gpu（Render+Present）/ tail。
-// upload 发生在 update() 内部，从 ui 段里扣掉，否则会全部算到 ui 头上，归因直接错。
-// 分位数按 2s 窗口统计后打印，只看平均值会被偶发卡顿稀释。
-
-namespace {
-double now_ms() { return (double)SDL_GetPerformanceCounter() * 1000.0 / (double)SDL_GetPerformanceFrequency(); }
-const int kStageCount = 5;
-enum { kStageEvt = 0, kStageUpload, kStageUi, kStageGpu, kStageTail };
-}  // namespace
-
-void App::begin_stage_frame() {
-  m_stage_ms.assign(kStageCount, 0.0);
-  m_upload_ms_frame = 0.0;
-  m_prev_stage_ms = now_ms();
-}
-
-void App::mark_evt_begin() { m_prev_stage_ms = now_ms(); }
-
-void App::mark_evt_end() {
-  const double t = now_ms();
-  add_stage_ms(kStageEvt, t - m_prev_stage_ms);
-  m_prev_stage_ms = t;
-}
-
-// 取走本帧上传耗时，避免重复累加
-float App::take_upload_ms() { return (float)m_upload_ms_frame; }
-
-void App::mark_gpu_begin() {
-  const double t = now_ms();
-  double ui = t - m_prev_stage_ms - m_upload_ms_frame;
-  add_stage_ms(kStageUi, ui > 0 ? ui : 0.0);
-  m_stage_ms[kStageUpload] += m_upload_ms_frame;
-  m_prev_stage_ms = t;
-}
-
-void App::mark_gpu_end() {
-  const double t = now_ms();
-  add_stage_ms(kStageGpu, t - m_prev_stage_ms);
-  m_prev_stage_ms = t;
-}
-
-void App::end_stage_frame() {
-  const double t = now_ms();
-  add_stage_ms(kStageTail, t - m_prev_stage_ms);
-
-  double total = 0;
-  for (double v : m_stage_ms) total += v;
-  m_loop_ms.push_back(total);
-  for (int i = 0; i < kStageCount; ++i) m_stage_hist[i].push_back(m_stage_ms[i]);
-
-  // 与 PerInstanceFrames 同为 2s 周期，便于对照
-  if (m_loop_ms.size() >= 2 && m_elapsed_seconds - m_last_loop_log >= 2.0f) {
-    m_last_loop_log = m_elapsed_seconds;
-    log_loop_stats();
-  }
-}
-
-void App::add_stage_ms(int stage, double ms) {
-  if (stage >= 0 && stage < kStageCount) m_stage_ms[stage] += ms;
-}
-
-void App::log_loop_stats() {
-  if (m_loop_ms.empty()) return;
-
-  auto pct = [](std::vector<double> v, double p) -> double {
-    if (v.empty()) return 0.0;
-    std::sort(v.begin(), v.end());
-    size_t i = (size_t)(p * (double)(v.size() - 1) + 0.5);
-    return v[i];
-  };
-  auto mean = [](const std::vector<double>& v) -> double {
-    if (v.empty()) return 0.0;
-    double s = 0;
-    for (double x : v) s += x;
-    return s / (double)v.size();
-  };
-
-  std::vector<double> loop = m_loop_ms;
-  std::sort(loop.begin(), loop.end());
-  const double secs = m_elapsed_seconds - m_last_loop_log_start;
-  const double p50 = pct(loop, 0.50), p95 = pct(loop, 0.95), p99 = pct(loop, 0.99);
-  const double maxv = loop.empty() ? 0.0 : loop.back();
-
-  LOG_INFO("LoopStats",
-           "fps=%.1f frame_ms avg=%.2f p50=%.2f p95=%.2f p99=%.2f max=%.2f | "
-           "evt=%.2f upload=%.2f ui=%.2f gpu=%.2f tail=%.2f | "
-           "upload_p95=%.2f gpu_p95=%.2f | uploads=%llu cells=%d draw_cmds=%d verts=%d rss_mb=%zu renderers=%d",
-           secs > 0.01 ? (double)m_loop_ms.size() / secs : 0.0, mean(loop), p50, p95, p99, maxv,
-           mean(m_stage_hist[kStageEvt]), mean(m_stage_hist[kStageUpload]), mean(m_stage_hist[kStageUi]),
-           mean(m_stage_hist[kStageGpu]), mean(m_stage_hist[kStageTail]), pct(m_stage_hist[kStageUpload], 0.95),
-           pct(m_stage_hist[kStageGpu], 0.95), (unsigned long long)m_window_uploads, m_window_cells,
-           ImGui::GetDrawData() ? ImGui::GetDrawData()->CmdListsCount : 0, ImGui::GetIO().MetricsRenderVertices,
-           (size_t)current_rss_mb(), (int)m_instance_renderers.size());
-
-  m_loop_ms.clear();
-  for (int i = 0; i < kStageCount; ++i) m_stage_hist[i].clear();
-  m_window_uploads = 0;
-  m_window_cells = 0;
-  m_last_loop_log_start = m_elapsed_seconds;
-}
-
-// 回读每路输出纹理的平均亮度。
-//
-// 这条统计和 PerInstanceFrames 互补：共享 scratch + uvScale 如果算错，或者上传完
-// 没解绑 RTV/SRV，帧计数一切正常但画面是黑屏或错位。判据有两条 ——
-//   1. nonzero 路数 == 有帧的路数（否则就是黑屏）
-//   2. 亮度值不是全同一个数（全相同说明采样位置算错，所有格子采到了同一块像素）
-void App::verify_luma_pass(bool all) {
-  std::vector<VideoRenderer*> targets;
-  std::vector<std::string> ids;
-  for (auto& kv : m_instance_renderers) {
-    if (!kv.second->has_frame()) continue;
-    targets.push_back(kv.second);
-    ids.push_back(kv.first);
-    if (!all && targets.size() >= 8) break;
-  }
-  if (targets.empty()) return;
-
-  int nonzero = 0;
-  int unavailable = 0;
-  int min_l = 255, max_l = 0;
-  uint64_t sum = 0;
-  std::string sample;
-  for (size_t i = 0; i < targets.size(); ++i) {
-    int l = targets[i]->sample_average_luma();
-    if (l < 0) {
-      unavailable++;
-      continue;
-    }
-    if (l > 0) nonzero++;
-    min_l = std::min(min_l, l);
-    max_l = std::max(max_l, l);
-    sum += (uint64_t)l;
-    if (sample.size() < 400) {
-      sample += ids[i].substr(ids[i].size() > 6 ? ids[i].size() - 6 : 0) + "=" + std::to_string(l) + " ";
-    }
-  }
-  if (min_l > max_l) {
-    min_l = max_l = 0;
-  }
-  const int checked = (int)targets.size() - unavailable;
-  LOG_INFO("LumaVerify", "checked=%d nonzero=%d unavailable=%d min=%d max=%d avg=%d spread=%d | %s", checked, nonzero,
-           unavailable, min_l, max_l, checked > 0 ? (int)(sum / (uint64_t)checked) : 0, max_l - min_l, sample.c_str());
-}
-
-// 统计当前出流（switch_streaming_instances 选中）的实例里，有多少格子已经渲染出过画面。
-// PerInstanceFrames 只能看到收到帧的实例，看不到"从未出帧"的格子，所以单独统计。
-void App::log_streaming_render_coverage(bool list_all_missing) {
-  if (m_state != AppState::MULTI_STREAM && m_state != AppState::DISCONNECTED) return;
-  if (m_stream_start_elapsed < 0) return;
-  size_t rendered = 0;
-  std::vector<std::string> missing;
-  for (const auto& id : m_current_streaming_ids) {
-    auto it = m_instance_renderers.find(id);
-    if (it != m_instance_renderers.end() && it->second->has_frame())
-      rendered++;
-    else
-      missing.push_back(id);
-  }
-  std::string ms;
-  size_t n = list_all_missing ? missing.size() : std::min<size_t>(missing.size(), 5);
-  // 区分：SDK 已回调过解码帧但格子没画面（本地渲染链路问题） vs SDK 从未回调（解码前/服务端）
-  size_t cb_but_no_render = 0;
-  std::string cb_ids;
-  {
-    std::lock_guard<std::mutex> lock(m_frame_stat_mutex);
-    for (const auto& id : missing) {
-      auto it = m_frame_count_total.find(id);
-      if (it != m_frame_count_total.end() && it->second > 0) {
-        cb_but_no_render++;
-        cb_ids += id + "(" + std::to_string(it->second) + ") ";
-      }
-    }
-  }
-  if (list_all_missing || cb_but_no_render)
-    LOG_INFO("RenderCoverage", "missing_with_sdk_callback=%zu %s", cb_but_no_render, cb_ids.c_str());
-  if (list_all_missing) {
-    // 收到了帧回调、但不在 Demo 期望出流集合里的实例（说明服务端推的集合 ≠ Demo 期望的集合）
-    std::set<std::string> want(m_current_streaming_ids.begin(), m_current_streaming_ids.end());
-    std::string extra;
-    size_t n_extra = 0;
-    std::lock_guard<std::mutex> lock(m_frame_stat_mutex);
-    for (const auto& kv : m_frame_count_total) {
-      if (!want.count(kv.first)) {
-        n_extra++;
-        extra += kv.first + "(" + std::to_string(kv.second) + ") ";
-      }
-    }
-    LOG_INFO("RenderCoverage", "callback_instances=%zu not_in_streaming_set=%zu %s", m_frame_count_total.size(),
-             n_extra, extra.c_str());
-  }
-  for (size_t i = 0; i < n; ++i) ms += (i ? "," : "") + missing[i];
-  LOG_INFO("RenderCoverage", "since_stream=%.1fs streaming=%zu rendered=%zu missing=%zu [%s]%s",
-           m_elapsed_seconds - m_stream_start_elapsed, m_current_streaming_ids.size(), rendered, missing.size(),
-           ms.c_str(), n < missing.size() ? "..." : "");
+  m_automation.after_ui(dt);
+  m_diag.tick(dt);
 }
 
 // =============================================================================
@@ -654,9 +366,9 @@ void App::destroy_popup(PopupWindow* pw) {
   delete pw;
 }
 
-void App::open_instance_popup(const std::string& id) {
+PopupWindow* App::open_instance_popup(const std::string& id) {
   std::string title = "Instance: " + (id.size() > 30 ? "..." + id.substr(id.size() - 27) : id);
-  create_popup(title, false, id, {});
+  return create_popup(title, false, id, {});
 }
 
 void App::open_sync_popup(const std::set<std::string>& ids) {
@@ -714,6 +426,7 @@ void App::on_popup_video_frame(void* ud, void* fh) {
   TcrVideoFrameHandle h = static_cast<TcrVideoFrameHandle>(fh);
   const TcrVideoFrameBuffer* b = tcr_video_frame_get_buffer(h);
   if (!b) return;
+  pw->frame_count.fetch_add(1, std::memory_order_relaxed);
   if (b->type == TCR_VIDEO_BUFFER_TYPE_GPU) {
     tcr_video_frame_add_ref(h);
     pw->frame_queue.push(VideoFrame(h, b->buffer.gpu, b->timestamp_us));
@@ -1196,14 +909,14 @@ void App::on_multi_video_frame(void* ud, void* fh) {
 
   if (b->type == TCR_VIDEO_BUFFER_TYPE_GPU) {
     // 硬件解码：GPU 纹理，零拷贝交给渲染线程
-    s->m_frames_gpu.fetch_add(1, std::memory_order_relaxed);
+    s->m_diag.on_decoded_frame(true);
     tcr_video_frame_add_ref(h);
     s->m_multi_frame_cache.push(id, VideoFrame(h, b->buffer.gpu, b->timestamp_us));
     return;
   }
 
   if (b->type != TCR_VIDEO_BUFFER_TYPE_I420) return;
-  s->m_frames_i420.fetch_add(1, std::memory_order_relaxed);
+  s->m_diag.on_decoded_frame(false);
   tcr_video_frame_add_ref(h);
   const TcrI420Buffer& i = b->buffer.i420;
   s->m_multi_frame_cache.push(id, VideoFrame(h, i.data_y, i.data_u, i.data_v, i.stride_y, i.stride_u, i.stride_v,
@@ -1238,9 +951,9 @@ void App::batch_render_frames() {
     }
   }
   if (!frames.empty()) {
-    m_upload_ms_frame +=
-        (double)(SDL_GetPerformanceCounter() - up_start) * 1000.0 / (double)SDL_GetPerformanceFrequency();
-    m_window_uploads += frames.size();
+    m_diag.on_frames_uploaded(
+        (double)(SDL_GetPerformanceCounter() - up_start) * 1000.0 / (double)SDL_GetPerformanceFrequency(),
+        frames.size());
   }
 }
 
@@ -1258,7 +971,7 @@ VideoRenderer* App::get_or_create_renderer(const std::string& id) {
 
 std::vector<std::string> App::calculate_visible_instances(float sy, float vh, float ch) {
   if (ch <= 0 || m_all_instance_ids.empty()) return {};
-  int c = m_grid_columns;
+  int c = m_grid.cols;
   int sr = std::max(0, (int)(sy / ch));
   int er = (int)((sy + vh) / ch) + 1;
   int si = std::max(0, sr * c);
@@ -1298,7 +1011,7 @@ void App::recompute_concurrent_streaming(float avail_w, float avail_h) {
   // 解码分辨率留一张全尺寸 RGBA，500 路就是几百 MB 的纯浪费。
   VideoRenderer::set_max_output_size((int)(cell_vw * 2), (int)(cell_vh * 2));
 
-  m_grid_columns = cols;
+  m_grid.cols = cols;
   m_computed_concurrent = n;
   m_last_grid_display_w = avail_w;
   m_last_grid_display_h = avail_h;
@@ -1457,7 +1170,7 @@ void App::render_multi_stream_page(float dt) {
       rebuild_session_with_new_limit();
     }
   }
-  int cols = m_grid_columns;
+  int cols = m_grid.cols;
 
   // 可见行裁剪：实例列表可达数千条，而窗口一次只放得下十几行。
   // 不裁剪的话每帧都要为列表里每个实例做 5~6 次 map 查找 + 控件构建，
@@ -1466,7 +1179,15 @@ void App::render_multi_stream_page(float dt) {
   const size_t total_cells = m_all_instance_ids.size();
   const int total_rows = cols > 0 ? (int)((total_cells + cols - 1) / cols) : 0;
   const float row_h = ch + sp;
+  // scroll_grid_to 的请求在这里生效；SetScrollY 下一帧才反映到 GetScrollY，之后走正常的滚动防抖切流
+  if (m_pending_scroll_y >= 0) {
+    ImGui::SetScrollY(m_pending_scroll_y);
+    m_pending_scroll_y = -1;
+  }
   const float scroll_y = ImGui::GetScrollY();
+  m_grid.row_h = row_h;
+  m_grid.view_h = gh;
+  m_grid.scroll_y = scroll_y;
   // 上下各多画一行，避免滚动时边缘闪烁
   int first_row = std::max(0, (int)(scroll_y / row_h) - 1);
   int last_row = std::min(total_rows, (int)((scroll_y + gh) / row_h) + 2);
@@ -1476,7 +1197,7 @@ void App::render_multi_stream_page(float dt) {
 
   const size_t begin_idx = (size_t)first_row * cols;
   const size_t end_idx = std::min(total_cells, (size_t)last_row * cols);
-  m_window_cells = (int)(end_idx - begin_idx);
+  m_diag.on_grid_cells_drawn((int)(end_idx - begin_idx));
 
   // 渲染可见区实例（带滚动），滚动时切流到可见区。concurrentStreaming 作为同时出流上限。
   for (size_t i = begin_idx; i < end_idx; ++i) {
@@ -1616,4 +1337,49 @@ void App::render_multi_stream_page(float dt) {
               m_all_instance_ids.size(), conn, m_current_streaming_ids.size(), m_checked_instances.size(),
               m_popups.size());
   ImGui::End();
+}
+
+// =============================================================================
+// 查询与操作接口（Automation / Diagnostics 只通过这些访问 App）
+// =============================================================================
+
+int App::concurrent_limit() const {
+  return m_computed_concurrent > 0 ? m_computed_concurrent : m_config.concurrent_streaming;
+}
+
+bool App::is_rendered(const std::string& instance_id) const {
+  auto it = m_instance_renderers.find(instance_id);
+  return it != m_instance_renderers.end() && it->second && it->second->has_frame();
+}
+
+std::string App::fail_reason(const std::string& instance_id) {
+  std::lock_guard<std::mutex> lock(m_instance_offline_mutex);
+  auto it = m_instance_fail_reason.find(instance_id);
+  return it == m_instance_fail_reason.end() ? std::string() : it->second;
+}
+
+std::map<std::string, uint64_t> App::frame_totals() {
+  std::lock_guard<std::mutex> lock(m_frame_stat_mutex);
+  return m_frame_count_total;
+}
+
+std::map<std::string, uint64_t> App::take_window_frame_counts() {
+  std::lock_guard<std::mutex> lock(m_frame_stat_mutex);
+  std::map<std::string, uint64_t> out;
+  out.swap(m_frame_count_window);
+  return out;
+}
+
+void App::set_token_page_inputs(const char* ids, int grid_cell_width) {
+  if (ids) {
+    std::memset(m_instance_ids_buf, 0, sizeof(m_instance_ids_buf));
+    std::strncpy(m_instance_ids_buf, ids, sizeof(m_instance_ids_buf) - 1);
+  }
+  if (grid_cell_width > 0) {
+    snprintf(m_grid_cell_width_buf, sizeof(m_grid_cell_width_buf), "%d", grid_cell_width);
+  }
+}
+
+void App::request_close_popups() {
+  for (auto* pw : m_popups) pw->close_requested = true;
 }
