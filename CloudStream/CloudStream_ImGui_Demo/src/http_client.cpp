@@ -57,7 +57,9 @@ HttpResponse http_post(const std::string& url, const std::string& json_body) {
   }
   cmd += "' '";
   cmd += url;
-  cmd += "' 2>&1";
+  // stderr 不能并进响应体：curl 或被继承了诊断环境变量（如 MallocStackLogging）的 shell 往 stderr
+  // 打的任何一行都会混进 JSON，导致取 Token 失败。curl -s 已静默，失败由 http_code 判断。
+  cmd += "' 2>/dev/null";
 #endif
 
   LOG_INFO("HttpClient", "POST %s", url.c_str());
