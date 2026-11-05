@@ -208,6 +208,11 @@ class App {
   Diagnostics m_diag{*this};
   Automation m_automation{*this};
 
+  // 出流后「滚走再滚回」一次：0=未触发（进入多流页面后计时到延迟），
+  // 1=已切到别处，2=已切回并结束。
+  int m_reswitch_phase = 0;
+  float m_reswitch_timer = 0;
+
   // --- Popup windows (multiple, independent) ---
   std::vector<PopupWindow*> m_popups;
   std::map<Uint32, std::vector<SDL_Event>> m_popup_events_map;  // windowID -> events

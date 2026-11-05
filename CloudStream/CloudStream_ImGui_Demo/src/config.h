@@ -6,6 +6,9 @@
 #include <vector>
 
 struct AppConfig {
+  // 启动时要选中的配置名（不含 .json 后缀）。要求环境变量 TCR_CONFIG_NAME 指向本文件
+  // 本身；为空则保持原有行为，按文件名排序选第一个。分组并发跑多个配置时靠它区分。
+  std::string config_name;
   std::string base_url = "https://test-accelerator-biz-server.cai.crtrcloud.com";
   std::string api_path = "/CreateAndroidInstancesAccessToken";
   std::string instance_ids;  // 逗号分隔的实例 ID
@@ -46,6 +49,12 @@ struct AppConfig {
 
   // 每次模拟滚动切换的间隔秒数（仅在 auto_switch=true 时生效）
   int auto_switch_interval_seconds = 5;
+
+  // 出流后主动「滚一下再滚回来」：先切到另一组实例，隔几秒再切回首屏可见集合。
+  // 线上经验是首屏一次性下发几百路时服务端不一定全量推流，来回切一次才会补齐。
+  bool reswitch_once = false;
+  int reswitch_delay_seconds = 15;  // 出流后多久开始第一次切换
+  int reswitch_hold_seconds = 3;    // 切走后停留几秒再切回来
 
   // 画面正确性回读（自动化验证用）。回读是 GPU→CPU 同步操作，会拖慢主循环，
   // 只在取证轮打开。verify_luma_all 扫描全部路数，否则只抽检若干路。

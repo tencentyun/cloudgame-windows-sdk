@@ -199,6 +199,19 @@ int main(int argc, char* argv[]) {
   SDL_GL_SetSwapInterval((no_vsync && no_vsync[0] == '1') ? 0 : 1);
 #endif
 
+  {
+    int lw = 0, lh = 0, pw = 0, ph = 0;
+    SDL_GetWindowSize(window, &lw, &lh);
+#if defined(RENDERER_D3D11)
+    pw = lw;
+    ph = lh;
+#else
+    SDL_GL_GetDrawableSize(window, &pw, &ph);
+#endif
+    // 网格容量按 drawable 像素算，和这里打印的一致；对不上说明拿到了逻辑分辨率画布。
+    LOG_INFO("Main", "Window logical=%dx%d drawable=%dx%d", lw, lh, pw, ph);
+  }
+
   // 初始化 ImGui
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
@@ -237,8 +250,29 @@ int main(int argc, char* argv[]) {
   Diagnostics& diag = app.diagnostics();
   Uint64 last_ticks = SDL_GetPerformanceCounter();
   Uint64 freq = SDL_GetPerformanceFrequency();
+
+  // 主循环限帧。每帧的固定开销（ImGui 绘制几百个格子、Present 时和窗口服务器的 IPC）
+  // 按重绘次数计费，高刷屏上 VSync 会让主循环跑到 120~160 次/秒；而多路小流每路只有
+  // 个位数 fps，60Hz 重绘已经不会漏掉任何一帧画面。TCR_MAX_FPS=0 表示不限（只受 VSync 约束）。
+  int max_fps = 60;
+  if (const char* v = SDL_getenv("TCR_MAX_FPS")) max_fps = std::atoi(v);
+  const Uint64 frame_budget = max_fps > 0 ? freq / (Uint64)max_fps : 0;
+  Uint64 next_frame_at = SDL_GetPerformanceCounter();
+  LOG_INFO("Main", "max_fps=%d", max_fps);
+
   bool running = true;
   while (running && !app.should_quit()) {
+    if (frame_budget) {
+      Uint64 now_pc = SDL_GetPerformanceCounter();
+      if (now_pc < next_frame_at) {
+        Uint32 ms = (Uint32)((next_frame_at - now_pc) * 1000 / freq);
+        // 不做亚毫秒忙等：多睡少睡 1ms 对重绘节奏无感，忙等却是实打实的 CPU
+        if (ms > 0) SDL_Delay(ms);
+      }
+      // 落后太多时（卡顿后）不追帧，直接从当前时刻重新计
+      Uint64 after = SDL_GetPerformanceCounter();
+      next_frame_at = (after > next_frame_at + frame_budget) ? after + frame_budget : next_frame_at + frame_budget;
+    }
     diag.begin_frame();
     diag.mark_evt_begin();
     SDL_Event event;

@@ -4,6 +4,9 @@
 
 #if defined(RENDERER_OPENGL)
 
+#  include <chrono>
+#  include <cstdlib>
+#  include <unordered_map>
 #  include <vector>
 
 #  include "logger.h"
@@ -195,8 +198,10 @@ class GlBackend : public RendererBackend {
     if (m_scratch_y) glDeleteTextures(1, &m_scratch_y);
     if (m_scratch_u) glDeleteTextures(1, &m_scratch_u);
     if (m_scratch_v) glDeleteTextures(1, &m_scratch_v);
-    if (m_nv12_y) glDeleteTextures(1, &m_nv12_y);
-    if (m_nv12_uv) glDeleteTextures(1, &m_nv12_uv);
+#  if defined(__APPLE__)
+    for (auto& kv : m_surface_cache) release_surface_textures(&kv.second);
+    m_surface_cache.clear();
+#  endif
     if (m_vao) glDeleteVertexArrays(1, &m_vao);
     if (m_vbo) glDeleteBuffers(1, &m_vbo);
     if (m_fbo) glDeleteFramebuffers(1, &m_fbo);
@@ -285,30 +290,30 @@ class GlBackend : public RendererBackend {
     const int w = src.width;
     const int h = src.height;
 
-    if (!m_nv12_y) glGenTextures(1, &m_nv12_y);
-    if (!m_nv12_uv) glGenTextures(1, &m_nv12_uv);
+    const SurfaceTextures* st = get_surface_textures(cgl, surface, w, h);
+    if (!st) return false;
+    draw_nv12(st->y, st->uv, w, h, *dst);
 
-    // IOSurface 只能绑定到 GL_TEXTURE_RECTANGLE
-    if (!bind_iosurface_plane(cgl, m_nv12_y, GL_R8, w, h, GL_RED, surface, 0)) return false;
-    if (!bind_iosurface_plane(cgl, m_nv12_uv, GL_RG8, (w + 1) / 2, (h + 1) / 2, GL_RG, surface, 1)) return false;
-
-    GlStateGuard guard;
-    begin_draw(*dst);
-    glUseProgram(m_prog_nv12);
-
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_RECTANGLE, m_nv12_y);
-    glUniform1i(m_u_nv12_y, 0);
-
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_RECTANGLE, m_nv12_uv);
-    glUniform1i(m_u_nv12_uv, 1);
-
-    // sampler2DRect 使用像素坐标，需把 [0,1] 的 uv 缩放到各平面实际尺寸
-    glUniform2f(m_u_nv12_size_y, (float)w, (float)h);
-    glUniform2f(m_u_nv12_size_uv, (float)((w + 1) / 2), (float)((h + 1) / 2));
-
-    draw_quad();
+    // 缓存正确性自检（TCR_GL_SURFACE_CACHE_CHECK=1 时开启，只用于验证）：抽样把同一帧再用
+    // 现场新绑定的纹理画一遍，逐字节比较两次输出。缓存纹理如果读到的是旧内容（冻帧），这里会不一致。
+    if (m_cache_check && (++m_cache_check_counter % 97) == 0) {
+      std::vector<uint8_t> cached = read_output(*dst);
+      SurfaceTextures fresh;
+      glGenTextures(1, &fresh.y);
+      glGenTextures(1, &fresh.uv);
+      if (bind_iosurface_plane(cgl, fresh.y, GL_R8, w, h, GL_RED, surface, 0) &&
+          bind_iosurface_plane(cgl, fresh.uv, GL_RG8, (w + 1) / 2, (h + 1) / 2, GL_RG, surface, 1)) {
+        draw_nv12(fresh.y, fresh.uv, w, h, *dst);
+        const bool same = cached == read_output(*dst);
+        ++m_cache_check_total;
+        if (!same) ++m_cache_check_mismatch;
+        if ((m_cache_check_total % 50) == 0) {
+          LOG_INFO("GLBackend", "surface cache check: compared=%d mismatch=%d cache_entries=%zu", m_cache_check_total,
+                   m_cache_check_mismatch, m_surface_cache.size());
+        }
+      }
+      release_surface_textures(&fresh);
+    }
     return true;
 #  else
     (void)src;
@@ -389,6 +394,125 @@ class GlBackend : public RendererBackend {
   }
 
 #  if defined(__APPLE__)
+  // IOSurface → 纹理缓存。
+  //
+  // CGLTexImageIOSurface2D 每调一次都会 flush GL context（提交一个 Metal command buffer）
+  // 并新建一个 MTLTexture。400 路 × 每秒数帧 × 2 个 plane 时，这两项占了主线程约 1/5。
+  // VideoToolbox 的输出来自循环复用的缓冲池，同一个 IOSurface 会反复出现；
+  // IOSurface 纹理读的是表面的实时内存，绑定一次即可一直用，所以按表面缓存纹理。
+  //
+  // 键带上 IOSurfaceID：表面释放后指针可能被新表面复用，只比指针会拿到旧尺寸的纹理。
+  // GL 纹理会持有它绑定的 IOSurface，长期不用的条目必须清掉，否则解码器已经丢弃的
+  // 缓冲（切流、分辨率变化）会一直占着内存。
+  struct SurfaceTextures {
+    unsigned int y = 0;
+    unsigned int uv = 0;
+    IOSurfaceID id = 0;
+    int w = 0;
+    int h = 0;
+    std::chrono::steady_clock::time_point last_use;
+  };
+
+  const SurfaceTextures* get_surface_textures(CGLContextObj cgl, IOSurfaceRef surface, int w, int h) {
+    const auto now = std::chrono::steady_clock::now();
+    const IOSurfaceID id = IOSurfaceGetID(surface);
+    // TCR_GL_SURFACE_CACHE=0 关闭缓存，每帧重新绑定（等同改造前的行为），只用于性能对照
+    if (m_cache_disabled) {
+      for (auto& kv : m_surface_cache) release_surface_textures(&kv.second);
+      m_surface_cache.clear();
+    }
+    auto it = m_surface_cache.find(surface);
+    if (it != m_surface_cache.end() && (it->second.id != id || it->second.w != w || it->second.h != h)) {
+      release_surface_textures(&it->second);
+      m_surface_cache.erase(it);
+      it = m_surface_cache.end();
+    }
+    if (it == m_surface_cache.end()) {
+      SurfaceTextures st;
+      glGenTextures(1, &st.y);
+      glGenTextures(1, &st.uv);
+      // IOSurface 只能绑定到 GL_TEXTURE_RECTANGLE
+      if (!bind_iosurface_plane(cgl, st.y, GL_R8, w, h, GL_RED, surface, 0) ||
+          !bind_iosurface_plane(cgl, st.uv, GL_RG8, (w + 1) / 2, (h + 1) / 2, GL_RG, surface, 1)) {
+        release_surface_textures(&st);
+        return nullptr;
+      }
+      st.id = id;
+      st.w = w;
+      st.h = h;
+      it = m_surface_cache.emplace(surface, st).first;
+    }
+    it->second.last_use = now;
+    sweep_surface_cache(now);
+    return &it->second;
+  }
+
+  void sweep_surface_cache(std::chrono::steady_clock::time_point now) {
+    if (now - m_last_sweep < std::chrono::seconds(1)) return;
+    m_last_sweep = now;
+    for (auto it = m_surface_cache.begin(); it != m_surface_cache.end();) {
+      if (now - it->second.last_use > std::chrono::seconds(2)) {
+        release_surface_textures(&it->second);
+        it = m_surface_cache.erase(it);
+      } else {
+        ++it;
+      }
+    }
+  }
+
+  static void release_surface_textures(SurfaceTextures* st) {
+    if (st->y) glDeleteTextures(1, &st->y);
+    if (st->uv) glDeleteTextures(1, &st->uv);
+    st->y = st->uv = 0;
+  }
+
+  void draw_nv12(unsigned int y, unsigned int uv, int w, int h, const OutputTexture& dst) {
+    GlStateGuard guard;
+    begin_draw(dst);
+    glUseProgram(m_prog_nv12);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_RECTANGLE, y);
+    glUniform1i(m_u_nv12_y, 0);
+
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_RECTANGLE, uv);
+    glUniform1i(m_u_nv12_uv, 1);
+
+    // sampler2DRect 使用像素坐标，需把 [0,1] 的 uv 缩放到各平面实际尺寸
+    glUniform2f(m_u_nv12_size_y, (float)w, (float)h);
+    glUniform2f(m_u_nv12_size_uv, (float)((w + 1) / 2), (float)((h + 1) / 2));
+
+    draw_quad();
+  }
+
+  std::vector<uint8_t> read_output(const OutputTexture& tex) {
+    std::vector<uint8_t> px((size_t)tex.width * tex.height * 4, 0);
+    GLint prev_fbo = 0;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prev_fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex_of(tex), 0);
+    glPixelStorei(GL_PACK_ALIGNMENT, 1);
+    glReadPixels(0, 0, tex.width, tex.height, GL_RGBA, GL_UNSIGNED_BYTE, px.data());
+    glBindFramebuffer(GL_FRAMEBUFFER, prev_fbo);
+    return px;
+  }
+
+  bool m_cache_check = [] {
+    const char* v = getenv("TCR_GL_SURFACE_CACHE_CHECK");
+    return v && v[0] == '1';
+  }();
+  bool m_cache_disabled = [] {
+    const char* v = getenv("TCR_GL_SURFACE_CACHE");
+    return v && v[0] == '0';
+  }();
+  int m_cache_check_counter = 0;
+  int m_cache_check_total = 0;
+  int m_cache_check_mismatch = 0;
+
+  std::unordered_map<IOSurfaceRef, SurfaceTextures> m_surface_cache;
+  std::chrono::steady_clock::time_point m_last_sweep;
+
   bool bind_iosurface_plane(CGLContextObj cgl, unsigned int tex, GLenum internal_fmt, int w, int h, GLenum fmt,
                             IOSurfaceRef surface, uint32_t plane) {
     glBindTexture(GL_TEXTURE_RECTANGLE, tex);
@@ -417,9 +541,6 @@ class GlBackend : public RendererBackend {
   unsigned int m_scratch_v = 0;
   int m_scratch_w = 0;
   int m_scratch_h = 0;
-
-  unsigned int m_nv12_y = 0;
-  unsigned int m_nv12_uv = 0;
 
   // 缓存的 uniform 位置（init_shared 里解析一次）
   int m_u_tex_y = -1;

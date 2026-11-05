@@ -103,7 +103,12 @@ bool App::init(SDL_Window* window, SDL_GLContext gl_context) {
     std::string base = bp ? std::string(bp) : "";
     SDL_free(bp);
 
+    // 环境变量 TCR_CONFIG_DIR 指定的目录优先：直接改构建产物里的 config 会被下次构建的
+    // copy_config_dir 覆盖，放在源码目录之外也便于多个构建共用/单独改一份配置。
     std::vector<std::string> candidates;
+    if (const char* env_dir = SDL_getenv("TCR_CONFIG_DIR")) {
+      if (env_dir[0]) candidates.push_back(std::string(env_dir) + "/");
+    }
     candidates.push_back(base + "config/");
 #if defined(__APPLE__)
     // SDL_GetBasePath() 在 macOS 上返回 Contents/Resources/，而可执行文件在 Contents/MacOS/
@@ -122,16 +127,24 @@ bool App::init(SDL_Window* window, SDL_GLContext gl_context) {
       }
     }
 
-    // 默认加载第一个配置；IMGUI_DEMO_CONFIG 可指定初始配置
-    if (!m_config_names.empty()) {
-      int initial = 0;
-      const std::string wanted = Automation::initial_config_name();
-      for (int i = 0; !wanted.empty() && i < (int)m_config_names.size(); ++i) {
-        if (m_config_names[i] == wanted) initial = i;
-      }
-      select_config(initial);
-    } else {
+    // 选中优先级：TCR_CONFIG_NAME > IMGUI_DEMO_CONFIG > 第一个。
+    int selected = 0;
+    std::string want_name;
+    if (const char* env_name = SDL_getenv("TCR_CONFIG_NAME")) want_name = env_name;
+    if (want_name.empty()) want_name = Automation::initial_config_name();
+    if (m_config_names.empty()) {
       LOG_WARN("App", "No json config found in config/ directory");
+    } else {
+      if (!want_name.empty()) {
+        auto it = std::find(m_config_names.begin(), m_config_names.end(), want_name);
+        if (it != m_config_names.end()) {
+          selected = (int)(it - m_config_names.begin());
+        } else {
+          LOG_WARN("App", "'%s' not found in %s, falling back to first", want_name.c_str(), m_config_dir.c_str());
+          selected = 0;
+        }
+      }
+      select_config(selected);
     }
   }
 
@@ -244,6 +257,36 @@ void App::update(float dt) {
   m_elapsed_seconds += dt;
   m_automation.after_ui(dt);
   m_diag.tick(dt);
+
+  // reswitchOnce: 首屏一次性下发几百路时，服务端未必全量推流，来回切一次才会补齐。
+  // 这里模拟「滚走再滚回」：切到列表尾部的同样多路，停留几秒，再切回首屏可见集合。
+  if (m_config.reswitch_once && m_state == AppState::MULTI_STREAM && m_tcr_session) {
+    // 集合大小取当前出流集合，而不是网格容量：实例总数可能少于网格容量。
+    const size_t n = m_all_instance_ids.size();
+    const size_t cur = m_current_streaming_ids.size();
+    if (n > 1 && cur > 0) {
+      m_reswitch_timer += dt;
+      if (m_reswitch_phase == 0 && m_reswitch_timer >= (float)m_config.reswitch_delay_seconds) {
+        // 切到列表里另一段连续实例。选的如果和当前集合完全重合，切流接口会认为没变化，
+        // 也就起不到「滚一下」的作用，所以要保证和当前集合有交集之外的部分。
+        size_t k = cur < n ? cur : n - 1;
+        std::vector<std::string> other;
+        other.reserve(k);
+        for (size_t i = 0; i < k; ++i) other.push_back(m_all_instance_ids[n - k + i]);
+        LOG_INFO("App", "reswitch: phase 0 -> 1, switching away to %zu instances", other.size());
+        switch_streaming_instances(other);
+        m_reswitch_phase = 1;
+        m_reswitch_timer = 0;
+      } else if (m_reswitch_phase == 1 && m_reswitch_timer >= (float)m_config.reswitch_hold_seconds) {
+        std::vector<std::string> first;
+        first.reserve(cur);
+        for (size_t i = 0; i < n && first.size() < cur; ++i) first.push_back(m_all_instance_ids[i]);
+        LOG_INFO("App", "reswitch: phase 1 -> 2, switching back to %zu instances", first.size());
+        switch_streaming_instances(first);
+        m_reswitch_phase = 2;
+      }
+    }
+  }
 }
 
 // =============================================================================
@@ -645,6 +688,14 @@ void App::select_config(int index) {
     snprintf(m_grid_cell_width_buf, sizeof(m_grid_cell_width_buf), "%d", m_config.grid_cell_width);
     LOG_INFO("App", "Selected config [%d] %s (instances=%zu)", index, m_config_names[index].c_str(),
              m_config.get_instance_id_list().size());
+    // 配置里声明的 configName 是给「共享一份配置、按环境变量选文件」的场景标记自己身份的，
+    // 这里不信任目录里恰好同名的其它文件，只用来发现放错位置。
+    if (const char* env_name = SDL_getenv("TCR_CONFIG_NAME")) {
+      if (m_config.config_name != env_name) {
+        LOG_WARN("App", "%s declares configName='%s' but TCR_CONFIG_NAME='%s'", path.c_str(),
+                 m_config.config_name.c_str(), env_name);
+      }
+    }
   } else {
     LOG_WARN("App", "Failed to load config %s", path.c_str());
   }
@@ -1016,8 +1067,11 @@ void App::recompute_concurrent_streaming(float avail_w, float avail_h) {
   m_last_grid_display_w = avail_w;
   m_last_grid_display_h = avail_h;
 
-  LOG_INFO("App", "recompute_concurrent_streaming: avail=%.0fx%.0f cell=%.0f cols=%d rows=%d concurrent=%d", avail_w,
-           avail_h, cell_vw, cols, rows, n);
+  LOG_INFO("App",
+           "recompute_concurrent_streaming: display=%.0fx%.0f avail=%.0fx%.0f cell=%.0fx%.0f cols=%d rows=%d "
+           "concurrent=%d",
+           ImGui::GetIO().DisplaySize.x, ImGui::GetIO().DisplaySize.y, avail_w, avail_h, cell_vw, cell_vh, cols, rows,
+           n);
 }
 
 void App::rebuild_session_with_new_limit() {

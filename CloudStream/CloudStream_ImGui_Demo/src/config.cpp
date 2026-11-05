@@ -26,6 +26,9 @@ bool AppConfig::load(const std::string& config_path) {
     nlohmann::json j;
     file >> j;
 
+    if (j.contains("configName") && j["configName"].is_string()) {
+      config_name = j["configName"].get<std::string>();
+    }
     if (j.contains("baseUrl") && j["baseUrl"].is_string()) {
       base_url = j["baseUrl"].get<std::string>();
     }
@@ -74,6 +77,15 @@ bool AppConfig::load(const std::string& config_path) {
     }
     if (j.contains("autoSwitchIntervalSeconds") && j["autoSwitchIntervalSeconds"].is_number_integer()) {
       auto_switch_interval_seconds = j["autoSwitchIntervalSeconds"].get<int>();
+    }
+    if (j.contains("reswitchOnce") && j["reswitchOnce"].is_boolean()) {
+      reswitch_once = j["reswitchOnce"].get<bool>();
+    }
+    if (j.contains("reswitchDelaySeconds") && j["reswitchDelaySeconds"].is_number_integer()) {
+      reswitch_delay_seconds = j["reswitchDelaySeconds"].get<int>();
+    }
+    if (j.contains("reswitchHoldSeconds") && j["reswitchHoldSeconds"].is_number_integer()) {
+      reswitch_hold_seconds = j["reswitchHoldSeconds"].get<int>();
     }
     if (j.contains("verifyLuma") && j["verifyLuma"].is_boolean()) {
       verify_luma = j["verifyLuma"].get<bool>();
