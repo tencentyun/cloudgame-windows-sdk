@@ -3,6 +3,22 @@
 <!-- FORMAT_VERSION: 1.0 -->
 
 ---
+## [1.34.2] - 2026-11-05
+
+### Bugfix
+- 修复 Windows 端停止音频播放/采集时偶发崩溃的问题
+
+
+### Download
+
+| Platform | Arch | Package |
+|----------|------|---------|
+| Windows | x86 & x64 | [TcrSdk-Windows-Debug-1.34.2-20261105-c2f7f9b3.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Windows-Debug-1.34.2-20261105-c2f7f9b3.zip) |
+| Windows | x86 & x64 | [TcrSdk-Windows-Release-1.34.2-20261105-c2f7f9b3.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Windows-Release-1.34.2-20261105-c2f7f9b3.zip) |
+| Macos | universal | [TcrSdk-Macos-universal-1.34.2-20261105-c2f7f9b3.zip](https://cg-sdk-1258344699.cos.ap-nanjing.myqcloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Macos-universal-1.34.2-20261105-c2f7f9b3.zip) |
+| Linux | x86_64 | [TcrSdk-Linux-x86_64-1.34.2-20261105-c2f7f9b3.zip](https://tcrsdk.tencent-cloud.com/CloudDeviceWinSDK/sdk/TcrSdk-Linux-x86_64-1.34.2-20261105-c2f7f9b3.zip) |
+
+---
 ## [1.34.1] - 2026-10-29
 
 ### Bugfix
