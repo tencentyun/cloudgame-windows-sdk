@@ -9,6 +9,7 @@
 #include "logger.h"
 
 #if defined(_WIN32)
+#  include <windows.h>
 #  define popen _popen
 #  define pclose _pclose
 #endif
@@ -32,19 +33,25 @@ HttpResponse http_post(const std::string& url, const std::string& json_body) {
       "-d ";
 
 #if defined(_WIN32)
-  // _popen 走 cmd.exe，不认单引号：整段要用双引号，内部的 " 再按 cmd 规则转义成 \"。
-  // 反斜杠只在引号前需要转义，JSON 里的 \ 原样保留即可。
-  cmd += '"';
-  for (char c : json_body) {
-    if (c == '"') {
-      cmd += "\\\"";
-    } else {
-      cmd += c;
-    }
+  // _popen 走 cmd.exe，命令行上限 8191 字符：几百个实例 ID 的请求体放进命令行会直接失败
+  // （curl 不执行，退出码 1、无输出）。请求体写进临时文件，用 -d @file 传给 curl。
+  char tmp_dir[MAX_PATH] = {0};
+  char tmp_file[MAX_PATH] = {0};
+  GetTempPathA(MAX_PATH, tmp_dir);
+  GetTempFileNameA(tmp_dir, "tcr", 0, tmp_file);
+  if (FILE* fp = fopen(tmp_file, "wb")) {
+    fwrite(json_body.data(), 1, json_body.size(), fp);
+    fclose(fp);
   }
+  struct TmpFileGuard {
+    const char* path;
+    ~TmpFileGuard() { DeleteFileA(path); }
+  } tmp_guard{tmp_file};
+  cmd += "\"@";
+  cmd += tmp_file;
   cmd += "\" \"";
   cmd += url;
-  cmd += "\" 2>&1";
+  cmd += "\" 2>NUL";
 #else
   // 转义单引号（将 ' 替换为 '\''）
   cmd += "'";
