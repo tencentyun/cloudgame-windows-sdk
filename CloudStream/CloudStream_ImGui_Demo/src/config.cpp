@@ -63,6 +63,9 @@ bool AppConfig::load(const std::string& config_path) {
     if (j.contains("showInstanceId") && j["showInstanceId"].is_boolean()) {
       show_instance_id = j["showInstanceId"].get<bool>();
     }
+    if (j.contains("sharedDecoderCount") && j["sharedDecoderCount"].is_number_integer()) {
+      shared_decoder_count = j["sharedDecoderCount"].get<int>();
+    }
     if (j.contains("hardwareDecode") && j["hardwareDecode"].is_boolean()) {
       hardware_decode = j["hardwareDecode"].get<bool>();
     }

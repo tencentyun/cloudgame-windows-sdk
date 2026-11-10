@@ -818,6 +818,7 @@ void App::create_multi_session() {
   // 并发数由窗口尺寸动态计算（recompute_concurrent_streaming 已在上游调用时算出）。
   // 保证 concurrentStreamingInstances 始终等于当前窗口可渲染的子流画面数量。
   c.concurrentStreamingInstances = m_computed_concurrent > 0 ? m_computed_concurrent : m_config.concurrent_streaming;
+  c.shared_decoder_count = m_config.shared_decoder_count;
   m_session_concurrent_limit = c.concurrentStreamingInstances;
 
   m_tcr_session = tcr_client_create_session(static_cast<TcrClientHandle>(m_tcr_client), &c);

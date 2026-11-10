@@ -36,6 +36,8 @@ struct AppConfig {
 
   // 启用硬件解码（GPU 解码），失败时 SDK 自动回退软解
   bool hardware_decode = false;
+  // 多路小流共用解码器数量（TcrSessionConfig::shared_decoder_count），0 为每路一个
+  int shared_decoder_count = 0;
 
   // 启动后自动请求 token 并开始串流，无需点击按钮（便于自动化验证）
   bool auto_start = false;
