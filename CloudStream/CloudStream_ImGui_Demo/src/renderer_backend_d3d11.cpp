@@ -24,9 +24,11 @@
 
 #  include <d3d11.h>
 #  include <d3dcompiler.h>
+#  include <dxgi.h>
 
 #  include <cstdint>
 #  include <cstring>
+#  include <unordered_map>
 
 #  include "logger.h"
 #  include "renderer_backend.h"
@@ -53,8 +55,8 @@ VS_OUTPUT main(VS_INPUT input) {
 // I420 -> RGBA，BT.601 全范围系数，与 GL 后端保持一致
 const char* kPsI420Src = R"(
 Texture2D texY : register(t0);
-Texture2D texU : register(t1);
-Texture2D texV : register(t2);
+// U/V 由 update_uv_plane 交错写进同一张 RG8 纹理（U 在 R，V 在 G），只绑定 t0/t1。
+Texture2D texUV : register(t1);
 SamplerState samp : register(s0);
 
 // 共享暂存纹理按「历史最大帧」分配，本帧可能只占左上角一块。
@@ -72,8 +74,9 @@ struct PS_INPUT {
 float4 main(PS_INPUT input) : SV_TARGET {
     float2 uv = input.uv * uvScale;
     float y = texY.Sample(samp, uv).r;
-    float u = texU.Sample(samp, uv).r - 0.5;
-    float v = texV.Sample(samp, uv).r - 0.5;
+    float2 c = texUV.Sample(samp, uv).rg - float2(0.5, 0.5);
+    float u = c.x;
+    float v = c.y;
 
     float r = y + 1.402 * v;
     float g = y - 0.344136 * u - 0.714136 * v;
@@ -159,6 +162,8 @@ class D3D11Backend : public RendererBackend {
 
   ~D3D11Backend() override {
     destroy_shared();
+    for (auto& kv : m_shared_textures) kv.second->Release();
+    m_shared_textures.clear();
     safe_release(&m_luma_rtv);
     safe_release(&m_luma_tex);
     safe_release(&m_luma_staging);
@@ -225,7 +230,15 @@ class D3D11Backend : public RendererBackend {
     samp_desc.MaxLOD = D3D11_FLOAT32_MAX;
     hr |= m_device->CreateSamplerState(&samp_desc, &m_sampler);
 
-    if (FAILED(hr) || !m_vs || !m_layout || !m_vb || !m_cb || !m_sampler) {
+    // ImGui 的 DX11 后端会留下「开启裁剪」的光栅化状态和 alpha 混合状态，裁剪矩形是上一个
+    // 控件的位置。往小输出纹理绘制时若沿用它，整块会被裁掉，纹理保持初始全黑。
+    D3D11_RASTERIZER_DESC rs_desc = {};
+    rs_desc.FillMode = D3D11_FILL_SOLID;
+    rs_desc.CullMode = D3D11_CULL_NONE;
+    rs_desc.DepthClipEnable = TRUE;
+    hr |= m_device->CreateRasterizerState(&rs_desc, &m_rs);
+
+    if (FAILED(hr) || !m_rs || !m_vs || !m_layout || !m_vb || !m_cb || !m_sampler) {
       LOG_ERROR("D3D11Backend", "failed to create shared resources: 0x%08lx", (unsigned long)hr);
       return false;
     }
@@ -241,6 +254,7 @@ class D3D11Backend : public RendererBackend {
     safe_release(&m_srv_y);
     safe_release(&m_srv_uv);
     safe_release(&m_sampler);
+    safe_release(&m_rs);
     safe_release(&m_cb);
     safe_release(&m_vb);
     safe_release(&m_layout);
@@ -332,7 +346,8 @@ class D3D11Backend : public RendererBackend {
     if (src.platform != TCR_GPU_PLATFORM_D3D11 || !src.handle) return false;
 
     bool nv12 = (src.pixel_format == TCR_GPU_PIXEL_FORMAT_NV12);
-    ID3D11PixelShader* ps = nv12 ? m_ps_nv12 : m_ps_bgra;
+    // RGBA8 直接拷贝；只有 BGRA8 才需要换红蓝通道（SDK 的 D3D11 硬解给的是 RGBA8）
+    ID3D11PixelShader* ps = nv12 ? m_ps_nv12 : (src.pixel_format == TCR_GPU_PIXEL_FORMAT_BGRA8 ? m_ps_bgra : m_ps_copy);
     if (!ps) return false;
 
     D3D11_SHADER_RESOURCE_VIEW_DESC sd = {};
@@ -352,10 +367,12 @@ class D3D11Backend : public RendererBackend {
         return false;
     }
 
-    // 这张纹理可能不是本 device 创建的（客户端自己的解码器），跨 device 需要标准
-    // shared handle，无法在此判断；CreateShaderResourceView 失败即为不可用。
+    // SDK 的硬解纹理建在 SDK 自己的 D3D11 device 上（MISC_SHARED）。直接拿别的 device 的
+    // 纹理建 SRV 是非法用法：驱动不报错，但采样结果全黑。这里按共享句柄在本 device 上打开。
+    ID3D11Texture2D* tex = open_on_own_device((ID3D11Texture2D*)src.handle);
+    if (!tex) return false;
     ID3D11ShaderResourceView* srv = nullptr;
-    HRESULT hr = m_device->CreateShaderResourceView((ID3D11Texture2D*)src.handle, &sd, &srv);
+    HRESULT hr = m_device->CreateShaderResourceView(tex, &sd, &srv);
     if (FAILED(hr)) {
       static bool warned = false;
       if (!warned) {
@@ -422,6 +439,44 @@ class D3D11Backend : public RendererBackend {
   }
 
  private:
+  // 外部 device 的纹理 -> 本 device 上打开的同一张纹理。解码器纹理来自固定大小的池，
+  // 按共享句柄缓存，避免每帧 OpenSharedResource。
+  ID3D11Texture2D* open_on_own_device(ID3D11Texture2D* foreign) {
+    ID3D11Device* owner = nullptr;
+    foreign->GetDevice(&owner);
+    const bool same = (owner == m_device);
+    safe_release(&owner);
+    if (same) return foreign;
+
+    IDXGIResource* dxgi = nullptr;
+    HANDLE handle = nullptr;
+    if (SUCCEEDED(foreign->QueryInterface(__uuidof(IDXGIResource), (void**)&dxgi))) dxgi->GetSharedHandle(&handle);
+    safe_release(&dxgi);
+    if (!handle) {
+      static bool warned = false;
+      if (!warned) {
+        warned = true;
+        LOG_WARN("D3D11Backend", "decode texture is from another device and not shareable");
+      }
+      return nullptr;
+    }
+    auto it = m_shared_textures.find(handle);
+    if (it != m_shared_textures.end()) return it->second;
+    ID3D11Texture2D* opened = nullptr;
+    if (FAILED(m_device->OpenSharedResource(handle, __uuidof(ID3D11Texture2D), (void**)&opened))) {
+      static bool warned = false;
+      if (!warned) {
+        warned = true;
+        LOG_WARN("D3D11Backend", "OpenSharedResource on decode texture failed");
+      }
+      return nullptr;
+    }
+    m_shared_textures.emplace(handle, opened);
+    return opened;
+  }
+
+  std::unordered_map<HANDLE, ID3D11Texture2D*> m_shared_textures;
+
   bool compile_shader(const char* src, const char* profile, ID3DBlob** vs_blob, ID3D11PixelShader** ps_out) {
     ID3DBlob* blob = nullptr;
     ID3DBlob* err = nullptr;
@@ -452,6 +507,11 @@ class D3D11Backend : public RendererBackend {
     m_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
     m_context->VSSetShader(m_vs, nullptr, 0);
     m_context->PSSetSamplers(0, 1, &m_sampler);
+    // 不继承 ImGui 留下的裁剪/混合/深度状态，见 m_rs 创建处的说明
+    m_context->RSSetState(m_rs);
+    m_context->OMSetBlendState(nullptr, nullptr, 0xffffffff);
+    m_context->OMSetDepthStencilState(nullptr, 0);
+    m_context->GSSetShader(nullptr, nullptr, 0);
   }
 
   bool set_uv_scale(float sx, float sy) {
@@ -647,6 +707,7 @@ class D3D11Backend : public RendererBackend {
   ID3D11Buffer* m_vb = nullptr;
   ID3D11Buffer* m_cb = nullptr;
   ID3D11SamplerState* m_sampler = nullptr;
+  ID3D11RasterizerState* m_rs = nullptr;
 
   ID3D11Texture2D* m_scratch_y = nullptr;
   ID3D11Texture2D* m_scratch_uv = nullptr;
